@@ -215,7 +215,7 @@ export const MontProOptimised: React.FC = () => {
                 if (num_runs < 2) {
                     console.log(`Limb size: ${word_size}. Time taken for 1 run: ${timings[word_size][0]}ms`)
                 } else {
-                    const sum = timings[word_size].reduce((a: number, b: number) => {return a + b}, 0)
+                    const sum = timings[word_size].slice(1).reduce((a: number, b: number) => {return a + b}, 0)
                     const avg = Math.floor(sum / num_runs)
                     console.log(`Limb size: ${word_size}. Average time taken: ${avg}ms`)
                 }
