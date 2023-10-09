@@ -51,7 +51,7 @@ export const MontProOptimised: React.FC = () => {
                     //`Max terms: ${misc_params.max_terms}, k: ${misc_params.k}, ` +
                     //`nSafe: ${misc_params.nsafe}`
                 //)
-                console.log(`Performing ${num_inputs} (a ^ ${cost} * b * r) (using MontProOptimised) with ${word_size}-bit limbs over ${num_words} runs on ${num_x_workgroups} workgroups`)
+                console.log(`Performing ${num_inputs} (a ^ ${cost} * b * r) (using MontProOptimised) with ${word_size}-bit limbs over ${num_runs} runs on ${num_x_workgroups} workgroups`)
 
                 const p_limbs = gen_p_limbs(p, num_words, word_size)
 
