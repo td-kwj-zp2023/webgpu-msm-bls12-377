@@ -74,9 +74,37 @@ describe('utils', () => {
             let csr_sparse_matrix = await new CSRSparseMatrix([], [], []).ell_to_csr_sparse_matrix(ell_sparse_matrix)
             
             // Perform sparse transpose and vector product 
-            let smtvp_result = csr_sparse_matrix.smtvp(vec)
+            let smtvp_result = await csr_sparse_matrix.smtvp(vec)
                     
-            // expect(smtvp_result).toEqual(matrix_vec_product)      
+            expect(smtvp_result).toEqual(matrix_vec_product)      
+        })
+
+        it('test_transpose', async () => {
+            let dense_matrix = new DenseMatrix([
+                [null, 5, null, 4, null],
+                [7, 2, null, null, 1],
+                [null, null, 3, null, null],
+                [null, null, null, null, null],
+                [null, 8, 2, null, null],
+            ])
+            
+            let csr_sparse_matrix = new CSRSparseMatrix(
+                [5, 4, 7, 2, 1, 3, 8, 2],
+                [1, 3, 0, 1, 4, 2, 1, 2],
+                [0, 2, 5, 6, 6, 8],
+            )
+            
+            // Transpose dense matrix
+            let dense_transposed = await dense_matrix.transpose()
+            
+            // Transform transposed dense matrix to transposed CRS sparse matrix
+            let ell_sparse_matrix_transposed = await new ELLSparseMatrix([], [], []).dense_to_sparse_matrix(dense_transposed) 
+            let expected_csr_transposed = await new CSRSparseMatrix([], [], []).ell_to_csr_sparse_matrix(ell_sparse_matrix_transposed)
+            
+            // Transpose sparse matrix in CSR representation
+            let csr_transposed = await csr_sparse_matrix.transpose()
+            
+            expect(csr_transposed).toEqual(expected_csr_transposed)      
         })
     })
 })
