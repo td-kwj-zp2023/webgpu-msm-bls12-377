@@ -125,7 +125,18 @@ export const compute_misc_params = (
 
     // Returns triple (g, rinv, pprime)
     const egcdResult: {g: bigint, x: bigint, y: bigint} = bigintCryptoUtils.eGcd(r, p);
+    const rinv = egcdResult.x
     const pprime = egcdResult.y
+
+    if (rinv < BigInt(0)) {
+        assert((r * rinv - p * pprime) % p + p === BigInt(1))
+        assert((r * rinv) % p + p == BigInt(1))
+        assert((p * pprime) % r == BigInt(1))
+    } else {
+        assert((r * rinv - p * pprime) % p === BigInt(1))
+        assert((r * rinv) % p == BigInt(1))
+        assert((p * pprime) % r + r == BigInt(1))
+    }
 
     const neg_n_inv = r - pprime
     const n0 = neg_n_inv % (BigInt(2) ** BigInt(word_size))
