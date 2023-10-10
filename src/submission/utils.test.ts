@@ -35,12 +35,18 @@ describe('utils', () => {
 
             // Returns triple (g, rinv, pprime)
             let egcdResult = bigintCryptoUtils.eGcd(r, p);
-            
-            // Sanity-check rinv and pprime
-            expect((r * egcdResult.x - p * egcdResult.y) % p + BigInt(p)).toEqual(BigInt(1))
-            expect((r * egcdResult.x) % p == BigInt(1))
-            expect((p * egcdResult.y) % r == BigInt(1))
 
+            // Sanity-check rinv and pprime
+            if (egcdResult.x < BigInt(0)) {
+                expect((r * egcdResult.x - p * egcdResult.y) % p + BigInt(p)).toEqual(BigInt(1))
+                expect((r * egcdResult.x) % p == BigInt(1))
+                expect((p * egcdResult.y) % r == BigInt(1))
+            } else {
+                expect((r * egcdResult.x - p * egcdResult.y) % p).toEqual(BigInt(1))
+                expect((r * egcdResult.x) % p == BigInt(1))
+                expect((p * egcdResult.y) % r == BigInt(1))
+            }
+            
             const expected = { num_words, max_terms: 40, k: 65, nsafe: 32, n0: BigInt(8191), r: r % p}
             const misc = compute_misc_params(p, word_size)
             expect(misc).toEqual(expected)
