@@ -3,6 +3,8 @@ import {
     from_words_le,
     compute_misc_params,
 } from './utils'
+import { log } from 'console'
+import * as bigintCryptoUtils from 'bigint-crypto-utils'
 
 describe('utils', () => {
     const p = BigInt('0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001')
@@ -25,13 +27,25 @@ describe('utils', () => {
 
     describe('misc functions', () => {
         it('compute_misc_params', () => {
-            const num_words = 20
+            // Check that there are enough limbs to fit the modulus
+            expect(2 ** (num_words * word_size)).toBeGreaterThanOrEqual(p)
+
+            // The Montgomery radix
             const r = BigInt(2) ** BigInt(num_words * word_size)
-            const expected = { num_words, max_terms: 40, k: 65, nsafe: 32, n0: BigInt(8191), r }
+
+            // Returns triple (g, rinv, pprime)
+            let egcdResult = bigintCryptoUtils.eGcd(r, p);
+            
+            // Sanity-check rinv and pprime
+            expect((r * egcdResult.x - p * egcdResult.y) % p + BigInt(p)).toEqual(BigInt(1))
+            expect((r * egcdResult.x) % p == BigInt(1))
+            expect((p * egcdResult.y) % r == BigInt(1))
+
+            const expected = { num_words, max_terms: 40, k: 65, nsafe: 32, n0: BigInt(8191), r: r % p}
             const misc = compute_misc_params(p, word_size)
             expect(misc).toEqual(expected)
         })
     })
 })
 
-export {}
+// export {}
