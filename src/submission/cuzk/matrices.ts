@@ -32,19 +32,18 @@ export class DenseMatrix implements Interface.DenseMatrix {
         return new DenseMatrix(transposedMatrix);
     }
 
-    // TODO: FIX CORRECTNESS
     async matrix_vec_mult(vec: number[]): Promise<number[]> {
         assert(this.num_columns == vec.length)
 
         let matrix = Array(this.num_rows).fill(0);
         for (const [i, j] of this.data.entries()) {
-            for (const [position, value] of j) {
+            for (const [position, value] of j.entries()) {
                 if (value != null) {
                     matrix[i] += value * vec[position]
                 }
             }
         }
-        
+
         return matrix
     }
 }
@@ -177,8 +176,27 @@ export class CSRSparseMatrix implements Interface.CSRSparseMatrix {
 
     // Perform SMTVP. See https://ieeexplore.ieee.org/document/7097920, Figure 2b.
     async smtvp(vec: number[]): Promise<number[]> {
-        console.log("Not Implemented Yet!")
-        return Promise.resolve([]);
+        // Check if vector length equals the number of rows
+        assert(vec.length == this.row_ptr.length - 1)
+
+        // Determine maximum col_idx value
+        let max_col_idx = 0
+        for (const i of this.col_idx) {
+            if (i > max_col_idx) {
+                max_col_idx = i
+            }
+        }
+
+        let result = Array(max_col_idx + 1).fill(0);
+        for (let i = 0; i < vec.length; i++) {
+            let row_begin = this.row_ptr[i]
+            let row_end = this.row_ptr[i + 1]
+            for (let j = row_begin; j < row_end; j++) {
+                result[this.col_idx[j]] += this.data[j] * vec[i]
+            }
+        }
+
+        return result
     }
 
     // See https://ieeexplore.ieee.org/document/7097920, Figure 4.
@@ -189,7 +207,50 @@ export class CSRSparseMatrix implements Interface.CSRSparseMatrix {
 
     // See https://stackoverflow.com/questions/49395986/compressed-sparse-row-transpose
     async transpose(): Promise<CSRSparseMatrix> {
-        console.log("Not Implemented Yet!")
-        return Promise.resolve(new CSRSparseMatrix([], [], []))
+        // Number of rows, columns, non-zero elements
+        let n = this.row_ptr.length - 1
+
+        let m = 0
+        for (const i of this.col_idx) {
+            if (i > m) {
+                m = i
+            }
+        }
+
+        m += 1
+        let nz = this.data.length
+
+        // Initialize data for transposed sparse matrix
+        let sparse_matrix = Array(nz).fill(0);
+        let col_idx = Array(nz).fill(0);
+        let row_ptr = Array(m + 1).fill(0);
+
+        // Calculate count per columns
+        for (let i = 0; i < nz; i++) {
+            row_ptr[this.col_idx[i] + 2] += 1
+        }
+
+        // From count per columns generate new rowPtr (but shifted)
+        for (let i = 2; i < row_ptr.length; i++) {
+            // Calculate incremental sum
+            row_ptr[i] += row_ptr[i - 1]
+        }
+
+        // Perform the main part
+        for (let i = 0; i < n; i++) {
+            for (let j = this.row_ptr[i]; j < this.row_ptr[i + 1]; j++) {
+                // Calculate index to transposed matrix at which we should place current element,
+                // and at the same time build final rowPtr
+                let new_index = row_ptr[this.col_idx[j] + 1]
+                row_ptr[this.col_idx[j] + 1] += 1
+                sparse_matrix[new_index] = this.data[j]
+                col_idx[new_index] = i
+            }
+        }
+
+        // Pop that one extra
+        row_ptr.pop()
+
+        return new CSRSparseMatrix(sparse_matrix, col_idx, row_ptr)
     }
 }
