@@ -5,7 +5,10 @@ import {
     gen_p_limbs,
     bigints_to_u8_for_gpu,
 } from '../submission/utils'
-import shader from '../submission/wgsl/mont_pro_optimised.template.wgsl'
+
+import mont_pro_optimised_shader from '../submission/wgsl/mont_pro_optimised.template.wgsl'
+import mont_pro_modified_shader from '../submission/wgsl/mont_pro_modified.template.wgsl'
+import mont_pro_cios_shader from '../submission/wgsl/mont_pro_cios.template.wgsl'
 
 //import { our_msm } from '../submission/entries/entry'
 import React, { useEffect } from 'react';
@@ -36,7 +39,7 @@ export const MontProOptimised: React.FC = () => {
 
             const timings: any = {}
 
-            for (let word_size = 12; word_size < 14; word_size ++) {
+            for (let word_size = 12; word_size < 17; word_size ++) {
                 timings[word_size] = []
 
                 const misc_params = compute_misc_params(p, word_size)
@@ -51,21 +54,55 @@ export const MontProOptimised: React.FC = () => {
                     //`Max terms: ${misc_params.max_terms}, k: ${misc_params.k}, ` +
                     //`nSafe: ${misc_params.nsafe}`
                 //)
-                console.log(`Performing ${num_inputs} (a ^ ${cost} * b * r) (using MontProOptimised) with ${word_size}-bit limbs over ${num_runs} runs on ${num_x_workgroups} workgroups`)
-
                 const p_limbs = gen_p_limbs(p, num_words, word_size)
 
-                const shaderCode = mustache.render(
-                    shader,
-                    {
-                        num_words,
-                        word_size,
-                        n0,
-                        mask,
-                        cost,
-                        p_limbs,
-                    }
-                )
+                let shaderCode = ''
+
+                if (word_size > 11 && word_size < 14) {
+                    console.log(`Performing ${num_inputs} (a ^ ${cost} * b * r) (using MontProOptimised) with ${word_size}-bit limbs over ${num_runs} runs on ${num_x_workgroups} workgroups`)
+
+                    shaderCode = mustache.render(
+                        mont_pro_optimised_shader,
+                        {
+                            num_words,
+                            word_size,
+                            n0,
+                            mask,
+                            cost,
+                            p_limbs,
+                        }
+                    )
+                } else if (word_size > 13 && word_size < 16) {
+                    console.log(`Performing ${num_inputs} (a ^ ${cost} * b * r) (using MontProModified) with ${word_size}-bit limbs over ${num_runs} runs on ${num_x_workgroups} workgroups`)
+                    shaderCode = mustache.render(
+                        mont_pro_modified_shader,
+                        {
+                            num_words,
+                            word_size,
+                            n0,
+                            mask,
+                            cost,
+                            p_limbs,
+                            nsafe: misc_params.nsafe,
+                        }
+                    )
+                } else if (word_size === 16) {
+                    console.log(`Performing ${num_inputs} (a ^ ${cost} * b * r) (using MontProCios) with ${word_size}-bit limbs over ${num_runs} runs on ${num_x_workgroups} workgroups`)
+                    shaderCode = mustache.render(
+                        mont_pro_cios_shader,
+                        {
+                            num_words,
+                            num_words_plus_one: num_words + 1,
+                            num_words_plus_two: num_words + 2,
+                            word_size,
+                            n0,
+                            mask,
+                            cost,
+                            p_limbs,
+                            nsafe: misc_params.nsafe,
+                        }
+                    )
+                }
                 //console.log(shaderCode)
 
                 for (let run = 0; run < num_runs; run ++) {

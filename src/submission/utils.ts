@@ -1,5 +1,6 @@
 import assert from 'assert'
 import crypto from 'crypto'
+import * as bigintCryptoUtils from 'bigint-crypto-utils'
 
 export const bigints_to_u8_for_gpu = (
     vals: bigint[],
@@ -121,7 +122,10 @@ export const compute_misc_params = (
 
     // The Montgomery radix
     const r = BigInt(2) ** BigInt(num_words * word_size)
-    const pprime = BigInt('183831927387679033470068733315866210565667624244646258479593498695159647305729')
+
+    // Returns triple (g, rinv, pprime)
+    const egcdResult: {g: bigint, x: bigint, y: bigint} = bigintCryptoUtils.eGcd(r, p);
+    const pprime = egcdResult.y
 
     const neg_n_inv = r - pprime
     const n0 = neg_n_inv % (BigInt(2) ** BigInt(word_size))
