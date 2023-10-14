@@ -1,5 +1,7 @@
 import * as Interface from './interfaces';
 import { strict as assert } from 'assert';
+import { FieldMath } from "../../reference/utils/FieldMath";
+import { ExtPointType } from "@noble/curves/abstract/edwards";
 
 /**
  * Dense Matrix Class
@@ -174,8 +176,8 @@ export class CSRSparseMatrix implements Interface.CSRSparseMatrix {
         return Promise.resolve(new DenseMatrix([]))
     }
 
-    // Perform SMTVP. See https://ieeexplore.ieee.org/document/7097920, Figure 2b.
-    async smtvp(vec: number[]): Promise<number[]> {
+    // Perform SMVP. See https://ieeexplore.ieee.org/document/7097920, Figure 2a. 
+    async smvp(vec: bigint[], fieldMath: FieldMath): Promise<ExtPointType[]> {
         // Check if vector length equals the number of rows
         assert(vec.length == this.row_ptr.length - 1)
 
@@ -186,13 +188,64 @@ export class CSRSparseMatrix implements Interface.CSRSparseMatrix {
                 max_col_idx = i
             }
         }
+        
+        const currentSum = fieldMath.customEdwards.ExtendedPoint.ZERO;
 
-        const result = Array(max_col_idx + 1).fill(0);
+        // Convert points
+        const s: ExtPointType[] = [];
+        for (let i = 0; i < this.data.length; i++) {
+            s.push(fieldMath.createPoint(this.data[i].x, this.data[i].y, this.data[i].t, this.data[i].z))
+        }
+
+        const result: ExtPointType[] = [];
+        for (let i = 0; i < vec.length; i++) {
+            result.push(currentSum)
+        }
+
+        for (let i = 0; i < vec.length; i++) {
+            const row_begin = this.row_ptr[i]
+            const row_end = this.row_ptr[i + 1]
+            let sum = currentSum
+            for (let j = row_begin; j < row_end; j++) {
+                sum = sum.add(s[j])
+            }
+            result[i] = sum 
+        }
+
+        return result
+    }
+
+    // Perform SMTVP. See https://ieeexplore.ieee.org/document/7097920, Figure 2b.
+    async smtvp(vec: bigint[], fieldMath: FieldMath): Promise<ExtPointType[]> {
+        // Check if vector length equals the number of rows
+        assert(vec.length == this.row_ptr.length - 1)
+        
+        // Determine maximum col_idx value
+        let max_col_idx = 0
+        for (const i of this.col_idx) {
+            if (i > max_col_idx) {
+                max_col_idx = i
+            }
+        }
+        
+        const currentSum = fieldMath.customEdwards.ExtendedPoint.ZERO;
+
+        // Convert points
+        const s: ExtPointType[] = [];
+        for (let i = 0; i < this.data.length; i++) {
+            s.push(fieldMath.createPoint(this.data[i].x, this.data[i].y, this.data[i].t, this.data[i].z))
+        }
+
+        const result: ExtPointType[] = [];
+        for (let i = 0; i < Number(max_col_idx) + 1; i++) {
+            result.push(currentSum)
+        }
+
         for (let i = 0; i < vec.length; i++) {
             const row_begin = this.row_ptr[i]
             const row_end = this.row_ptr[i + 1]
             for (let j = row_begin; j < row_end; j++) {
-                result[this.col_idx[j]] += this.data[j] * vec[i]
+                result[this.col_idx[j]] = result[this.col_idx[j]].add(s[j].multiply(vec[i]))
             }
         }
 
@@ -210,6 +263,90 @@ export class CSRSparseMatrix implements Interface.CSRSparseMatrix {
         // Number of rows, columns, non-zero elements
         const n = this.row_ptr.length - 1
 
+        let m = BigInt(0)
+        for (const i of this.col_idx) {
+            if (i > m) {
+                m = i
+            }
+        }
+
+        m += BigInt(1)
+        const nz = this.data.length
+
+        // Initialize data for transposed sparse matrix
+        const sparse_matrix = Array(nz).fill(BigInt(0));
+        const col_idx = Array(nz).fill(BigInt(0));
+        const row_ptr = Array(Number(m) + 2).fill(BigInt(0));
+
+        // Calculate count per columns
+        for (let i = 0; i < nz; i++) {
+            row_ptr[Number(this.col_idx[i]) + 2] += BigInt(1)
+        }
+
+        // From count per columns generate new rowPtr (but shifted)
+        for (let i = 2; i < row_ptr.length; i++) {
+            // Calculate incremental sum
+            row_ptr[i] += row_ptr[i - 1]
+        }
+
+        // Perform the main part
+        for (let i = 0; i < n; i++) {
+            for (let j = this.row_ptr[i]; j < this.row_ptr[i + 1]; j++) {
+                // Calculate index to transposed matrix at which we should place current element,
+                // and at the same time build final rowPtr
+                const new_index = row_ptr[Number(this.col_idx[j]) + 1]
+                row_ptr[Number(this.col_idx[j]) + 1] += BigInt(1)
+                sparse_matrix[new_index] = this.data[j]
+                col_idx[new_index] = BigInt(i)
+            }
+        }
+
+        // Pop that one extra
+        row_ptr.pop()
+
+        return new CSRSparseMatrix(sparse_matrix, col_idx, row_ptr)
+    }
+    
+    // Perform SMTVP. See https://ieeexplore.ieee.org/document/7097920, Figure 2b.
+    async smtvp_test(vec: number[]): Promise<number[]> {
+        // Check if vector length equals the number of rows
+        assert(vec.length == this.row_ptr.length - 1)
+
+        // Determine maximum col_idx value
+        let max_col_idx = 0
+        for (const i of this.col_idx) {
+            if (i > max_col_idx) {
+                max_col_idx = i
+            }
+        }
+
+        let result = Array(max_col_idx + 1).fill(0);
+        for (let i = 0; i < vec.length; i++) {
+            let row_begin = this.row_ptr[i]
+            let row_end = this.row_ptr[i + 1]
+            for (let j = row_begin; j < row_end; j++) {
+                result[this.col_idx[j]] += this.data[j] * vec[i]
+            }
+        }
+
+        return result
+    }
+
+    async smtvp_parallel_test(vec: number[]): Promise<number[]> {
+        console.log("Not Implemented Yet!")
+        return Promise.resolve([]);
+    }
+
+    smvp_test(vec: number[]): Promise<Number[]> {
+        console.log("Not Implemented Yet!")
+        return Promise.resolve([]);
+    }
+
+    // See https://stackoverflow.com/questions/49395986/compressed-sparse-row-transpose
+    async transpose_test(): Promise<CSRSparseMatrix> {
+        // Number of rows, columns, non-zero elements
+        let n = this.row_ptr.length - 1
+
         let m = 0
         for (const i of this.col_idx) {
             if (i > m) {
@@ -218,12 +355,12 @@ export class CSRSparseMatrix implements Interface.CSRSparseMatrix {
         }
 
         m += 1
-        const nz = this.data.length
+        let nz = this.data.length
 
         // Initialize data for transposed sparse matrix
-        const sparse_matrix = Array(nz).fill(0);
-        const col_idx = Array(nz).fill(0);
-        const row_ptr = Array(m + 1).fill(0);
+        let sparse_matrix = Array(nz).fill(0);
+        let col_idx = Array(nz).fill(0);
+        let row_ptr = Array(m + 1).fill(0);
 
         // Calculate count per columns
         for (let i = 0; i < nz; i++) {
@@ -241,7 +378,7 @@ export class CSRSparseMatrix implements Interface.CSRSparseMatrix {
             for (let j = this.row_ptr[i]; j < this.row_ptr[i + 1]; j++) {
                 // Calculate index to transposed matrix at which we should place current element,
                 // and at the same time build final rowPtr
-                const new_index = row_ptr[this.col_idx[j] + 1]
+                let new_index = row_ptr[this.col_idx[j] + 1]
                 row_ptr[this.col_idx[j] + 1] += 1
                 sparse_matrix[new_index] = this.data[j]
                 col_idx[new_index] = i
@@ -253,4 +390,6 @@ export class CSRSparseMatrix implements Interface.CSRSparseMatrix {
 
         return new CSRSparseMatrix(sparse_matrix, col_idx, row_ptr)
     }
+
+
 }
