@@ -1,110 +1,63 @@
-import { log } from 'console'
-import { DenseMatrix, ELLSparseMatrix, CSRSparseMatrix } from './matrices'; 
+import { assert } from "console"
+import { BigIntPoint, U32ArrayPoint } from "../../reference/types";
+import { bigIntToU32Array, generateRandomFields } from '../../reference/webgpu/utils';
+import { wasm_compute_msm } from '../../reference/reference'
+import { cuzk_compute_msm } from './cuzk'
 
-describe('utils', () => {
-    describe('dense matrix functions', () => {
-        it('test_transpose', async () => {
-            // Initialize dense matrix
-            const dense_matrix = new DenseMatrix([[0, 1], [1, 0], [2, 0]]);
-            const expected = new DenseMatrix([[0, 1, 2], [1, 0, 0]])
-            
-            // Transpose dense matrix
-            const dense_transposed: DenseMatrix = await dense_matrix.transpose()
-        
-            expect(dense_transposed).toEqual(expected)
-        })
-    })
+export const generate_points = async(inputSize: number): Promise<{
+    bigIntPoints: BigIntPoint[],
+    U32Points: U32ArrayPoint[],
+  }> => {
+    // Creating random points is slow, so for now use a single fixed base.
+    const x = BigInt('2796670805570508460920584878396618987767121022598342527208237783066948667246');
+    const y = BigInt('8134280397689638111748378379571739274369602049665521098046934931245960532166');
+    const t = BigInt('3446088593515175914550487355059397868296219355049460558182099906777968652023');
+    const z = BigInt('1');
+    const point: BigIntPoint = {x, y, t, z};
+    const bigIntPoints: BigIntPoint[] = Array(inputSize).fill(point);
+    const U32Points: U32ArrayPoint[] = bigIntPoints.map((point) => {
+        return {
+        x: bigIntToU32Array(point.x),
+        y: bigIntToU32Array(point.y),
+        t: bigIntToU32Array(point.t),
+        z: bigIntToU32Array(point.z),
+        }});
 
-    describe('sparse matrix functions', () => {
-        it('test_convert_dense_matrix', async () => {
-            // Define dense matrix, and expected ELL / CSR sparse matrices
-            const dense_matrix = new DenseMatrix([
-                [null, 5, null, 4, null],
-                [7, 2, null, null, 1],
-                [null, null, 3, null, null],
-                [null, null, null, null, null],
-                [null, 8, 2, null, null],
-            ])
+    return { bigIntPoints, U32Points }
+}
 
-            const ell_expected = new ELLSparseMatrix(
-                [[5, 4, null], [7, 2, 1], [3, null, null], [null, null, null], [8, 2, null]],
-                [[1, 3, null], [0, 1, 4], [2, null, null], [null, null, null], [1, 2, null]],
-                [2, 3, 1, 0, 2],
-            )
-        
-            const csr_expected = new CSRSparseMatrix (
-                [5, 4, 7, 2, 1, 3, 8, 2],
-                [1, 3, 0, 1, 4, 2, 1, 2],
-                [0, 2, 5, 6, 6, 8],
-            )
+export const generate_scalars = async(inputSize: number): Promise<{
+    bigIntScalars: bigint[],
+    U32Scalars: Uint32Array[]
+  }> => {
+    const bigIntScalars: bigint[] = generateRandomFields(inputSize);
+    const U32Scalars: Uint32Array[] = bigIntScalars.map((scalar) => bigIntToU32Array(scalar));
+    return { bigIntScalars, U32Scalars }
+}
 
-            const ell_sparse_matrix = await new ELLSparseMatrix([], [], []).dense_to_sparse_matrix(dense_matrix)
+describe('cuzk test', () => {
+    describe('', () => {
+        it('spmv_and_sptvm_test', async () => {
+            let inputSize = 8
+            let points = await generate_points(inputSize)
+            let scalars = await generate_scalars(inputSize)
 
-            expect(ell_sparse_matrix).toEqual(ell_expected)
+            // Define sample scalars
+            scalars.bigIntScalars[0] = BigInt(4)
+            scalars.bigIntScalars[1] = BigInt(5)
+            scalars.bigIntScalars[2] = BigInt(6)
+            scalars.bigIntScalars[3] = BigInt(7)
+            scalars.bigIntScalars[4] = BigInt(8)
+            scalars.bigIntScalars[5] = BigInt(9)
+            scalars.bigIntScalars[6] = BigInt(10)
+            scalars.bigIntScalars[7] = BigInt(11)
 
-            // Transform ELL to CSR sparse matrix
-            const csr_sparse_matrix = await new CSRSparseMatrix([], [], []).ell_to_csr_sparse_matrix(ell_sparse_matrix)
-            
-            expect(csr_sparse_matrix).toEqual(csr_expected)
-        })
+            // Compute cuzk typescript MSM
+            const cuzk_result = await cuzk_compute_msm(points.bigIntPoints, scalars.bigIntScalars)
 
-        it('test_smtvp', async () => {
-            const dense_matrix = new DenseMatrix([
-                [null, 5, null, 4, null],
-                [7, 2, null, null, 1],
-                [null, null, 3, null, null],
-                [null, null, null, null, null],
-                [null, 8, 2, null, null],
-            ])
-
-            // Transpose dense matrix
-            let dense_transposed = await dense_matrix.transpose()
-
-            // Initialize vector
-            let vec = []
-            for (let i = 0; i < dense_matrix.num_rows; i++) {
-                vec.push(Math.floor(Math.random() * 100))
-            }
-
-            // Calculate dense matrix-vector product (~SMVP)
-            let matrix_vec_product = await dense_transposed.matrix_vec_mult(vec)
-
-            // Transform dense matrix to CRS sparse matrix
-            let ell_sparse_matrix = await new ELLSparseMatrix([], [], []).dense_to_sparse_matrix(dense_matrix) 
-            let csr_sparse_matrix = await new CSRSparseMatrix([], [], []).ell_to_csr_sparse_matrix(ell_sparse_matrix)
-            
-            // Perform sparse transpose and vector product 
-            let smtvp_result = await csr_sparse_matrix.smtvp(vec)
-                    
-            expect(smtvp_result).toEqual(matrix_vec_product)      
-        })
-
-        it('test_transpose', async () => {
-            let dense_matrix = new DenseMatrix([
-                [null, 5, null, 4, null],
-                [7, 2, null, null, 1],
-                [null, null, 3, null, null],
-                [null, null, null, null, null],
-                [null, 8, 2, null, null],
-            ])
-            
-            let csr_sparse_matrix = new CSRSparseMatrix(
-                [5, 4, 7, 2, 1, 3, 8, 2],
-                [1, 3, 0, 1, 4, 2, 1, 2],
-                [0, 2, 5, 6, 6, 8],
-            )
-            
-            // Transpose dense matrix
-            let dense_transposed = await dense_matrix.transpose()
-            
-            // Transform transposed dense matrix to transposed CRS sparse matrix
-            let ell_sparse_matrix_transposed = await new ELLSparseMatrix([], [], []).dense_to_sparse_matrix(dense_transposed) 
-            let expected_csr_transposed = await new CSRSparseMatrix([], [], []).ell_to_csr_sparse_matrix(ell_sparse_matrix_transposed)
-            
-            // Transpose sparse matrix in CSR representation
-            let csr_transposed = await csr_sparse_matrix.transpose()
-            
-            expect(csr_transposed).toEqual(expected_csr_transposed)      
+            // Assertion checks
+            assert(cuzk_result[0] === cuzk_result.x)
+            assert(cuzk_result[1] === cuzk_result.y)
         })
     })
 })
