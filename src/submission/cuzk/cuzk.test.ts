@@ -1,7 +1,7 @@
 import { assert } from "console"
 import { BigIntPoint, U32ArrayPoint } from "../../reference/types";
 import { bigIntToU32Array, generateRandomFields } from '../../reference/webgpu/utils';
-import { init, transpose_and_spmv, smtvp } from './cuzk'
+import { init, transpose_and_spmv, smtvp } from './cuzk_serial'
 
 export const generate_points = async(inputSize: number): Promise<{
     bigIntPoints: BigIntPoint[],
@@ -34,7 +34,7 @@ export const generate_scalars = async(inputSize: number): Promise<{
     return { bigIntScalars, U32Scalars }
 }
 
-describe('cuzk test', () => {
+describe('cuzk serial test', () => {
     describe('', () => {
         it('spmv_and_sptvm_test', async () => {
             let inputSize = 16
