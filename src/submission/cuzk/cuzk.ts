@@ -3,58 +3,81 @@ import { DenseMatrix, ELLSparseMatrix, CSRSparseMatrix } from '../matrices/matri
 import { FieldMath } from "../../reference/utils/FieldMath";
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import { strict as assert } from 'assert';
+import { bigIntToU32Array, generateRandomFields } from '../../reference/webgpu/utils';
+import { Field } from "@noble/curves/abstract/modular";
 
 export async function init(
-  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[],
-  scalars: bigint[] | Uint32Array[]
-): Promise<any> {
-  // Define number of inputs
-  const n = 8
-  
-  // Define number of threads (ie. lambda / s threads)
-  const t = 4
-  
-  // Define window size 
-  const s = 2
-  
-  // Define number of rows and columns (ie. row-space)
-  const num_rows = t
-  const num_columns = n / t
+  inputSize: number,
+  baseAffinePoints: BigIntPoint[],
+  scalars: bigint[]
+): Promise<any> {  
+  // λ-bit scalars
+  const lambda = 256
+
+  // s-bit window size 
+  const s = 16
+
+  // Thread count
+  const threads = 16
+
+  // Number of rows and columns (ie. row-space)
+  const num_rows = threads
+  const num_columns = Math.pow(2, s) - 1
 
   // Instantiate 'FieldMath' object
   const fieldMath = new FieldMath();
+  const ZERO_POINT = fieldMath.customEdwards.ExtendedPoint.ZERO;
 
-  // Instantiate empty ELL sparse matrix 
-  const data = new Array(num_rows);
+  const csr_sparse_matrix_array: CSRSparseMatrix[] = []
+  
   for (let i = 0; i < num_rows; i++) {
-      data[i] = new Array(num_columns).fill(fieldMath.customEdwards.ExtendedPoint.ZERO);
-  }
+    // Instantiate empty ELL sparse matrix format
+    const data = new Array(num_rows);
+    for (let i = 0; i < num_rows; i++) {
+        data[i] = new Array(num_columns).fill(ZERO_POINT);
+    }
 
-  const col_idx = new Array(num_rows);
-  for (let i = 0; i < num_rows; i++) {
-      col_idx[i] = new Array(num_columns).fill(0);
-  }
-  const row_length = Array(num_rows).fill(0);
+    const col_idx = new Array(num_rows);
+    for (let i = 0; i < num_rows; i++) {
+        col_idx[i] = new Array(num_columns).fill(0);
+    }
 
-  // Divide EC points into t parts, where each thread handles n / t points
-  for (let thread_idx = 0; thread_idx < num_rows; thread_idx++) {
+    const row_length = Array(num_rows).fill(0);
+
+    // Perform scalar decomposition
+    const scalars_decomposed: bigint[][] = []
+    for (let j =  Math.ceil(lambda / s); j > 0; j--) {
+      const chunk: bigint[] = [];
+      for (let i = 0; i < scalars.length; i++) {
+        const mask = (BigInt(1) << BigInt(s)) - BigInt(1)  
+        const limb = (scalars[i] >> BigInt(((j - 1) * s))) & mask // Right shift and extract lower 32-bits 
+        chunk.push(limb)
+      }
+      scalars_decomposed.push(chunk);
+    }
+    
+    // Divide EC points into t parts
+    for (let thread_idx = 0; thread_idx < num_rows; thread_idx++) {
       const z = 0
       for (let j = 0; j < num_columns; j++) {
-          const point_i = thread_idx + j * t
+          const point_i = thread_idx + j * threads
           data[thread_idx][j] = baseAffinePoints[point_i]
-          col_idx[thread_idx][j] = scalars[point_i]
+          col_idx[thread_idx][j] = scalars_decomposed[i][point_i]
           row_length[thread_idx] += 1
       }
+    }
+    
+    // Transform ELL sparse matrix to CSR sparse matrix
+    const ell_sparse_matrix = new ELLSparseMatrix(data, col_idx, row_length)
+    const csr_sparse_matrix = await new CSRSparseMatrix([], [], []).ell_to_csr_sparse_matrix(ell_sparse_matrix)
+
+    csr_sparse_matrix_array.push(csr_sparse_matrix)
   }
 
-  // Transform ELL sparse matrix to CSR sparse matrix
-  const ell_sparse_matrix = new ELLSparseMatrix(data, col_idx, row_length)
-  const csr_sparse_matrix = await new CSRSparseMatrix([], [], []).ell_to_csr_sparse_matrix(ell_sparse_matrix)
-
-  return { csr_sparse_matrix, fieldMath }
+  return { csr_sparse_matrix_array, fieldMath }
 }
 
-export async function transpose_and_spmv(csr_sparse_matrix: CSRSparseMatrix, fieldMath: FieldMath): Promise<any> {
+export async function transpose_and_spmv(csr_sparse_matrix: CSRSparseMatrix, fieldMath: FieldMath): Promise<ExtPointType> {
   // Transpose CSR sparse matrix
   const csr_sparse_matrix_transposed = await csr_sparse_matrix.transpose()
 
@@ -70,14 +93,11 @@ export async function transpose_and_spmv(csr_sparse_matrix: CSRSparseMatrix, fie
     }
     aggregate_svmp = aggregate_svmp.add(bucket.multiply(BigInt(i)))
   }
-
-  // Convert results to affine coordinates
-  const cuzk_result_1 = aggregate_svmp.toAffine();
   
-  return cuzk_result_1
+  return aggregate_svmp
 }
 
-export async function smtvp(csr_sparse_matrix: CSRSparseMatrix, fieldMath: FieldMath): Promise<any> {
+export async function smtvp(csr_sparse_matrix: CSRSparseMatrix, fieldMath: FieldMath): Promise<ExtPointType> {
   // Derive partial bucket sums by performing SMTVP
   const vector_smtvp: bigint[] = Array(csr_sparse_matrix.row_ptr.length - 1).fill(BigInt(1));
   const buckets_svtmp: ExtPointType[] = await csr_sparse_matrix.smtvp(vector_smtvp, fieldMath)
@@ -91,28 +111,39 @@ export async function smtvp(csr_sparse_matrix: CSRSparseMatrix, fieldMath: Field
     aggregate_svtmp = aggregate_svtmp.add(bucket.multiply(BigInt(i)))
   }
 
-  // Convert results to affine coordinates
-  const cuzk_result_2 = aggregate_svtmp.toAffine();
-
-  return cuzk_result_2
+  return aggregate_svtmp
 }
 
-export async function cuzk_compute_msm(
-    baseAffinePoints: BigIntPoint[] | U32ArrayPoint[],
-    scalars: bigint[] | Uint32Array[]
-): Promise<any> {    
-  // Initialize instance
-  let parameters = await init(baseAffinePoints, scalars)
+export async function execute_cuzk(
+    inputSize: number,
+    baseAffinePoints: BigIntPoint[],
+    scalars: bigint[]
+): Promise<ExtPointType> {    
+  console.log("Starting cuZK!")
+
+  // Initialize instance 
+  const parameters = await init(inputSize, baseAffinePoints, scalars)
 
   // Perform Transpose and SPMV 
-  let cuzk_result_1 = await transpose_and_spmv(parameters.csr_sparse_matrix, parameters.fieldMath)
+  const G: ExtPointType[] = []
+  for (let i = 0; i < parameters.csr_sparse_matrix_array.length; i++) {
+    const partial_sum = await transpose_and_spmv(parameters.csr_sparse_matrix_array[i], parameters.fieldMath)
+    G.push(partial_sum)
+  }
 
-  // Perform SPTMV
-  let cuzk_result_2 = await smtvp(parameters.csr_sparse_matrix, parameters.fieldMath)
+  // Perform SMTVP
+  // const G: ExtPointType[] = []
+  // for (let i = 0; i < parameters.csr_sparse_matrix_array.length; i++) {
+  //   const partial_sum = await smtvp(parameters.csr_sparse_matrix_array[i], parameters.fieldMath)
+  //   G.push(partial_sum)
+  // }
 
-  // Compare cuZK results
-  assert(cuzk_result_1.x == cuzk_result_2.x)
-  assert(cuzk_result_1.y == cuzk_result_2.y)
+  // Perform Honer's rule
+  let T = G[0];
+  for (let i = 1; i < G.length; i++) {
+    T = T.multiply(BigInt(Math.pow(2, 16)));
+    T = T.add(G[i]);
+  }
 
-  return { cuzk_result_1, cuzk_result_2 }
-};
+  return T
+}

@@ -1,8 +1,7 @@
 import { assert } from "console"
 import { BigIntPoint, U32ArrayPoint } from "../../reference/types";
 import { bigIntToU32Array, generateRandomFields } from '../../reference/webgpu/utils';
-import { wasm_compute_msm } from '../../reference/reference'
-import { cuzk_compute_msm } from './cuzk'
+import { init, transpose_and_spmv, smtvp } from './cuzk'
 
 export const generate_points = async(inputSize: number): Promise<{
     bigIntPoints: BigIntPoint[],
@@ -38,26 +37,42 @@ export const generate_scalars = async(inputSize: number): Promise<{
 describe('cuzk test', () => {
     describe('', () => {
         it('spmv_and_sptvm_test', async () => {
-            let inputSize = 8
+            let inputSize = 16
             let points = await generate_points(inputSize)
             let scalars = await generate_scalars(inputSize)
-
+            
             // Define sample scalars
-            scalars.bigIntScalars[0] = BigInt(4)
-            scalars.bigIntScalars[1] = BigInt(5)
-            scalars.bigIntScalars[2] = BigInt(6)
-            scalars.bigIntScalars[3] = BigInt(7)
-            scalars.bigIntScalars[4] = BigInt(8)
-            scalars.bigIntScalars[5] = BigInt(9)
-            scalars.bigIntScalars[6] = BigInt(10)
-            scalars.bigIntScalars[7] = BigInt(11)
+            scalars.bigIntScalars[0] = BigInt(1155)
+            scalars.bigIntScalars[1] = BigInt(9206)
+            scalars.bigIntScalars[2] = BigInt(2050)
+            scalars.bigIntScalars[3] = BigInt(8173)
+            scalars.bigIntScalars[4] = BigInt(38313)
+            scalars.bigIntScalars[5] = BigInt(28598)
+            scalars.bigIntScalars[6] = BigInt(54472)
+            scalars.bigIntScalars[7] = BigInt(61523)
+            scalars.bigIntScalars[8] = BigInt(3823)
+            scalars.bigIntScalars[9] = BigInt(29232)
+            scalars.bigIntScalars[10] = BigInt(2934)
+            scalars.bigIntScalars[11] = BigInt(10239)
+            scalars.bigIntScalars[12] = BigInt(8374)
+            scalars.bigIntScalars[13] = BigInt(10384)
+            scalars.bigIntScalars[14] = BigInt(53621)
+            scalars.bigIntScalars[15] = BigInt(8372)
 
-            // Compute cuzk typescript MSM
-            const cuzk_result = await cuzk_compute_msm(points.bigIntPoints, scalars.bigIntScalars)
+            // Initialize instance 
+            const parameters = await init(inputSize, points.bigIntPoints, scalars.bigIntScalars)
+
+            // Perform Transpose and SPMV 
+            const cuzk_result_1 = await transpose_and_spmv(parameters.csr_sparse_matrix_array[15], parameters.fieldMath)
+            console.log(cuzk_result_1)
+            
+            // Perform SMTVP
+            const cuzk_result_2 = await smtvp(parameters.csr_sparse_matrix_array[15], parameters.fieldMath)
+            console.log(cuzk_result_2)
 
             // Assertion checks
-            assert(cuzk_result[0] === cuzk_result.x)
-            assert(cuzk_result[1] === cuzk_result.y)
+            assert(cuzk_result_1.x === cuzk_result_2.x)
+            assert(cuzk_result_1.y === cuzk_result_2.y)
         })
     })
 })
