@@ -49,10 +49,6 @@ describe('matrices', () => {
             expect(csr_sparse_matrix).toEqual(csr_expected)
         })
 
-        // it('test_smvp', async () => {
-            
-        // )}
-
         it('test_smtvp', async () => {
             const dense_matrix = new DenseMatrix([
                 [null, 5, null, 4, null],

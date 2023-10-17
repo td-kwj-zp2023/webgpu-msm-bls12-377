@@ -20,7 +20,7 @@ export interface CSRSparseMatrix {
     smtvp_parallel(vec: number[]): Promise<number[]>
     transpose(): Promise<CSRSparseMatrix>
     
-    smvp_test(vec: number[], fieldMath: FieldMath): Promise<Number[]>
+    smvp_test(vec: number[], fieldMath: FieldMath): Promise<number[]>
     smtvp_test(vec: number[]): Promise<number[]>
     smtvp_parallel_test(vec: number[]): Promise<number[]>
     transpose_test(): Promise<CSRSparseMatrix>
