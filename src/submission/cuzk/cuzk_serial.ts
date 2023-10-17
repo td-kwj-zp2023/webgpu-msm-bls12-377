@@ -119,8 +119,6 @@ export async function execute_cuzk(
     baseAffinePoints: BigIntPoint[],
     scalars: bigint[]
 ): Promise<ExtPointType> {    
-  console.log("Starting cuZK!")
-
   // Initialize instance 
   const parameters = await init(inputSize, baseAffinePoints, scalars)
 
