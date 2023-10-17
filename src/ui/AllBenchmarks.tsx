@@ -3,7 +3,7 @@ import { Benchmark } from './Benchmark';
 import { bigIntToU32Array, generateRandomFields } from '../reference/webgpu/utils';
 import { BigIntPoint, U32ArrayPoint } from '../reference/types';
 import { webgpu_compute_msm, wasm_compute_msm, webgpu_pippenger_msm, webgpu_best_msm, wasm_compute_msm_parallel } from '../reference/reference';
-import { compute_msm } from '../submission/submission';
+import { compute_cuzk_typescript, compute_cuzk_wgsl } from '../submission/submission';
 import CSVExportButton from './CSVExportButton';
 import { TestCaseDropDown } from './TestCaseDropDown';
 import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
@@ -159,12 +159,22 @@ export const AllBenchmarks: React.FC = () => {
         bold={true}
       />
       <Benchmark
-        name={'Your MSM'}
+        name={'cuzk (Typescript)'}
         disabled={disabledBenchmark}
         baseAffinePoints={baseAffineBigIntPoints}
         scalars={bigIntScalars}
         expectedResult={expectedResult}
-        msmFunc={compute_msm}
+        msmFunc={compute_cuzk_typescript}
+        postResult={postResult}
+        bold={true}
+      />
+      <Benchmark
+        name={'cuzk (WGSL)'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={compute_cuzk_wgsl}
         postResult={postResult}
         bold={true}
       />
