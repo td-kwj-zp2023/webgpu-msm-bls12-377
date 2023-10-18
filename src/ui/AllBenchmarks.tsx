@@ -4,6 +4,7 @@ import { bigIntToU32Array, generateRandomFields } from '../reference/webgpu/util
 import { BigIntPoint, U32ArrayPoint } from '../reference/types';
 import { webgpu_compute_msm, wasm_compute_msm, webgpu_pippenger_msm, webgpu_best_msm, wasm_compute_msm_parallel } from '../reference/reference';
 import { compute_cuzk_typescript, compute_cuzk_typescript_web_workers, compute_cuzk_wgsl } from '../submission/submission';
+import { smtvp } from '../submission/smtvp';
 import CSVExportButton from './CSVExportButton';
 import { TestCaseDropDown } from './TestCaseDropDown';
 import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
@@ -185,6 +186,16 @@ export const AllBenchmarks: React.FC = () => {
         scalars={bigIntScalars}
         expectedResult={expectedResult}
         msmFunc={compute_cuzk_wgsl}
+        postResult={postResult}
+        bold={true}
+      />
+      <Benchmark
+        name={'SMTVP (WGSL)'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={smtvp}
         postResult={postResult}
         bold={true}
       />
