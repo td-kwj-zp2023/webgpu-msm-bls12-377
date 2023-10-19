@@ -1,192 +1,260 @@
 import { BigIntPoint } from "../../reference/types";
-import { DenseMatrix, ELLSparseMatrix, CSRSparseMatrix } from '../matrices/matrices'; 
-import { FieldMath } from "../../reference/utils/FieldMath";
-import { ExtPointType } from "@noble/curves/abstract/edwards";
-import { strict as assert } from 'assert';
-import { bigIntToU32Array, generateRandomFields } from '../../reference/webgpu/utils';
-import { Field } from "@noble/curves/abstract/modular";
 import { bigints_to_u8_for_gpu } from '../../submission/utils'
 import mustache from 'mustache'
-import shader from '../wgsl/mont_pro_optimised.template.wgsl'
+import { ExtPointType } from "@noble/curves/abstract/edwards";
+import { CSRSparseMatrix, ELLSparseMatrix, fieldMath } from '../matrices/matrices';
+import store_point_at_infinity_shader from '../wgsl/store_point_at_infinity.template.wgsl'
+import bigint_struct from '../submission/wgsl/bigint.template.wgsl'
+// import shader from '../wgsl/mont_pro_optimised.template.wgsl'
+import { u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu } from '../utils'
+import assert from 'assert'
 
-/**
- * Top-Level Overview
- *  1. Buffers — input and output data
- *  2. Shaders — Specified in WGSL, execute a computing instruction
- *  3. Binding groups and layouts — mapping between buffers and shaders
- */
+export async function get_device() {
+    const gpuErrMsg = "Please use a browser that has WebGPU enabled.";
+    const adapter = await navigator.gpu.requestAdapter({
+        powerPreference: 'high-performance',
+    });
+    if (!adapter) {
+        console.log(gpuErrMsg)
+        throw Error('Couldn\'t request WebGPU adapter.')
+    }
+
+    // Returns a promise that asynchronously resolves with a GPU device
+    const device = await adapter.requestDevice()
+    return device
+}
+
+export async function gen_csr_sparse_matrices(
+    baseAffinePoints: BigIntPoint[],
+    scalars: bigint[],
+    lambda: number, // λ-bit scalars
+    s: number, // s-bit window size 
+    threads: number, // Thread count
+): Promise<any> {  
+    // Number of rows and columns (ie. row-space)
+    const num_rows = threads
+    const num_columns = Math.pow(2, s) - 1
+  
+    // Intantiate empty array of sparse matrices
+    const csr_sparse_matrix_array: CSRSparseMatrix[] = []
+    
+    const ZERO_POINT = fieldMath.customEdwards.ExtendedPoint.ZERO;
+    for (let i = 0; i < num_rows; i++) {
+      // Instantiate empty ELL sparse matrix format
+      const data = new Array(num_rows);
+      for (let i = 0; i < num_rows; i++) {
+          data[i] = new Array(num_columns).fill(ZERO_POINT);
+      }
+  
+      const col_idx = new Array(num_rows);
+      for (let i = 0; i < num_rows; i++) {
+          col_idx[i] = new Array(num_columns).fill(0);
+      }
+  
+      const row_length = Array(num_rows).fill(0);
+  
+      // Perform scalar decomposition
+      const scalars_decomposed: bigint[][] = []
+      for (let j =  Math.ceil(lambda / s); j > 0; j--) {
+        const chunk: bigint[] = [];
+        for (let i = 0; i < scalars.length; i++) {
+          const mask = (BigInt(1) << BigInt(s)) - BigInt(1)  
+          const limb = (scalars[i] >> BigInt(((j - 1) * s))) & mask // Right shift and extract lower 32-bits 
+          chunk.push(limb)
+        }
+        scalars_decomposed.push(chunk);
+      }
+      
+      // Divide EC points into t parts
+      for (let thread_idx = 0; thread_idx < num_rows; thread_idx++) {
+        const z = 0
+        for (let j = 0; j < num_columns; j++) {
+            const point_i = thread_idx + j * threads
+            data[thread_idx][j] = baseAffinePoints[point_i]
+            col_idx[thread_idx][j] = scalars_decomposed[i][point_i]
+            row_length[thread_idx] += 1
+        }
+      }
+      
+      // Transform ELL sparse matrix to CSR sparse matrix
+      const ell_sparse_matrix = new ELLSparseMatrix(data, col_idx, row_length)
+      const csr_sparse_matrix = await new CSRSparseMatrix([], [], []).ell_to_csr_sparse_matrix(ell_sparse_matrix)
+  
+      csr_sparse_matrix_array.push(csr_sparse_matrix)
+    }
+  
+    return csr_sparse_matrix_array 
+}
+
 export async function execute_cuzk_wgsl(
     inputSize: number,
     baseAffinePoints: BigIntPoint[],
     scalars: bigint[]
 ): Promise<any> {    
-    // Define number of workgroups
-    const num_x_workgroups = 1
-
-    // λ-bit scalars
-    const lambda = 256
-
     // s-bit window size 
-    const s = 16
+    const s = 13
 
-    /**
-     * 1. Intialize WebGPU 
-     */
+    // Number of limbs (ie. windows)
+    const num_limbs = 20
 
-    // Returns javascript promise that asynchronously resolves with GPU adapter
-    const adapter = await navigator.gpu.requestAdapter({
-        powerPreference: 'high-performance',
-    });
-    if (!adapter) { console.log("Failed to get WebGPU adapter!"); return; }
+    // λ-bit scalars (13 * 20 = 260)
+    const lambda = 260
 
-    // Returns a promise that resolves with a GPU device. 
-    const device = await adapter.requestDevice();
+    // Thread count
+    const threads = 16
 
-    /** 
-     * 2. Create Buffered Memory Accessible by the GPU Memory Space 
-     */
+    // 1. Request device
+    const device = await get_device()
 
-    // TODO: convert points to bytes
-    const input_bytes = bigints_points_to_u8_for_gpu(baseAffinePoints, Math.ceil(lambda / s), s)
+    // 2. Generate CSR sparse matrices
+    const csr_sparse_matrices = await gen_csr_sparse_matrices(
+        baseAffinePoints,
+        scalars,
+        lambda,
+        s,
+        threads
+    )
 
-    // const input_bytes = bigints_to_u8_for_gpu(inputs, Math.ceil(lambda / s), s)
+    // 3. Shader invocations
+    for (let i = 0; i < csr_sparse_matrices.length; i ++) {
+        // Determine maximum column index
+        // const max_col_idx = Math.max(Number(csr_sparse_matrices[0].col_idx), num_limbs)
+        let max_col_idx = 0
+        for (const j of csr_sparse_matrices[i].col_idx) {
+            if (j > max_col_idx) {
+                max_col_idx = j
+            }
+        }
 
-    // Points buffer 
-    const points_gpu = device.createBuffer({
-        mappedAtCreation: true,
-        size: input_bytes.length,    
+        console.log("Number(csr_sparse_matrices[0].col_idx) is: ", max_col_idx)
+
+        // Shader 1: store the point at infinity in the output buffer
+        const output_storage_buffer = await store_point_at_infinity_shader_gpu(device, Number(max_col_idx), num_limbs)
+
+        // Shader 2: perform Sparse-Matrix Tranpose and SMVP
+        // await smtvp_gpu(device, csr_sparse_matrices[i], num_limbs, s, output_storage_buffer)
+        break
+    }
+
+    return { x: BigInt(1), y: BigInt(0) }
+}
+
+export async function store_point_at_infinity_shader_gpu(
+    device: GPUDevice,
+    max_col_idx: number,
+    num_words: number,
+) {
+    const num_x_workgroups = 256;
+
+    const output_buffer_length = max_col_idx * num_words * 4 * 4
+
+    const shaderCode = mustache.render(store_point_at_infinity_shader, { num_words })
+
+    console.log(shaderCode)
+
+    // 2: Create a shader module from the shader template literal
+    const shaderModule = device.createShaderModule({
+        code: shaderCode
+    })
+
+    const output_storage_buffer = device.createBuffer({
+        size: output_buffer_length,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST
     });
 
-    // GPU buffer method that retrieves the raw binary data buffer 
-    const pointsBuffer = points_gpu.getMappedRange();
-    new Int8Array(pointsBuffer).set(input_bytes);
-
-    // Enables the GPU to take control -- and prevents race conditions where GPU/CPU access memory at the same time
-    points_gpu.unmap();
-
-    // Scalar buffer 
-    const scalars_gpu = device.createBuffer({
-        mappedAtCreation: true,
-        size: input_bytes.length,
-        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST
-    });
-    const scalarsBuffer = scalars_gpu.getMappedRange();
-    new Int8Array(scalarsBuffer).set(input_bytes);
-    scalars_gpu.unmap();
-
-    // Staging buffer 
-    const stagingBuffer = device.createBuffer({
-        size: input_bytes.length,
-        usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST
-    });
-
-    /** 
-     * 3. Define Bind Group Layouts and Bind Groups 
-     */
-
-    // Bind Group Layout defines the input/output interface expected by the shader 
     const bindGroupLayout = device.createBindGroupLayout({
         entries: [
-            { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: "storage" } },
-            { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: "storage" } },
-            { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } },
+            {
+                binding: 0,
+                visibility: GPUShaderStage.COMPUTE,
+                buffer: {
+                    type: "storage"
+                },
+            },
         ]
     });
 
-    // Bind Group represents the actual input/output data for the shader, and associate with GPU buffers 
     const bindGroup = device.createBindGroup({
         layout: bindGroupLayout,
         entries: [
-            { binding: 0, resource: { buffer: points_gpu } },
-            { binding: 1, resource: { buffer: scalars_gpu } },
-            { binding: 2, resource: { buffer: stagingBuffer } },
+            {
+                binding: 0,
+                resource: {
+                    buffer: output_storage_buffer,
+                }
+            },
         ]
     });
 
-    /**
-     * 4. Load Compute Shaders (WGSL)
-     */
-
-    const shaderCode = mustache.render(
-        shader,
-        {}
-    )
-    const shaderModule = device.createShaderModule({code: shaderCode})
-
-    /**
-     * 5. Setup Compute Pipeline 
-     */ 
-
-    /** device.createComputePipeline() creates pipeline with bind group layout and compute stage as arguments */
     const computePipeline = device.createComputePipeline({
         layout: device.createPipelineLayout({
             bindGroupLayouts: [bindGroupLayout]
         }),
-        compute : {
-            module: shaderModule,   
-            entryPoint: "main"     
-
+        compute: {
+            module: shaderModule,
+            entryPoint: 'main'
         }
     });
 
-    /** 
-     * 6. Execute compute pass 
-     */
-
-    // Returns a Javascript object that encodes a batch if "buffered" GPU commands 
+    // 5: Create GPUCommandEncoder to issue commands to the GPU
     const commandEncoder = device.createCommandEncoder();
 
-    // Start timer
     const start = Date.now()
-
-    // Set pipeline 
+    // 6: Initiate render pass
     const passEncoder = commandEncoder.beginComputePass();
+
+    // 7: Issue commands
     passEncoder.setPipeline(computePipeline);
-
-    // Set bind group at index 0 (corresponding with group(0) in WGSL) 
     passEncoder.setBindGroup(0, bindGroup);
+    passEncoder.dispatchWorkgroups(num_x_workgroups)
 
-    // Set the number of workgroups dispatched for the execution of a kernel function 
-    passEncoder.dispatchWorkgroups(
-        Math.ceil(num_x_workgroups),
-        Math.ceil(num_x_workgroups)
-    );
-
-    // Ends the compute pass encoder 
+    // End the render pass
     passEncoder.end();
 
-    /**
-     * 7. Copy Buffer 
-     */
-    
-    // Add the command to GPU device command queue for later execution 
+    const stagingBuffer = device.createBuffer({
+        size: output_buffer_length,
+        usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST
+    });
+
     commandEncoder.copyBufferToBuffer(
-        points_gpu,                                 
-        0,                                                 
-        stagingBuffer,                      
-        0,                                      
-        input_bytes.length,                   
+        output_storage_buffer, // source
+        0, // sourceOffset
+        stagingBuffer, // destination
+        0, // destinationOffset
+        output_buffer_length // size
     );
 
-    /** 
-     * 8. Execute command queue
-     */
-    
-    // Finish encoding commands and submit to GPU device command queue */
-    const gpuCommands = commandEncoder.finish();
-    device.queue.submit([gpuCommands]);
+    // 8: End frame by passing array of command buffers to command queue for execution
+    device.queue.submit([commandEncoder.finish()]);
 
-    // Map staging buffer to read results back to JS
+    // map staging buffer to read results back to JS
     await stagingBuffer.mapAsync(
         GPUMapMode.READ,
-        0, 
-        input_bytes.length
+        0, // Offset
+        output_buffer_length,
     );
-    const copyArrayBuffer = stagingBuffer.getMappedRange(0, input_bytes.length)
+
+    const copyArrayBuffer = stagingBuffer.getMappedRange(0, output_buffer_length)
     const data = copyArrayBuffer.slice(0);
+
+    const ZERO_POINT = fieldMath.customEdwards.ExtendedPoint.ZERO;
+
+    const data_as_uint8s = new Uint8Array(data)
+
     stagingBuffer.unmap();
-    const dataBuf = new Uint32Array(data);
 
     const elapsed = Date.now() - start
+    console.log(`GPU took ${elapsed}ms`)
+
+    // TODO: skip this check in production
+    for (const point of u8s_to_points(data_as_uint8s, num_words)) {
+        assert(point.x === ZERO_POINT.ex)
+        assert(point.y === ZERO_POINT.ey)
+        assert(point.t === ZERO_POINT.et)
+        assert(point.z === ZERO_POINT.ez)
+    }
+
+    console.log("passed assertion checks!")
+    return output_storage_buffer
 }
+

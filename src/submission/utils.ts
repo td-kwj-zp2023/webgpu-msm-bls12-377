@@ -1,5 +1,87 @@
 import assert from 'assert'
 import crypto from 'crypto'
+import * as bigintCryptoUtils from 'bigint-crypto-utils'
+import { BigIntPoint } from "../reference/types"
+
+export const points_to_u8s_for_gpu = (
+    points: BigIntPoint[],
+    num_words: number,
+    word_size: number,
+): Uint8Array => {
+    const size = points.length * num_words * 4 * 4
+    const result = new Uint8Array(size)
+
+    for (let i = 0; i < points.length; i ++) {
+        const x_bytes = bigint_to_u8_for_gpu(points[i].x, num_words, word_size)
+        const y_bytes = bigint_to_u8_for_gpu(points[i].y, num_words, word_size)
+        const t_bytes = bigint_to_u8_for_gpu(points[i].t, num_words, word_size)
+        const z_bytes = bigint_to_u8_for_gpu(points[i].z, num_words, word_size)
+
+        for (let j = 0; j < x_bytes.length; j ++) {
+            result[i * x_bytes.length + j] = x_bytes[j]
+            result[i * x_bytes.length + j + x_bytes.length] = y_bytes[j]
+            result[i * x_bytes.length + j + x_bytes.length * 2] = t_bytes[j]
+            result[i * x_bytes.length + j + x_bytes.length * 3] = z_bytes[j]
+        }
+    }
+
+    return result
+}
+
+export const u8s_to_points = (
+    bytes: Uint8Array,
+    num_words: number,
+): BigIntPoint[] => {
+    // Since each limb is a u32, there are 4 u8s per limb
+    const num_u8s_per_coord = num_words * 4
+    const num_u8s_per_point = num_u8s_per_coord * 4
+
+    assert(bytes.length % num_u8s_per_point === 0)
+    const result: BigIntPoint[] = []
+    for (let i = 0; i < bytes.length / num_u8s_per_point; i ++) {
+        const x_i = i * num_u8s_per_point
+        const y_i = i * num_u8s_per_point + num_u8s_per_coord
+        const t_i = i * num_u8s_per_point + num_u8s_per_coord * 2
+        const z_i = i * num_u8s_per_point + num_u8s_per_coord * 3
+
+        const x_u8s = bytes.slice(x_i, x_i + num_u8s_per_coord)
+        const y_u8s = bytes.slice(y_i, y_i + num_u8s_per_coord)
+        const t_u8s = bytes.slice(t_i, t_i + num_u8s_per_coord)
+        const z_u8s = bytes.slice(z_i, z_i + num_u8s_per_coord)
+
+        const x = u8s_to_bigint(x_u8s)
+        const y = u8s_to_bigint(y_u8s)
+        const t = u8s_to_bigint(t_u8s)
+        const z = u8s_to_bigint(z_u8s)
+
+        result.push({x, y, t, z})
+    }
+
+    return result
+}
+
+export const u8s_to_bigint = (u8s: Uint8Array): bigint => {
+    let val = BigInt(0)
+    for (let i = 0; i < u8s.length; i ++) {
+        assert(u8s[i] < 2 ** 8)
+        assert(u8s[i] >= 0)
+        val += (BigInt(2) ** BigInt((u8s.length - i - 1) * 8)) * BigInt(u8s[u8s.length - 1 - i])
+    }
+
+    return val
+}
+
+export const numbers_to_u8s_for_gpu = (
+    vals: number[],
+): Uint8Array => {
+    // Expect each val to be max 32 bits
+    const max = 2 ** 32
+    for (const val of vals) {
+        assert(val < max)
+    }
+    const b = new Uint32Array(vals)
+    return new Uint8Array(b.buffer)
+}
 
 export const bigints_to_u8_for_gpu = (
     vals: bigint[],
@@ -30,7 +112,7 @@ export const bigint_to_u8_for_gpu = (
     // 1564452267309641175680470698761959311617501419373075112580418386174943427950
     // [74, 30, 0, 0, 255, 31, 0, 0, 255, 31, 0, 0, 255, 29, 0, 0, 96, 12, 0, 0, 28, 31, 0, 0, 255, 31, 0, 0, 3, 1, 0, 0, 104, 24, 0, 0, 178, 4, 0, 0, 108, 23, 0, 0, 113, 17, 0, 0, 227, 0, 0, 0, 7, 2, 0, 0, 46, 26, 0, 0, 198, 3, 0, 0, 157, 23, 0, 0, 33, 1, 0, 0, 36, 16, 0, 0, 29, 0, 0, 0, 110, 29, 0, 0, 255, 31, 0, 0, 255, 31, 0, 0, 255, 9, 0, 0, 240, 1, 0, 0, 170, 30, 0, 0, 255, 31, 0, 0, 171, 1, 0, 0, 37, 26, 0, 0, 62, 28, 0, 0, 33, 7, 0, 0, 187, 17, 0, 0, 111, 31, 0, 0, 227, 8, 0, 0, 194, 13, 0, 0, 255, 0, 0, 0, 63, 25, 0, 0, 189, 22, 0, 0, 92, 29, 0, 0, 6, 0, 0, 0, 74, 30, 0, 0, 255, 31, 0, 0, 255, 31, 0, 0, 255, 29, 0, 0, 96, 12, 0, 0, 28, 31, 0, 0, 255, 31, 0, 0, 3, 1, 0, 0, 104, 24, 0, 0, 178, 4, 0, 0, 108, 23, 0, 0, 113, 17, 0, 0, 227, 0, 0, 0, 7, 2, 0, 0, 46, 26, 0, 0, 198, 3, 0, 0, 157, 23, 0, 0, 33, 1, 0, 0, 36, 16, 0, 0, 29, 0, 0, 0, 110, 29, 0, 0, 255, 31, 0, 0, 255, 31, 0, 0, 255, 9, 0, 0, 240, 1, 0, 0, 170, 30, 0, 0, 255, 31, 0, 0, 171, 1, 0, 0, 37, 26, 0, 0, 62, 28, 0, 0, 33, 7, 0, 0, 187, 17, 0, 0, 111, 31, 0, 0, 227, 8, 0, 0, 194, 13, 0, 0, 255, 0, 0, 0, 63, 25, 0, 0, 189, 22, 0, 0, 92, 29, 0, 0, 6, 0, 0, 0]
     const result = new Uint8Array(num_words * 4)
-    const limbs = to_words_le(val, num_words, word_size)
+    const limbs = to_words_le(BigInt(val), num_words, word_size)
     for (let i = 0; i < limbs.length; i ++) {
         const b = new Uint8Array(Uint16Array.from([limbs[i]]).buffer)
         result[(i * 4)] = b[0]
@@ -121,7 +203,21 @@ export const compute_misc_params = (
 
     // The Montgomery radix
     const r = BigInt(2) ** BigInt(num_words * word_size)
-    const pprime = BigInt('183831927387679033470068733315866210565667624244646258479593498695159647305729')
+
+    // Returns triple (g, rinv, pprime)
+    const egcdResult: {g: bigint, x: bigint, y: bigint} = bigintCryptoUtils.eGcd(r, p);
+    const rinv = egcdResult.x
+    const pprime = egcdResult.y
+
+    if (rinv < BigInt(0)) {
+        assert((r * rinv - p * pprime) % p + p === BigInt(1))
+        assert((r * rinv) % p + p == BigInt(1))
+        assert((p * pprime) % r == BigInt(1))
+    } else {
+        assert((r * rinv - p * pprime) % p === BigInt(1))
+        assert((r * rinv) % p == BigInt(1))
+        assert((p * pprime) % r + r == BigInt(1))
+    }
 
     const neg_n_inv = r - pprime
     const n0 = neg_n_inv % (BigInt(2) ** BigInt(word_size))

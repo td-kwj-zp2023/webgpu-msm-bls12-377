@@ -1,7 +1,7 @@
 import { BigIntPoint, U32ArrayPoint } from "../reference/types";
 import { execute_cuzk } from "./cuzk/cuzk_serial"
 import { execute_cuzk_parallel } from "./cuzk/cuzk_parallel"
-// import { execute_cuzk_wgsl } from "./cuzk/cuzk_wgsl"
+import { execute_cuzk_wgsl } from "./cuzk/cuzk_wgsl"
 
 // Typescript implementation of cuZK
 export const compute_cuzk_typescript = async (
@@ -48,7 +48,7 @@ export const compute_cuzk_wgsl = async (
   
   const inputSize = 16
 
-  // const result = await execute_cuzk_wgsl(inputSize, baseAffinePoints, scalars)
+  const result = await execute_cuzk_wgsl(inputSize, baseAffinePoints, scalars)
 
   throw new Error("Not implemented");
 };
