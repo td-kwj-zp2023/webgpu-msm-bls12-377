@@ -1,9 +1,12 @@
+// TODO:
+//  1. Convert point coordinates to Montgomery form, write test shader for this
 import mustache from 'mustache'
 import { BigIntPoint } from "../reference/types"
 import { FieldMath } from "../reference/utils/FieldMath";
 import { ELLSparseMatrix, CSRSparseMatrix } from './matrices/matrices'; 
 import store_point_at_infinity_shader from '../submission/wgsl/store_point_at_infinity.template.wgsl'
 import smtvp_shader from '../submission/wgsl/smtvp.template.wgsl'
+import bigint_struct from '../submission/wgsl/structs/bigint.template.wgsl'
 import { u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu } from './utils'
 import assert from 'assert'
 
@@ -91,6 +94,7 @@ export const smtvp = async (
     // Decompose the scalars into windows. In the actual implementation, this
     // should be done by a shader.
     const word_size = 13
+    //const params = compute_misc_params(word_size)
     const num_words = 20
 
     // λ-bit scalars. 13 * 20 = 260
@@ -266,7 +270,10 @@ export async function smtvp_gpu(
         {
             num_words,
             num_rows,
-        }
+        },
+        {
+            bigint_struct,
+        },
     )
 
     //console.log(shaderCode)
@@ -382,6 +389,8 @@ export async function smtvp_gpu(
 
     const start = Date.now()
 
+    // Copy the previous shader's output buffer to the output buffer of this
+    // shader. The values should be the point at infinity.
     commandEncoder.copyBufferToBuffer(
         previous_output_buffer, // source
         0, // sourceOffset
