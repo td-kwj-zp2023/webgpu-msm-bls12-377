@@ -83,7 +83,7 @@ export async function transpose_and_spmv(csr_sparse_matrix: CSRSparseMatrix, fie
 
   // Derive partial bucket sums by performing SMVP
   const vector_smvp: bigint[] = Array(csr_sparse_matrix_transposed.row_ptr.length - 1).fill(BigInt(1));
-  const buckets_svmp: ExtPointType[] = await csr_sparse_matrix_transposed.smvp(vector_smvp, fieldMath)
+  const buckets_svmp: ExtPointType[] = await csr_sparse_matrix_transposed.smvp(vector_smvp)
 
   // Aggregate SVMP buckets with running sum 
   let aggregate_svmp: ExtPointType = fieldMath.customEdwards.ExtendedPoint.ZERO
