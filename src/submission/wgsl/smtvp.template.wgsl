@@ -1,6 +1,4 @@
-struct BigInt {
-    limbs: array<u32, {{ num_words }}>
-}
+{{> bigint_struct }}
 
 struct ETEPoint {
   x: BigInt,
@@ -23,24 +21,29 @@ var<storage, read> row_ptr: array<u32>;
 @group(0) @binding(3)
 var<storage, read> points: array<ETEPoint>;
 
+// field_multiply
+// field_add
+// field_sub
+// mul_by_a
+
 @compute
 @workgroup_size(1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Assumes that the output buffer already contains the point at infinity at
     // each index
 
-    /*
     // Perform SMTVP
     for (var i = 0u; i < NUM_ROWS; i ++) {
         let row_start = row_ptr[global_id.x + i];
         let row_end = row_ptr[global_id.x + i + 1];
         for (var j = row_start; j < row_end; j ++) {
+            var temp = points[global_id.x + j];
+            var col = col_idx[global_id.x + j];
             // temp = self.data[jj] * scalar_vector[row_i]
             // col = self.col_indices[jj]
             // y[col] += temp
         }
     }
-    */
     /*output[global_id.x] = points[global_id.x];*/
-    output[global_id.x] = output[global_id.x];
+    /*output[global_id.x] = output[global_id.x];*/
 }

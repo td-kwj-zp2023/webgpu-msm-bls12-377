@@ -5,16 +5,14 @@ import {
     gen_p_limbs,
     bigints_to_u8_for_gpu,
 } from '../submission/utils'
-import shader from '../submission/wgsl/mont_pro_optimised.template.wgsl'
-import bigint_struct from '../submission/wgsl/structs/bigint.template.wgsl'
-import montgomery_product_func from '../submission/wgsl/montgomery_product.template.wgsl'
+import shader from '../submission/wgsl/ete_point_add_with_mont_coords.wgsl'
 
 //import { our_msm } from '../submission/entries/entry'
 import React, { useEffect } from 'react';
 
 import mustache from 'mustache'
 
-export const MontProOptimised: React.FC = () => {
+export const ETEPointAddWithMontCoords: React.FC = () => {
     useEffect(() => {
         async function mont_mul() {
             // Define and generate params
@@ -66,10 +64,6 @@ export const MontProOptimised: React.FC = () => {
                         mask,
                         cost,
                         p_limbs,
-                    },
-                    {
-                        bigint_struct,
-                        montgomery_product_func,
                     }
                 )
                 //console.log(shaderCode)
