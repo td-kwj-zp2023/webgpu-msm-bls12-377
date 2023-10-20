@@ -5,7 +5,7 @@ import { ExtPointType } from "@noble/curves/abstract/edwards";
 import { strict as assert } from 'assert';
 import { bigIntToU32Array, generateRandomFields } from '../../reference/webgpu/utils';
 import { Field } from "@noble/curves/abstract/modular";
-import { points_to_u8_for_gpu } from '../../submission/utils'
+import { points_to_u8s_for_gpu } from '../../submission/utils'
 import mustache from 'mustache'
 import shader from '../wgsl/mont_pro_optimised.template.wgsl'
 
@@ -46,7 +46,7 @@ export async function execute_cuzk_wgsl(
      * 2. Create Buffered Memory Accessible by the GPU Memory Space 
      */
 
-    const input_bytes = points_to_u8_for_gpu(baseAffinePoints, Math.ceil(lambda / s), s)
+    const input_bytes = points_to_u8s_for_gpu(baseAffinePoints, Math.ceil(lambda / s), s)
 
     // const input_bytes = bigints_to_u8_for_gpu(inputs, Math.ceil(lambda / s), s)
 
