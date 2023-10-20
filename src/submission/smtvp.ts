@@ -314,6 +314,7 @@ export async function smtvp_gpu(
             n0,
             p_limbs,
             mask: BigInt(2) ** BigInt(word_size) - BigInt(1),
+            two_pow_word_size: BigInt(2) ** BigInt(word_size),
         },
         {
             bigint_struct,

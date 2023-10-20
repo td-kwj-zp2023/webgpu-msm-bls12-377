@@ -13,7 +13,7 @@ fn bigint_sub(a: ptr<function, BigInt>, b: ptr<function, BigInt>, res: ptr<funct
     for (var i: u32 = 0u; i < NUM_WORDS; i = i + 1u) {
         (*res).limbs[i] = (*a).limbs[i] - (*b).limbs[i] - borrow;
         if ((*a).limbs[i] < ((*b).limbs[i] + borrow)) {
-            (*res).limbs[i] += MASK;
+            (*res).limbs[i] += TWO_POW_WORD_SIZE;
             borrow = 1u;
         } else {
             borrow = 0u;

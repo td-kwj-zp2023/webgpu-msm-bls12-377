@@ -50,6 +50,7 @@ export const MontProOptimised: React.FC = () => {
                 const n0 = misc_params.n0
                 const mask = BigInt(2) ** BigInt(word_size) - BigInt(1)
                 const r = misc_params.r
+                const two_pow_word_size = 2 ** word_size
 
                 //console.log(
                     //`Limb size: ${word_size}, Number of limbs: ${num_words}, ` +
@@ -71,6 +72,7 @@ export const MontProOptimised: React.FC = () => {
                             word_size,
                             n0,
                             mask,
+                            two_pow_word_size,
                             cost,
                             p_limbs,
                         },
@@ -89,6 +91,7 @@ export const MontProOptimised: React.FC = () => {
                             word_size,
                             n0,
                             mask,
+                            two_pow_word_size,
                             cost,
                             p_limbs,
                             nsafe: misc_params.nsafe,
@@ -108,6 +111,7 @@ export const MontProOptimised: React.FC = () => {
                             word_size,
                             n0,
                             mask,
+                            two_pow_word_size,
                             cost,
                             p_limbs,
                             nsafe: misc_params.nsafe,
