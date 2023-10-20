@@ -43,7 +43,7 @@ export const compute_cuzk_typescript_web_workers = async (
 export const compute_cuzk_wgsl = async (
   baseAffinePoints: BigIntPoint[],
   scalars: bigint[]
-): Promise<{x: bigint, y: bigint}> => {
+): Promise<any> => {
   console.log("Starting WGSL cuZK!")
   
   const inputSize = 16
