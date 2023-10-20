@@ -31,6 +31,7 @@ export const points_to_u8s_for_gpu = (
 export const u8s_to_points = (
     bytes: Uint8Array,
     num_words: number,
+    word_size: number,
 ): BigIntPoint[] => {
     // Since each limb is a u32, there are 4 u8s per limb
     const num_u8s_per_coord = num_words * 4
@@ -49,10 +50,10 @@ export const u8s_to_points = (
         const t_u8s = bytes.slice(t_i, t_i + num_u8s_per_coord)
         const z_u8s = bytes.slice(z_i, z_i + num_u8s_per_coord)
 
-        const x = u8s_to_bigint(x_u8s)
-        const y = u8s_to_bigint(y_u8s)
-        const t = u8s_to_bigint(t_u8s)
-        const z = u8s_to_bigint(z_u8s)
+        const x = u8s_to_bigint(x_u8s, num_words, word_size)
+        const y = u8s_to_bigint(y_u8s, num_words, word_size)
+        const t = u8s_to_bigint(t_u8s, num_words, word_size)
+        const z = u8s_to_bigint(z_u8s, num_words, word_size)
 
         result.push({x, y, t, z})
     }
@@ -60,15 +61,16 @@ export const u8s_to_points = (
     return result
 }
 
-export const u8s_to_bigint = (u8s: Uint8Array): bigint => {
-    let val = BigInt(0)
-    for (let i = 0; i < u8s.length; i ++) {
-        assert(u8s[i] < 2 ** 8)
-        assert(u8s[i] >= 0)
-        val += (BigInt(2) ** BigInt((u8s.length - i - 1) * 8)) * BigInt(u8s[u8s.length - 1 - i])
+export const u8s_to_bigint = (u8s: Uint8Array, num_words: number, word_size: number): bigint => {
+    const a = new Uint16Array(u8s.buffer)
+    const limbs: number[] = []
+    for (let i = 0; i < a.length; i ++) {
+        if (i % 2 === 0) {
+            limbs.push(a[i])
+        }
     }
 
-    return val
+    return from_words_le(new Uint16Array(limbs), num_words, word_size)
 }
 
 export const numbers_to_u8s_for_gpu = (
@@ -184,8 +186,9 @@ export const compute_misc_params = (
         max_terms: number,
         k: number,
         nsafe: number,
-        n0: bigint
-        r: bigint
+        n0: bigint,
+        r: bigint,
+        rinv: bigint,
 } => {
     const max_int_width = 32
     assert(word_size > 0)
@@ -222,7 +225,7 @@ export const compute_misc_params = (
     const neg_n_inv = r - pprime
     const n0 = neg_n_inv % (BigInt(2) ** BigInt(word_size))
 
-    return { num_words, max_terms, k, nsafe, n0, r: r % p }
+    return { num_words, max_terms, k, nsafe, n0, r: r % p, rinv }
 }
 
 export const genRandomFieldElement = (p: bigint): bigint => {

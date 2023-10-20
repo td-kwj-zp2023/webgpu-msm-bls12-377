@@ -4,7 +4,9 @@
 @binding(0)
 var<storage, read_write> buf: array<BigInt>;
 
-{{> montgomery_product_func }}
+const COST = {{ cost }}u;
+
+{{> montgomery_product_funcs }}
 
 @compute
 @workgroup_size(256)

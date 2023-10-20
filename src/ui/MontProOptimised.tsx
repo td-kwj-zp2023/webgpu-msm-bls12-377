@@ -6,7 +6,8 @@ import {
     bigints_to_u8_for_gpu,
 } from '../submission/utils'
 import bigint_struct from '../submission/wgsl/structs/bigint.template.wgsl'
-import montgomery_product_func from '../submission/wgsl/montgomery_product.template.wgsl'
+import bigint_funcs from '../submission/wgsl/bigint.template.wgsl'
+import montgomery_product_funcs from '../submission/wgsl/montgomery_product.template.wgsl'
 import mont_pro_optimised_shader from '../submission/wgsl/mont_pro_optimised.template.wgsl'
 import mont_pro_modified_shader from '../submission/wgsl/mont_pro_modified.template.wgsl'
 import mont_pro_cios_shader from '../submission/wgsl/mont_pro_cios.template.wgsl'
@@ -36,7 +37,7 @@ export const MontProOptimised: React.FC = () => {
                 return (c * b * r) % p
             }
 
-            const num_runs = 5
+            const num_runs = 0
 
             const timings: any = {}
 
@@ -74,7 +75,8 @@ export const MontProOptimised: React.FC = () => {
                         },
                         {
                             bigint_struct,
-                            montgomery_product_func,
+                            bigint_funcs,
+                            montgomery_product_funcs,
                         }
                     )
                 } else if (word_size > 13 && word_size < 16) {
@@ -92,7 +94,6 @@ export const MontProOptimised: React.FC = () => {
                         },
                         {
                             bigint_struct,
-                            montgomery_product_func,
                         }
                     )
                 } else if (word_size === 16) {
@@ -112,7 +113,6 @@ export const MontProOptimised: React.FC = () => {
                         },
                         {
                             bigint_struct,
-                            montgomery_product_func,
                         }
                     )
                 }
