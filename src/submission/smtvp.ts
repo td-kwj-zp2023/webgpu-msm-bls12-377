@@ -1,5 +1,3 @@
-// TODO:
-//  1. Convert point coordinates to Montgomery form, write test shader for this
 import mustache from 'mustache'
 import { BigIntPoint } from "../reference/types"
 import { FieldMath } from "../reference/utils/FieldMath";
@@ -7,7 +5,10 @@ import { ELLSparseMatrix, CSRSparseMatrix } from './matrices/matrices';
 import store_point_at_infinity_shader from '../submission/wgsl/store_point_at_infinity.template.wgsl'
 import smtvp_shader from '../submission/wgsl/smtvp.template.wgsl'
 import bigint_struct from '../submission/wgsl/structs/bigint.template.wgsl'
-import { u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu } from './utils'
+import bigint_funcs from '../submission/wgsl/bigint.template.wgsl'
+import montgomery_product_funcs from '../submission/wgsl/montgomery_product.template.wgsl'
+import { compute_misc_params, u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu } from './utils'
+import { ExtPointType } from "@noble/curves/abstract/edwards";
 import assert from 'assert'
 
 export async function get_device() {
@@ -93,9 +94,12 @@ export const smtvp = async (
 ): Promise<{x: bigint, y: bigint}> => {
     // Decompose the scalars into windows. In the actual implementation, this
     // should be done by a shader.
+    const p = BigInt('0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001')
     const word_size = 13
-    //const params = compute_misc_params(word_size)
-    const num_words = 20
+    const params = compute_misc_params(p, word_size)
+    const n0 = params.n0
+    const num_words = params.num_words
+    assert(num_words === 20)
 
     // λ-bit scalars. 13 * 20 = 260
     const lambda = word_size * num_words
@@ -119,10 +123,10 @@ export const smtvp = async (
         const max_col_idx = Math.max(...csr_sparse_matrices[i].col_idx, num_words)
 
         // Shader 1: store the point at infinity in the output buffer
-        const output_storage_buffer = await store_point_at_infinity_shader_gpu(device, max_col_idx, num_words)
+        const output_storage_buffer = await store_point_at_infinity_shader_gpu(device, max_col_idx, num_words, word_size, p, params.r)
 
         // Shader 2: perform SMTVP
-        await smtvp_gpu(device, csr_sparse_matrices[i], num_words, word_size, output_storage_buffer)
+        await smtvp_gpu(device, csr_sparse_matrices[i], num_words, word_size, p, n0, params.r, params.rinv, output_storage_buffer)
         break
     }
 
@@ -133,6 +137,9 @@ export async function store_point_at_infinity_shader_gpu(
     device: GPUDevice,
     max_col_idx: number,
     num_words: number,
+    word_size: number,
+    p: bigint,
+    r: bigint,
 ) {
     const num_x_workgroups = 256;
 
@@ -230,6 +237,18 @@ export async function store_point_at_infinity_shader_gpu(
     const fieldMath = new FieldMath();
     const ZERO_POINT = fieldMath.customEdwards.ExtendedPoint.ZERO;
 
+    const x_mont = (ZERO_POINT.ex * r) % p
+    const y_mont = (ZERO_POINT.ey * r) % p
+    const t_mont = (ZERO_POINT.et * r) % p
+    const z_mont = (ZERO_POINT.ez * r) % p
+
+    const mont_zero = {
+        x: x_mont,
+        y: y_mont,
+        t: t_mont,
+        z: z_mont,
+    }
+
     const data_as_uint8s = new Uint8Array(data)
 
     stagingBuffer.unmap();
@@ -238,11 +257,11 @@ export async function store_point_at_infinity_shader_gpu(
     console.log(`GPU took ${elapsed}ms`)
 
     // TODO: skip this check in production
-    for (const point of u8s_to_points(data_as_uint8s, num_words)) {
-        assert(point.x === ZERO_POINT.ex)
-        assert(point.y === ZERO_POINT.ey)
-        assert(point.t === ZERO_POINT.et)
-        assert(point.z === ZERO_POINT.ez)
+    for (const point of u8s_to_points(data_as_uint8s, num_words, word_size)) {
+        assert(point.x === mont_zero.x)
+        assert(point.y === mont_zero.y)
+        assert(point.t === mont_zero.t)
+        assert(point.z === mont_zero.z)
     }
     return output_storage_buffer
 }
@@ -252,6 +271,10 @@ export async function smtvp_gpu(
     csr_sm: CSRSparseMatrix,
     num_words: number,
     word_size: number,
+    p: bigint,
+    n0: bigint,
+    r: bigint,
+    rinv: bigint,
     previous_output_buffer: GPUBuffer,
 ) {
     const num_x_workgroups = 1;
@@ -269,10 +292,16 @@ export async function smtvp_gpu(
         smtvp_shader,
         {
             num_words,
+            word_size,
             num_rows,
+            n0,
+            two_pow_word_size: 2 ** word_size,
+            mask: BigInt(2) ** BigInt(word_size) - BigInt(1),
         },
         {
             bigint_struct,
+            bigint_funcs,
+            montgomery_product_funcs,
         },
     )
 
@@ -428,7 +457,7 @@ export async function smtvp_gpu(
         points_bytes.length
     );
 
-    const copyArrayBuffer = stagingBuffer.getMappedRange(0, points_bytes.length)
+    const copyArrayBuffer = stagingBuffer.getMappedRange(0, output_buffer_length)
     const data = copyArrayBuffer.slice(0);
     stagingBuffer.unmap();
 
@@ -438,6 +467,68 @@ export async function smtvp_gpu(
 
     const data_as_uint8s = new Uint8Array(data)
 
-    console.log(new Uint32Array(points_bytes))
-    console.log(u8s_to_points(data_as_uint8s, num_words)[0])
+    //console.log(u8s_to_points(data_as_uint8s, num_words, word_size))
+    //
+    const fieldMath = new FieldMath();
+
+    const points_with_mont_coords = u8s_to_points(data_as_uint8s, num_words, word_size)
+    const points: ExtPointType[] = []
+
+    for (const pt of points_with_mont_coords) {
+        points.push(fieldMath.createPoint(
+            fieldMath.Fp.mul(pt.x, rinv),
+            fieldMath.Fp.mul(pt.y, rinv),
+            fieldMath.Fp.mul(pt.t, rinv),
+            fieldMath.Fp.mul(pt.z, rinv),
+        ))
+    }
+
+    // TODO: the add_points algo doesn't yet work, so it needs to be debugged
+    // line-by-line
+    console.log('0th result from gpu, converted from Montgomery:', points[0])
+    console.log('0th result from gpu in affine form:', points[0].toAffine())
+
+    const ZERO_POINT = fieldMath.customEdwards.ExtendedPoint.ZERO;
+
+    // 1. Check that the output buffer contains inf points
+    // 2. Check that the points buffer contains the MSM points
+    // 3. Check that add_points works
+
+    const originalPt = fieldMath.createPoint(
+        fieldMath.Fp.mul(csr_sm.data[0].x, rinv),
+        fieldMath.Fp.mul(csr_sm.data[0].y, rinv),
+        fieldMath.Fp.mul(csr_sm.data[0].t, rinv),
+        fieldMath.Fp.mul(csr_sm.data[0].z, rinv),
+    )
+
+    //console.log(
+        //originalPt.add(ZERO_POINT).toAffine()
+    //)
 }
+
+/*
+fn add_points(p1: Point, p2: Point) -> Point {
+  var a = field_multiply(p1.x, p2.x);
+  var b = field_multiply(p1.y, p2.y);
+  var c = field_multiply(EDWARDS_D, field_multiply(p1.t, p2.t));
+  var d = field_multiply(p1.z, p2.z);
+  var p1_added = field_add(p1.x, p1.y);
+  var p2_added = field_add(p2.x, p2.y);
+  var e = field_multiply(field_add(p1.x, p1.y), field_add(p2.x, p2.y));
+  e = field_sub(e, a);
+  e = field_sub(e, b);
+  var f = field_sub(d, c);
+  var g = field_add(d, c);
+  var a_neg = mul_by_a(a);
+  var h = field_sub(b, a_neg);
+  var added_x = field_multiply(e, f);
+  var added_y = field_multiply(g, h);
+  var added_t = field_multiply(e, h);
+  var added_z = field_multiply(f, g);
+  return Point(added_x, added_y, added_t, added_z);
+}
+*/
+
+//export const add_points = (p1: ExtPointType, p2: ExtPointType, fieldMath: FieldMath): ExtPointType => {
+    //const fp = fieldMath.Fp
+//}

@@ -2,7 +2,8 @@ const NUM_WORDS = {{ num_words }}u;
 const WORD_SIZE = {{ word_size }}u;
 const MASK = {{ mask }}u;
 const N0 = {{ n0 }}u;
-const COST = {{ cost }}u;
+
+{{> bigint_funcs }}
 
 fn get_p() -> BigInt {
     var p: BigInt;
@@ -44,41 +45,13 @@ fn montgomery_product(x: ptr<function, BigInt>, y: ptr<function, BigInt>) -> Big
 
 fn conditional_reduce(x: ptr<function, BigInt>, y: ptr<function, BigInt>) -> BigInt {
     // Determine if x > y
-    var x_gt_y = gt(x, y);
+    var x_gt_y = bigint_gt(x, y);
 
     if (x_gt_y == 1u) {
-        return sub(x, y);
+        var res: BigInt;
+        bigint_sub(x, y, &res);
+        return res;
     }
 
     return *x;
 }
-
-fn gt(x: ptr<function, BigInt>, y: ptr<function, BigInt>) -> u32 {
-    for (var idx = 0u; idx < NUM_WORDS; idx ++) {
-        var i = NUM_WORDS - 1u - idx;
-        if ((*x).limbs[i] < (*y).limbs[i]) {
-            return 0u;
-        } else if ((*x).limbs[i] > (*y).limbs[i]) {
-            return 1u;
-        }
-    }
-    return 0u;
-}
-
-fn sub(x: ptr<function, BigInt>, y: ptr<function, BigInt>) -> BigInt {
-    var w = MASK + 1u;
-    var borrow = 0u;
-    var res: BigInt;
-    var m = 1u << WORD_SIZE;
-    for (var i = 0u; i < NUM_WORDS; i ++) {
-        res.limbs[i] = (*x).limbs[i] - (*y).limbs[i] - borrow;
-        if ((*x).limbs[i] < (*y).limbs[i] + borrow) {
-            res.limbs[i] += w;
-            borrow = 1u;
-        } else {
-            borrow = 0u;
-        }
-    }
-    return res;
-}
-
