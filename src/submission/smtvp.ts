@@ -237,10 +237,10 @@ export async function store_point_at_infinity_shader_gpu(
     const fieldMath = new FieldMath();
     const ZERO_POINT = fieldMath.customEdwards.ExtendedPoint.ZERO;
 
-    const x_mont = (ZERO_POINT.ex * r) % p
-    const y_mont = (ZERO_POINT.ey * r) % p
-    const t_mont = (ZERO_POINT.et * r) % p
-    const z_mont = (ZERO_POINT.ez * r) % p
+    const x_mont = fieldMath.Fp.mul(ZERO_POINT.ex, r)
+    const y_mont = fieldMath.Fp.mul(ZERO_POINT.ey, r)
+    const t_mont = fieldMath.Fp.mul(ZERO_POINT.et, r)
+    const z_mont = fieldMath.Fp.mul(ZERO_POINT.ez, r)
 
     const mont_zero = {
         x: x_mont,
@@ -277,7 +277,7 @@ export async function smtvp_gpu(
     rinv: bigint,
     previous_output_buffer: GPUBuffer,
 ) {
-    const num_x_workgroups = 1;
+    const num_x_workgroups = 256;
 
     const max_col_idx = Math.max(...csr_sm.col_idx)
     const output_buffer_length = max_col_idx * num_words * 4 * 4
@@ -419,7 +419,8 @@ export async function smtvp_gpu(
     const start = Date.now()
 
     // Copy the previous shader's output buffer to the output buffer of this
-    // shader. The values should be the point at infinity.
+    // shader. The values should each be the point at infinity in Montgomery
+    // form (x: 0, y: r, t: 0, z: r).
     commandEncoder.copyBufferToBuffer(
         previous_output_buffer, // source
         0, // sourceOffset
@@ -467,11 +468,11 @@ export async function smtvp_gpu(
 
     const data_as_uint8s = new Uint8Array(data)
 
-    //console.log(u8s_to_points(data_as_uint8s, num_words, word_size))
-    //
-    const fieldMath = new FieldMath();
+    const output_points = u8s_to_points(data_as_uint8s, num_words, word_size)
+    console.log('output points from gpu:', output_points)
 
-    const points_with_mont_coords = u8s_to_points(data_as_uint8s, num_words, word_size)
+    /*
+    //const fieldMath = new FieldMath();
     const points: ExtPointType[] = []
 
     for (const pt of points_with_mont_coords) {
@@ -482,24 +483,31 @@ export async function smtvp_gpu(
             fieldMath.Fp.mul(pt.z, rinv),
         ))
     }
+    */
 
     // TODO: the add_points algo doesn't yet work, so it needs to be debugged
     // line-by-line
-    console.log('0th result from gpu, converted from Montgomery:', points[0])
-    console.log('0th result from gpu in affine form:', points[0].toAffine())
+    //const ZERO_POINT = fieldMath.customEdwards.ExtendedPoint.ZERO;
 
-    const ZERO_POINT = fieldMath.customEdwards.ExtendedPoint.ZERO;
+    //console.log('0th result from gpu, converted from Montgomery:', points[0])
+
+    //const expected = add_points(ZERO_POINT, ZERO_POINT, fieldMath)
+
+    //console.log(expected)
+
+    //console.log('0th result from gpu in affine form:', points[0].toAffine())
+
 
     // 1. Check that the output buffer contains inf points
     // 2. Check that the points buffer contains the MSM points
     // 3. Check that add_points works
 
-    const originalPt = fieldMath.createPoint(
-        fieldMath.Fp.mul(csr_sm.data[0].x, rinv),
-        fieldMath.Fp.mul(csr_sm.data[0].y, rinv),
-        fieldMath.Fp.mul(csr_sm.data[0].t, rinv),
-        fieldMath.Fp.mul(csr_sm.data[0].z, rinv),
-    )
+    //const originalPt = fieldMath.createPoint(
+        //fieldMath.Fp.mul(csr_sm.data[0].x, rinv),
+        //fieldMath.Fp.mul(csr_sm.data[0].y, rinv),
+        //fieldMath.Fp.mul(csr_sm.data[0].t, rinv),
+        //fieldMath.Fp.mul(csr_sm.data[0].z, rinv),
+    //)
 
     //console.log(
         //originalPt.add(ZERO_POINT).toAffine()

@@ -26,6 +26,7 @@ var<storage, read> row_ptr: array<u32>;
 @group(0) @binding(3)
 var<storage, read> points: array<Point>;
 
+/*
 // TODO: debug this!
 fn add_points(p1: Point, p2: Point) -> Point {
     var p1x = p1.x;
@@ -72,6 +73,7 @@ fn add_points(p1: Point, p2: Point) -> Point {
 
     return Point(added_x, added_y, added_t, added_z);
 }
+*/
 
 {{> montgomery_product_funcs }}
 
@@ -110,14 +112,25 @@ fn fr_sub(a: ptr<function, BigInt>, b: ptr<function, BigInt>) -> BigInt {
     }
 }
 
+/*
+fn add_points(p1: Point, p2: Point) -> Point {
+    //var a = field_multiply(p1.x, p2.x);
+    var p1x = p1.x;
+    var p2x = p2.x;
+    var a = montgomery_product(&p1x, &p2x);
+
+    return Point(a, a, a, a);
+}
+*/
+
 @compute
 @workgroup_size(1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Assumes that the output buffer already contains the point at infinity at
     // each index
 
-    // Add the point at infinity
-    output[global_id.x] = add_points(output[global_id.x], output[global_id.x]);
+    output[global_id.x] = points[global_id.x];
+
     /*
     // Perform SMTVP
     for (var i = 0u; i < NUM_ROWS; i ++) {
@@ -134,6 +147,4 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         }
     }
     */
-    /*output[global_id.x] = points[global_id.x];*/
-    /*output[global_id.x] = output[global_id.x];*/
 }
