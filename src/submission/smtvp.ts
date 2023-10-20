@@ -7,7 +7,7 @@ import smtvp_shader from '../submission/wgsl/smtvp.template.wgsl'
 import bigint_struct from '../submission/wgsl/structs/bigint.template.wgsl'
 import bigint_funcs from '../submission/wgsl/bigint.template.wgsl'
 import montgomery_product_funcs from '../submission/wgsl/montgomery_product.template.wgsl'
-import { compute_misc_params, u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu } from './utils'
+import { compute_misc_params, u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, gen_p_limbs } from './utils'
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import assert from 'assert'
 
@@ -284,10 +284,27 @@ export async function smtvp_gpu(
 
     const col_idx_bytes = numbers_to_u8s_for_gpu(csr_sm.col_idx)
     const row_ptr_bytes = numbers_to_u8s_for_gpu(csr_sm.row_ptr)
-    const points_bytes = points_to_u8s_for_gpu(csr_sm.data, num_words, word_size)
+   
+    const fieldMath = new FieldMath();
+
+    // Convert each point coordinate for each point in the CSR matrix into
+    // Montgomery form
+    const points_with_mont_coords: BigIntPoint[] = []
+    for (const pt of csr_sm.data) {
+        points_with_mont_coords.push(
+            {
+                x: fieldMath.Fp.mul(pt.x, r),
+                y: fieldMath.Fp.mul(pt.y, r),
+                t: fieldMath.Fp.mul(pt.t, r),
+                z: fieldMath.Fp.mul(pt.z, r),
+            }
+        )
+    }
+    const points_bytes = points_to_u8s_for_gpu(points_with_mont_coords, num_words, word_size)
 
     const num_rows = csr_sm.row_ptr.length - 1
 
+    const p_limbs = gen_p_limbs(p, num_words, word_size)
     const shaderCode = mustache.render(
         smtvp_shader,
         {
@@ -295,7 +312,7 @@ export async function smtvp_gpu(
             word_size,
             num_rows,
             n0,
-            two_pow_word_size: 2 ** word_size,
+            p_limbs,
             mask: BigInt(2) ** BigInt(word_size) - BigInt(1),
         },
         {
@@ -305,7 +322,7 @@ export async function smtvp_gpu(
         },
     )
 
-    //console.log(shaderCode)
+    console.log(shaderCode)
 
     // 2: Create a shader module from the shader template literal
     const shaderModule = device.createShaderModule({
@@ -429,7 +446,6 @@ export async function smtvp_gpu(
         previous_output_buffer.size // size
     );
 
-
     // 6: Initiate render pass
     const passEncoder = commandEncoder.beginComputePass();
 
@@ -469,10 +485,20 @@ export async function smtvp_gpu(
     const data_as_uint8s = new Uint8Array(data)
 
     const output_points = u8s_to_points(data_as_uint8s, num_words, word_size)
-    console.log('output points from gpu:', output_points)
+    console.log('0th output point from gpu:', output_points[0])
+
+    const output_points_as_affine: any[] = []
+    for (const output_point of output_points) {
+        output_points_as_affine.push(fieldMath.createPoint(
+            output_point.x,
+            output_point.y,
+            output_point.t,
+            output_point.z,
+        ).toAffine())
+    }
+    //console.log('0th output point from gpu as affine:', output_points_as_affine[0])
 
     /*
-    //const fieldMath = new FieldMath();
     const points: ExtPointType[] = []
 
     for (const pt of points_with_mont_coords) {
@@ -491,16 +517,26 @@ export async function smtvp_gpu(
 
     //console.log('0th result from gpu, converted from Montgomery:', points[0])
 
-    //const expected = add_points(ZERO_POINT, ZERO_POINT, fieldMath)
+    //const expected = add_points(points_with_mont_coords[0], points_with_mont_coords[0], rinv, fieldMath)
+    //
+    //const bigIntPointToExtPointType = (bip: BigIntPoint): ExtPointType => {
+        //return fieldMath.createPoint(bip.x, bip.y, bip.t, bip.z)
+    //}
 
-    //console.log(expected)
+    //const pt = bigIntPointToExtPointType(csr_sm.data[0])
+    //const expected = pt.add(pt)
+
+    const expected = add_points(points_with_mont_coords[0], points_with_mont_coords[0], p, rinv, fieldMath)
+    console.log('expected:', expected)
+
+    const x = BigInt('2796670805570508460920584878396618987767121022598342527208237783066948667246')
+
+    const xr = points_with_mont_coords[0].x
+    assert(((x * x * r) % p) == ((xr * x) % p))
+    //console.log((x * x * r) % p)
+    //console.log((xr * x) % p)
 
     //console.log('0th result from gpu in affine form:', points[0].toAffine())
-
-
-    // 1. Check that the output buffer contains inf points
-    // 2. Check that the points buffer contains the MSM points
-    // 3. Check that add_points works
 
     //const originalPt = fieldMath.createPoint(
         //fieldMath.Fp.mul(csr_sm.data[0].x, rinv),
@@ -537,6 +573,67 @@ fn add_points(p1: Point, p2: Point) -> Point {
 }
 */
 
-//export const add_points = (p1: ExtPointType, p2: ExtPointType, fieldMath: FieldMath): ExtPointType => {
-    //const fp = fieldMath.Fp
-//}
+export const add_points = (
+    p1: BigIntPoint,
+    p2: BigIntPoint,
+    p: bigint,
+    rinv: bigint,
+    fieldMath: FieldMath,
+): ExtPointType => {
+    const montgomery_product = (
+        a: bigint,
+        b: bigint,
+    ): bigint => {
+        const fp = fieldMath.Fp
+        const ab = fp.mul(a, b)
+        const abr = fp.mul(ab, rinv)
+        return abr
+    }
+
+    const fr_add = fieldMath.Fp.add
+    const fr_sub = fieldMath.Fp.sub
+
+    const p1x = p1.x
+    const p2x = p2.x
+    const a = montgomery_product(p1x, p2x)
+
+    const p1y = p1.y
+    const p2y = p2.y
+    const b = montgomery_product(p1y, p2y)
+
+    const p1t = p1.t
+    const p2t = p1.t
+    const t2 = montgomery_product(p1t, p2t)
+
+    const EDWARDS_D = BigInt(3021)
+    const c = montgomery_product(EDWARDS_D, t2)
+
+    const p1z = p1.z
+    const p2z = p2.z
+    const d = montgomery_product(p1z, p2z)
+
+    //const p1_added = fr_add(p1x, p1y)
+    //const p2_added = fr_add(p2x, p2y)
+
+    const xpy = fr_add(p1x, p1y)
+    const xpy2 = fr_add(p2x, p2y)
+    let e = montgomery_product(xpy, xpy2)
+
+    e = fr_sub(e, a)
+    return fieldMath.createPoint(e, e, e, e)
+    //e = fr_sub(e, b)
+    //const f = fr_sub(d, c)
+    //const g = fr_add(d, c)
+
+    //const a_neg = fr_sub(p, a)
+
+    //const h = fr_sub(b, a_neg)
+
+    //const added_x = montgomery_product(e, f);
+    //const added_y = montgomery_product(g, h);
+    //const added_t = montgomery_product(e, h);
+    //const added_z = montgomery_product(f, g);
+
+    //return fieldMath.createPoint(added_x, added_y, added_t, added_z)
+}
+

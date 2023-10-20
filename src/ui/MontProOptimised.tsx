@@ -37,11 +37,12 @@ export const MontProOptimised: React.FC = () => {
                 return (c * b * r) % p
             }
 
-            const num_runs = 0
+            const num_runs = 1
 
             const timings: any = {}
 
-            for (let word_size = 12; word_size < 17; word_size ++) {
+            //for (let word_size = 12; word_size < 17; word_size ++) {
+            for (let word_size = 13; word_size < 14; word_size ++) {
                 timings[word_size] = []
 
                 const misc_params = compute_misc_params(p, word_size)
