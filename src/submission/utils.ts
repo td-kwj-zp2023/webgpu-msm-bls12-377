@@ -18,10 +18,10 @@ export const points_to_u8s_for_gpu = (
         const z_bytes = bigint_to_u8_for_gpu(points[i].z, num_words, word_size)
 
         for (let j = 0; j < x_bytes.length; j ++) {
-            result[i * x_bytes.length + j] = x_bytes[j]
-            result[i * x_bytes.length + j + x_bytes.length] = y_bytes[j]
-            result[i * x_bytes.length + j + x_bytes.length * 2] = t_bytes[j]
-            result[i * x_bytes.length + j + x_bytes.length * 3] = z_bytes[j]
+            result[i * 4 * x_bytes.length + j] = x_bytes[j]
+            result[i * 4 * x_bytes.length + j + x_bytes.length] = y_bytes[j]
+            result[i * 4 * x_bytes.length + j + x_bytes.length * 2] = t_bytes[j]
+            result[i * 4 * x_bytes.length + j + x_bytes.length * 3] = z_bytes[j]
         }
     }
 
