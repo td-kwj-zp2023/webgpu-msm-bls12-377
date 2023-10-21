@@ -519,16 +519,26 @@ export async function smtvp_gpu(
     //console.log('0th result from gpu, converted from Montgomery:', points[0])
 
     //const expected = add_points(points_with_mont_coords[0], points_with_mont_coords[0], rinv, fieldMath)
-    //
-    //const bigIntPointToExtPointType = (bip: BigIntPoint): ExtPointType => {
-        //return fieldMath.createPoint(bip.x, bip.y, bip.t, bip.z)
-    //}
 
-    //const pt = bigIntPointToExtPointType(csr_sm.data[0])
-    //const expected = pt.add(pt)
+    const bigIntPointToExtPointType = (bip: BigIntPoint): ExtPointType => {
+        return fieldMath.createPoint(bip.x, bip.y, bip.t, bip.z)
+    }
 
-    const expected = add_points(points_with_mont_coords[0], points_with_mont_coords[0], p, rinv, fieldMath)
-    console.log('expected:', expected)
+    const pt = bigIntPointToExtPointType(csr_sm.data[0])
+    const expected_orig = pt.add(pt)
+
+    const expected_mont = add_points(points_with_mont_coords[0], points_with_mont_coords[0], p, rinv, fieldMath)
+    console.log('expected:', expected_mont)
+
+    const expected_mont_to_orig = fieldMath.createPoint(
+        fieldMath.Fp.mul(expected_mont.ex, rinv),
+        fieldMath.Fp.mul(expected_mont.ey, rinv),
+        fieldMath.Fp.mul(expected_mont.et, rinv),
+        fieldMath.Fp.mul(expected_mont.ez, rinv),
+    )
+
+    console.log(expected_orig.toAffine())
+    console.log(expected_mont_to_orig.toAffine())
 
     const x = BigInt('2796670805570508460920584878396618987767121022598342527208237783066948667246')
 
@@ -613,28 +623,24 @@ export const add_points = (
     const p2z = p2.z
     const d = montgomery_product(p1z, p2z)
 
-    //const p1_added = fr_add(p1x, p1y)
-    //const p2_added = fr_add(p2x, p2y)
-
     const xpy = fr_add(p1x, p1y)
     const xpy2 = fr_add(p2x, p2y)
     let e = montgomery_product(xpy, xpy2)
 
     e = fr_sub(e, a)
-    return fieldMath.createPoint(e, e, e, e)
-    //e = fr_sub(e, b)
-    //const f = fr_sub(d, c)
-    //const g = fr_add(d, c)
+    e = fr_sub(e, b)
+    const f = fr_sub(d, c)
+    const g = fr_add(d, c)
 
-    //const a_neg = fr_sub(p, a)
+    const a_neg = fr_sub(p, a)
 
-    //const h = fr_sub(b, a_neg)
+    const h = fr_sub(b, a_neg)
 
-    //const added_x = montgomery_product(e, f);
-    //const added_y = montgomery_product(g, h);
-    //const added_t = montgomery_product(e, h);
-    //const added_z = montgomery_product(f, g);
+    const added_x = montgomery_product(e, f);
+    const added_y = montgomery_product(g, h);
+    const added_t = montgomery_product(e, h);
+    const added_z = montgomery_product(f, g);
 
-    //return fieldMath.createPoint(added_x, added_y, added_t, added_z)
+    return fieldMath.createPoint(added_x, added_y, added_t, added_z)
 }
 

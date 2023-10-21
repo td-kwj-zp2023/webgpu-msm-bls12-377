@@ -95,30 +95,25 @@ fn add_points(p1: Point, p2: Point) -> Point {
     var p2z = p2.z;
     var d = montgomery_product(&p1z, &p2z);
 
-    /*var p1_added = fr_add(&p1x, &p1y);*/
-    /*var p2_added = fr_add(&p2x, &p2y);*/
-
     var xpy = fr_add(&p1x, &p1y);
     var xpy2 = fr_add(&p2x, &p2y);
     var e = montgomery_product(&xpy, &xpy2);
     e = fr_sub(&e, &a);
-    return Point(e, e, e, e);
+    e = fr_sub(&e, &b);
 
-    /*e = fr_sub(&e, &b);*/
+    var f = fr_sub(&d, &c);
+    var g = fr_add(&d, &c);
 
-    /*var f = fr_sub(&d, &c);*/
-    /*var g = fr_add(&d, &c);*/
+    var p = get_p();
+    var a_neg = fr_sub(&p, &a);
 
-    /*var p = get_p();*/
-    /*var a_neg = fr_sub(&p, &a);*/
+    var h = fr_sub(&b, &a_neg);
+    var added_x = montgomery_product(&e, &f);
+    var added_y = montgomery_product(&g, &h);
+    var added_t = montgomery_product(&e, &h);
+    var added_z = montgomery_product(&f, &g);
 
-    /*var h = fr_sub(&b, &a_neg);*/
-    /*var added_x = montgomery_product(&e, &f);*/
-    /*var added_y = montgomery_product(&g, &h);*/
-    /*var added_t = montgomery_product(&e, &h);*/
-    /*var added_z = montgomery_product(&f, &g);*/
-
-    /*return Point(added_x, added_y, added_t, added_z);*/
+    return Point(added_x, added_y, added_t, added_z);
 }
 
 {{> montgomery_product_funcs }}
