@@ -84,7 +84,7 @@ fn add_points(p1: Point, p2: Point) -> Point {
     var b = montgomery_product(&p1y, &p2y);
 
     var p1t = p1.t;
-    var p2t = p1.t;
+    var p2t = p2.t;
     var t2 = montgomery_product(&p1t, &p2t);
 
     var EDWARDS_D: BigInt;
