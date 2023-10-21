@@ -7,7 +7,7 @@ import smtvp_shader from '../submission/wgsl/smtvp.template.wgsl'
 import bigint_struct from '../submission/wgsl/structs/bigint.template.wgsl'
 import bigint_funcs from '../submission/wgsl/bigint.template.wgsl'
 import montgomery_product_funcs from '../submission/wgsl/montgomery_product.template.wgsl'
-import { compute_misc_params, u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, gen_p_limbs } from './utils'
+import { compute_misc_params, u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, gen_p_limbs, to_words_le } from './utils'
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import assert from 'assert'
 
@@ -147,7 +147,7 @@ export async function store_point_at_infinity_shader_gpu(
 
     const shaderCode = mustache.render(store_point_at_infinity_shader, { num_words })
 
-    //console.log(shaderCode)
+    console.log(shaderCode)
 
     // 2: Create a shader module from the shader template literal
     const shaderModule = device.createShaderModule({
@@ -539,19 +539,23 @@ export async function smtvp_gpu(
     }
 
     const pt = bigIntPointToExtPointType(csr_sm.data[0])
-    const expected_orig = pt.add(pt)
-    //const expected_orig = pt.add(ZERO_POINT_MONT)
 
-    //const expected_mont = add_points(points_with_mont_coords[0], points_with_mont_coords[0], p, rinv, fieldMath)
+    const expected_orig = pt.add(pt)
+    expected_orig.assertValidity()
+    //const expected_orig = pt.add(ZERO_POINT_MONT)
+    console.log('expected_orig:', expected_orig)
+
+    //const expected_mont = add_points(points_with_mont_coords[0], points_with_mont_coords[0], p, r, rinv, fieldMath)
     const expected_mont = add_points(
         points_with_mont_coords[0],
         points_with_mont_coords[0],
         //extPointTypeToBigIntPoint(ZERO_POINT_MONT),
         p,
+        r,
         rinv,
         fieldMath,
     )
-    console.log('expected:', expected_mont)
+    console.log('expected_mont:', expected_mont)
 
     const expected_mont_to_orig = fieldMath.createPoint(
         fieldMath.Fp.mul(expected_mont.ex, rinv),
@@ -567,6 +571,9 @@ export async function smtvp_gpu(
 
     const xr = points_with_mont_coords[0].x
     assert(((x * x * r) % p) == ((xr * x) % p))
+
+    // EDWARDS_D in mont form
+    //console.log(to_words_le(BigInt('10078976414855177681128800707006310383894354559808828913099261404986999135659937'), num_words, word_size))
     //console.log((x * x * r) % p)
     //console.log((xr * x) % p)
 
@@ -611,6 +618,7 @@ export const add_points = (
     p1: BigIntPoint,
     p2: BigIntPoint,
     p: bigint,
+    r: bigint,
     rinv: bigint,
     fieldMath: FieldMath,
 ): ExtPointType => {
@@ -639,7 +647,7 @@ export const add_points = (
     const p2t = p2.t
     const t2 = montgomery_product(p1t, p2t)
 
-    const EDWARDS_D = BigInt(3021)
+    const EDWARDS_D = BigInt(3021) * r
     const c = montgomery_product(EDWARDS_D, t2)
 
     const p1z = p1.z
@@ -652,6 +660,7 @@ export const add_points = (
 
     e = fr_sub(e, a)
     e = fr_sub(e, b)
+
     const f = fr_sub(d, c)
     const g = fr_add(d, c)
 
