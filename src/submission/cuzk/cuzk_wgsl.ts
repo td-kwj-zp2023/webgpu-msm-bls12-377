@@ -159,6 +159,31 @@ export async function transpose_gpu(
     max_col_idx: number
 ) {
     console.log("entered tranpose_gpu method!")
+    
+    console.log("csr data is: ", csr_sm.data)
+
+    const tester: BigIntPoint = { 
+        x: BigInt(0),
+        y: BigInt(1),
+        t: BigInt(0),
+        z: BigInt(1),
+    }
+
+    // csr_sm.data[0] = tester
+    csr_sm.data[1] = tester
+
+    console.log("0 !", csr_sm.data[0])
+    console.log("1 !", csr_sm.data[1])
+
+    const ZERO_POINT = fieldMath.customEdwards.ExtendedPoint.ZERO;
+    console.log("zero_point is: ", ZERO_POINT)
+    const test_cpu_point = fieldMath.createPoint(csr_sm.data[0].x, csr_sm.data[0].y, csr_sm.data[0].t, csr_sm.data[0].z)
+    const test_cpu_point_2 = fieldMath.createPoint(csr_sm.data[1].x, csr_sm.data[1].y, csr_sm.data[1].t, csr_sm.data[1].z)
+    console.log("test_cpu_point: ", test_cpu_point)
+    console.log("test_cpu_point_2: ", test_cpu_point_2)
+    const add_point = test_cpu_point.add(test_cpu_point_2)
+    console.log("test cpu point add ! ", add_point)
+    console.log("test cpu point add affine! ", add_point.toAffine())
 
     // convert points to montgomery form
     const points_with_mont_coords: BigIntPoint[] = []
@@ -172,6 +197,8 @@ export async function transpose_gpu(
             }
         )
     }
+
+    console.log("????? points_with_mont_coords: ", points_with_mont_coords)
 
     // Define number of workgroups
     const num_x_workgroups = 1;
@@ -214,6 +241,7 @@ export async function transpose_gpu(
             num_words,
             word_size,
             num_rows,
+            max_col_idx,
             n0,
             p_limbs,
             two_pow_word_size: 2 ** word_size,
@@ -360,11 +388,14 @@ export async function transpose_gpu(
     const gpu_point_affine = gpu_point.toAffine()
 
     // Algorithm here:
-    const expected = add_points(points_with_mont_coords[0], points_with_mont_coords[0], p, rinv)
+    const expected = add_points(points_with_mont_coords[0], points_with_mont_coords[1], p, rinv, r)
     const expected_affine = expected.toAffine()
     
     console.log('result:', gpu_point)
     console.log('expected:', expected)
+
+    console.log('result affine:', gpu_point_affine)
+    console.log('expected affine:', expected_affine)
 
     assert(expected_affine.x === gpu_point_affine.x)
     assert(expected_affine.y === gpu_point_affine.y)
@@ -387,6 +418,7 @@ export const add_points = (
     p2: BigIntPoint,
     p: bigint,
     rinv: bigint,
+    r: bigint
 ): ExtPointType => {
     const montgomery_product = (
         a: bigint,
@@ -410,10 +442,10 @@ export const add_points = (
     const b = montgomery_product(p1y, p2y)
 
     const p1t = p1.t
-    const p2t = p1.t
+    const p2t = p2.t
     const t2 = montgomery_product(p1t, p2t)
 
-    const EDWARDS_D = BigInt(3021)
+    const EDWARDS_D = BigInt(3021) * r
     const c = montgomery_product(EDWARDS_D, t2)
 
     const p1z = p1.z
