@@ -147,7 +147,7 @@ export async function store_point_at_infinity_shader_gpu(
 
     const shaderCode = mustache.render(store_point_at_infinity_shader, { num_words })
 
-    console.log(shaderCode)
+    //console.log(shaderCode)
 
     // 2: Create a shader module from the shader template literal
     const shaderModule = device.createShaderModule({
@@ -485,7 +485,46 @@ export async function smtvp_gpu(
 
     const data_as_uint8s = new Uint8Array(data)
 
+    const bigIntPointToExtPointType = (bip: BigIntPoint): ExtPointType => {
+        return fieldMath.createPoint(bip.x, bip.y, bip.t, bip.z)
+    }
+
+    // Perform SMTVP in CPU
+    const vec: bigint[] = []
+    for (let i = 0; i < csr_sm.row_ptr.length - 1; i ++) {
+        vec.push(BigInt(1))
+    }
+    const smtvp_result = await csr_sm.smtvp(vec, fieldMath)
+    const smtvp_result_affine = smtvp_result.map((x) => x.toAffine())
+    console.log(smtvp_result_affine)
+
     const output_points = u8s_to_points(data_as_uint8s, num_words, word_size)
+
+    // convert output_points out of Montgomery coords
+    const output_points_non_mont: ExtPointType[] = []
+    for (const pt of output_points) {
+        const non = {
+            x: fieldMath.Fp.mul(pt.x, rinv),
+            y: fieldMath.Fp.mul(pt.y, rinv),
+            t: fieldMath.Fp.mul(pt.t, rinv),
+            z: fieldMath.Fp.mul(pt.z, rinv),
+        }
+        output_points_non_mont.push(bigIntPointToExtPointType(non))
+    }
+    // convert output_points_non_mont into affine
+    const output_points_non_mont_and_affine = output_points_non_mont.map((x) => x.toAffine())
+    console.log(output_points_non_mont_and_affine)
+
+    debugger
+    assert(smtvp_result_affine.length === output_points_non_mont_and_affine.length)
+
+
+    //for (let i = 0; i < smtvp_result_affine.length; i ++) {
+        //assert(smtvp_result_affine[i].x === output_points_non_mont_and_affine[i].x)
+        //assert(smtvp_result_affine[i].y === output_points_non_mont_and_affine[i].y)
+    //}
+    return
+
     console.log('0th output point from gpu:', output_points[0])
 
     const output_points_as_affine: any[] = []
@@ -500,10 +539,6 @@ export async function smtvp_gpu(
         output_points_as_affine.push(pt.toAffine())
     }
     console.log('0th output point from gpu as affine:', output_points_as_affine[0])
-
-    const bigIntPointToExtPointType = (bip: BigIntPoint): ExtPointType => {
-        return fieldMath.createPoint(bip.x, bip.y, bip.t, bip.z)
-    }
     //const extPointTypeToBigIntPoint = (e: ExtPointType): BigIntPoint => {
         //return {
             //x: e.ex,
@@ -545,29 +580,6 @@ export async function smtvp_gpu(
     assert(expected_orig.x === output_points_as_affine[0].x)
     assert(expected_orig.y === output_points_as_affine[0].y)
 }
-
-/*
-fn add_points(p1: Point, p2: Point) -> Point {
-  var a = field_multiply(p1.x, p2.x);
-  var b = field_multiply(p1.y, p2.y);
-  var c = field_multiply(EDWARDS_D, field_multiply(p1.t, p2.t));
-  var d = field_multiply(p1.z, p2.z);
-  var p1_added = field_add(p1.x, p1.y);
-  var p2_added = field_add(p2.x, p2.y);
-  var e = field_multiply(field_add(p1.x, p1.y), field_add(p2.x, p2.y));
-  e = field_sub(e, a);
-  e = field_sub(e, b);
-  var f = field_sub(d, c);
-  var g = field_add(d, c);
-  var a_neg = mul_by_a(a);
-  var h = field_sub(b, a_neg);
-  var added_x = field_multiply(e, f);
-  var added_y = field_multiply(g, h);
-  var added_t = field_multiply(e, h);
-  var added_z = field_multiply(f, g);
-  return Point(added_x, added_y, added_t, added_z);
-}
-*/
 
 export const add_points = (
     p1: BigIntPoint,

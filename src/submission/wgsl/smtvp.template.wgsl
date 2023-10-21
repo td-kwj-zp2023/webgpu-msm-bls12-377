@@ -135,9 +135,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // each index
 
     /*output[global_id.x] = points[global_id.x];*/
-    output[global_id.x] = add_points(points[global_id.x], points[global_id.x]);
+    /*output[global_id.x] = add_points(points[global_id.x], points[global_id.x]);*/
 
-    /*
     // Perform SMTVP
     for (var i = 0u; i < NUM_ROWS; i ++) {
         let row_start = row_ptr[global_id.x + i];
@@ -152,5 +151,4 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
             output[global_id.x + col] = res;
         }
     }
-    */
 }
