@@ -514,7 +514,13 @@ export async function smtvp_gpu(
 
     // TODO: the add_points algo doesn't yet work, so it needs to be debugged
     // line-by-line
-    //const ZERO_POINT = fieldMath.customEdwards.ExtendedPoint.ZERO;
+    const ZERO_POINT = fieldMath.customEdwards.ExtendedPoint.ZERO;
+    const ZERO_POINT_MONT = fieldMath.createPoint(
+        fieldMath.Fp.mul(ZERO_POINT.ex, r),
+        fieldMath.Fp.mul(ZERO_POINT.ey, r),
+        fieldMath.Fp.mul(ZERO_POINT.et, r),
+        fieldMath.Fp.mul(ZERO_POINT.ez, r),
+    )
 
     //console.log('0th result from gpu, converted from Montgomery:', points[0])
 
@@ -523,11 +529,28 @@ export async function smtvp_gpu(
     const bigIntPointToExtPointType = (bip: BigIntPoint): ExtPointType => {
         return fieldMath.createPoint(bip.x, bip.y, bip.t, bip.z)
     }
+    const extPointTypeToBigIntPoint = (e: ExtPointType): BigIntPoint => {
+        return {
+            x: e.ex,
+            y: e.ey,
+            t: e.et,
+            z: e.ez,
+        }
+    }
 
     const pt = bigIntPointToExtPointType(csr_sm.data[0])
     const expected_orig = pt.add(pt)
+    //const expected_orig = pt.add(ZERO_POINT_MONT)
 
-    const expected_mont = add_points(points_with_mont_coords[0], points_with_mont_coords[0], p, rinv, fieldMath)
+    //const expected_mont = add_points(points_with_mont_coords[0], points_with_mont_coords[0], p, rinv, fieldMath)
+    const expected_mont = add_points(
+        points_with_mont_coords[0],
+        points_with_mont_coords[0],
+        //extPointTypeToBigIntPoint(ZERO_POINT_MONT),
+        p,
+        rinv,
+        fieldMath,
+    )
     console.log('expected:', expected_mont)
 
     const expected_mont_to_orig = fieldMath.createPoint(
@@ -613,7 +636,7 @@ export const add_points = (
     const b = montgomery_product(p1y, p2y)
 
     const p1t = p1.t
-    const p2t = p1.t
+    const p2t = p2.t
     const t2 = montgomery_product(p1t, p2t)
 
     const EDWARDS_D = BigInt(3021)
