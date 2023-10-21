@@ -1,4 +1,5 @@
 const NUM_ROWS = {{ num_rows }}u;
+const MAX_COL_IDX_PLUS_ONE = {{ max_col_idx_plus_one }}u;
 
 {{> bigint_struct }}
 
@@ -24,6 +25,33 @@ var<storage, read> row_ptr: array<u32>;
 
 @group(0) @binding(3)
 var<storage, read> points: array<Point>;
+
+fn get_r() -> BigInt {
+    var r: BigInt;
+
+    r.limbs[0] = 7973u;
+    r.limbs[1] = 8191u;
+    r.limbs[2] = 8191u;
+    r.limbs[3] = 3839u;
+    r.limbs[4] = 1584u;
+    r.limbs[5] = 8078u;
+    r.limbs[6] = 8191u;
+    r.limbs[7] = 129u;
+    r.limbs[8] = 3124u;
+    r.limbs[9] = 601u;
+    r.limbs[10] = 7094u;
+    r.limbs[11] = 6328u;
+    r.limbs[12] = 4209u;
+    r.limbs[13] = 259u;
+    r.limbs[14] = 3351u;
+    r.limbs[15] = 4579u;
+    r.limbs[16] = 7118u;
+    r.limbs[17] = 144u;
+    r.limbs[18] = 6162u;
+    r.limbs[19] = 14u;
+
+    return r;
+}
 
 fn get_edwards_d() -> BigInt {
     var d: BigInt;
@@ -134,11 +162,23 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Assumes that the output buffer already contains the point at infinity at
     // each index
 
-    /*output[global_id.x] = points[global_id.x];*/
     /*output[global_id.x] = add_points(points[global_id.x], points[global_id.x]);*/
+    for (var i = 0u; i < MAX_COL_IDX_PLUS_ONE - 1u; i ++) {
+        var x: BigInt;
+        var y: BigInt = get_r();
+        var t: BigInt;
+        var z: BigInt = get_r();
+
+        var inf: Point;
+        inf.x = x;
+        inf.y = y;
+        inf.t = t;
+        inf.z = z;
+        output[global_id.x + i] = inf;
+    }
 
     // Perform SMTVP
-    for (var i = 0u; i < NUM_ROWS; i ++) {
+    for (var i = 0u; i < MAX_COL_IDX_PLUS_ONE; i ++) {
         let row_start = row_ptr[global_id.x + i];
         let row_end = row_ptr[global_id.x + i + 1];
         for (var j = row_start; j < row_end; j ++) {
