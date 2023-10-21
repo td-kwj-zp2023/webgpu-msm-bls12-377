@@ -323,7 +323,7 @@ export async function smtvp_gpu(
         },
     )
 
-    console.log(shaderCode)
+    //console.log(shaderCode)
 
     // 2: Create a shader module from the shader template literal
     const shaderModule = device.createShaderModule({
@@ -490,105 +490,60 @@ export async function smtvp_gpu(
 
     const output_points_as_affine: any[] = []
     for (const output_point of output_points) {
-        output_points_as_affine.push(fieldMath.createPoint(
-            output_point.x,
-            output_point.y,
-            output_point.t,
-            output_point.z,
-        ).toAffine())
+        const pt = fieldMath.createPoint(
+            fieldMath.Fp.mul(output_point.x, rinv),
+            fieldMath.Fp.mul(output_point.y, rinv),
+            fieldMath.Fp.mul(output_point.t, rinv),
+            fieldMath.Fp.mul(output_point.z, rinv),
+        )
+        pt.assertValidity()
+        output_points_as_affine.push(pt.toAffine())
     }
-    //console.log('0th output point from gpu as affine:', output_points_as_affine[0])
-
-    /*
-    const points: ExtPointType[] = []
-
-    for (const pt of points_with_mont_coords) {
-        points.push(fieldMath.createPoint(
-            fieldMath.Fp.mul(pt.x, rinv),
-            fieldMath.Fp.mul(pt.y, rinv),
-            fieldMath.Fp.mul(pt.t, rinv),
-            fieldMath.Fp.mul(pt.z, rinv),
-        ))
-    }
-    */
-
-    // TODO: the add_points algo doesn't yet work, so it needs to be debugged
-    // line-by-line
-    const ZERO_POINT = fieldMath.customEdwards.ExtendedPoint.ZERO;
-    const ZERO_POINT_MONT = fieldMath.createPoint(
-        fieldMath.Fp.mul(ZERO_POINT.ex, r),
-        fieldMath.Fp.mul(ZERO_POINT.ey, r),
-        fieldMath.Fp.mul(ZERO_POINT.et, r),
-        fieldMath.Fp.mul(ZERO_POINT.ez, r),
-    )
-
-    //console.log('0th result from gpu, converted from Montgomery:', points[0])
-
-    //const expected = add_points(points_with_mont_coords[0], points_with_mont_coords[0], rinv, fieldMath)
+    console.log('0th output point from gpu as affine:', output_points_as_affine[0])
 
     const bigIntPointToExtPointType = (bip: BigIntPoint): ExtPointType => {
         return fieldMath.createPoint(bip.x, bip.y, bip.t, bip.z)
     }
-    const extPointTypeToBigIntPoint = (e: ExtPointType): BigIntPoint => {
-        return {
-            x: e.ex,
-            y: e.ey,
-            t: e.et,
-            z: e.ez,
-        }
-    }
+    //const extPointTypeToBigIntPoint = (e: ExtPointType): BigIntPoint => {
+        //return {
+            //x: e.ex,
+            //y: e.ey,
+            //t: e.et,
+            //z: e.ez,
+        //}
+    //}
 
+    // Add the points using noble-curves
     const pt = bigIntPointToExtPointType(csr_sm.data[0])
-
     const expected_orig = pt.add(pt)
     expected_orig.assertValidity()
-    //const expected_orig = pt.add(ZERO_POINT_MONT)
-    console.log('expected_orig:', expected_orig)
 
-    //const expected_mont = add_points(points_with_mont_coords[0], points_with_mont_coords[0], p, r, rinv, fieldMath)
+    // add_points in Typescript for line-by-line debugging
     const expected_mont = add_points(
         points_with_mont_coords[0],
         points_with_mont_coords[0],
-        //extPointTypeToBigIntPoint(ZERO_POINT_MONT),
         p,
         r,
         rinv,
         fieldMath,
     )
-    console.log('expected_mont:', expected_mont)
 
+    // Convert from Montgomery form
     const expected_mont_to_orig = fieldMath.createPoint(
         fieldMath.Fp.mul(expected_mont.ex, rinv),
         fieldMath.Fp.mul(expected_mont.ey, rinv),
         fieldMath.Fp.mul(expected_mont.et, rinv),
         fieldMath.Fp.mul(expected_mont.ez, rinv),
     )
+    expected_mont_to_orig.assertValidity()
 
-    console.log(expected_orig.toAffine())
-    console.log(expected_mont_to_orig.toAffine())
+    console.log('noble affine output:', expected_orig.toAffine())
+    console.log('ts affine output:   ', expected_mont_to_orig.toAffine())
 
-    const x = BigInt('2796670805570508460920584878396618987767121022598342527208237783066948667246')
-
-    const xr = points_with_mont_coords[0].x
-    assert(((x * x * r) % p) == ((xr * x) % p))
-
-    // EDWARDS_D in mont form
-    //console.log(to_words_le(BigInt('10078976414855177681128800707006310383894354559808828913099261404986999135659937'), num_words, word_size))
-    //console.log((x * x * r) % p)
-    //console.log((xr * x) % p)
-
-    //console.log('0th result from gpu in affine form:', points[0].toAffine())
-
-    //const originalPt = fieldMath.createPoint(
-        //fieldMath.Fp.mul(csr_sm.data[0].x, rinv),
-        //fieldMath.Fp.mul(csr_sm.data[0].y, rinv),
-        //fieldMath.Fp.mul(csr_sm.data[0].t, rinv),
-        //fieldMath.Fp.mul(csr_sm.data[0].z, rinv),
-    //)
-
-    //console.log(
-        //originalPt.add(ZERO_POINT).toAffine()
-    //)
+    assert(expected_orig.x === expected_mont_to_orig.x)
+    assert(expected_orig.y === expected_mont_to_orig.y)
+    assert(expected_orig.x === output_points_as_affine[0].x)
+    assert(expected_orig.y === output_points_as_affine[0].y)
 }
 
 /*
@@ -647,7 +602,7 @@ export const add_points = (
     const p2t = p2.t
     const t2 = montgomery_product(p1t, p2t)
 
-    const EDWARDS_D = BigInt(3021) * r
+    const EDWARDS_D = fieldMath.Fp.mul(BigInt(3021), r)
     const c = montgomery_product(EDWARDS_D, t2)
 
     const p1z = p1.z
