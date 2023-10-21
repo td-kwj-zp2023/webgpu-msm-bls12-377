@@ -2,12 +2,11 @@ import mustache from 'mustache'
 import { BigIntPoint } from "../reference/types"
 import { FieldMath } from "../reference/utils/FieldMath";
 import { ELLSparseMatrix, CSRSparseMatrix } from './matrices/matrices'; 
-import store_point_at_infinity_shader from '../submission/wgsl/store_point_at_infinity.template.wgsl'
 import smtvp_shader from '../submission/wgsl/smtvp.template.wgsl'
 import bigint_struct from '../submission/wgsl/structs/bigint.template.wgsl'
 import bigint_funcs from '../submission/wgsl/bigint.template.wgsl'
 import montgomery_product_funcs from '../submission/wgsl/montgomery_product.template.wgsl'
-import { compute_misc_params, u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, gen_p_limbs, to_words_le } from './utils'
+import { compute_misc_params, u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, gen_p_limbs } from './utils'
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import assert from 'assert'
 
@@ -120,150 +119,11 @@ export const smtvp = async (
 
     const device = await get_device()
     for (let i = 0; i < csr_sparse_matrices.length; i ++) {
-        const max_col_idx = Math.max(...csr_sparse_matrices[i].col_idx, num_words)
-
-        // Shader 1: store the point at infinity in the output buffer
-        const output_storage_buffer = await store_point_at_infinity_shader_gpu(device, max_col_idx, num_words, word_size, p, params.r)
-
-        // Shader 2: perform SMTVP
-        await smtvp_gpu(device, csr_sparse_matrices[i], num_words, word_size, p, n0, params.r, params.rinv, output_storage_buffer)
+        await smtvp_gpu(device, csr_sparse_matrices[i], num_words, word_size, p, n0, params.r, params.rinv)
         break
     }
 
     return { x: BigInt(1), y: BigInt(0) }
-}
-
-export async function store_point_at_infinity_shader_gpu(
-    device: GPUDevice,
-    max_col_idx: number,
-    num_words: number,
-    word_size: number,
-    p: bigint,
-    r: bigint,
-) {
-    const num_x_workgroups = 256;
-
-    const output_buffer_length = max_col_idx * num_words * 4 * 4
-
-    const shaderCode = mustache.render(store_point_at_infinity_shader, { num_words })
-
-    //console.log(shaderCode)
-
-    // 2: Create a shader module from the shader template literal
-    const shaderModule = device.createShaderModule({
-        code: shaderCode
-    })
-
-    const output_storage_buffer = device.createBuffer({
-        size: output_buffer_length,
-        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST
-    });
-
-    const bindGroupLayout = device.createBindGroupLayout({
-        entries: [
-            {
-                binding: 0,
-                visibility: GPUShaderStage.COMPUTE,
-                buffer: {
-                    type: "storage"
-                },
-            },
-        ]
-    });
-
-    const bindGroup = device.createBindGroup({
-        layout: bindGroupLayout,
-        entries: [
-            {
-                binding: 0,
-                resource: {
-                    buffer: output_storage_buffer,
-                }
-            },
-        ]
-    });
-
-    const computePipeline = device.createComputePipeline({
-        layout: device.createPipelineLayout({
-            bindGroupLayouts: [bindGroupLayout]
-        }),
-        compute: {
-            module: shaderModule,
-            entryPoint: 'main'
-        }
-    });
-
-    // 5: Create GPUCommandEncoder to issue commands to the GPU
-    const commandEncoder = device.createCommandEncoder();
-
-    const start = Date.now()
-    // 6: Initiate render pass
-    const passEncoder = commandEncoder.beginComputePass();
-
-    // 7: Issue commands
-    passEncoder.setPipeline(computePipeline);
-    passEncoder.setBindGroup(0, bindGroup);
-    passEncoder.dispatchWorkgroups(num_x_workgroups)
-
-    // End the render pass
-    passEncoder.end();
-
-    const stagingBuffer = device.createBuffer({
-        size: output_buffer_length,
-        usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST
-    });
-
-    commandEncoder.copyBufferToBuffer(
-        output_storage_buffer, // source
-        0, // sourceOffset
-        stagingBuffer, // destination
-        0, // destinationOffset
-        output_buffer_length // size
-    );
-
-    // 8: End frame by passing array of command buffers to command queue for execution
-    device.queue.submit([commandEncoder.finish()]);
-
-    // map staging buffer to read results back to JS
-    await stagingBuffer.mapAsync(
-        GPUMapMode.READ,
-        0, // Offset
-        output_buffer_length,
-    );
-
-    const copyArrayBuffer = stagingBuffer.getMappedRange(0, output_buffer_length)
-    const data = copyArrayBuffer.slice(0);
-
-    const fieldMath = new FieldMath();
-    const ZERO_POINT = fieldMath.customEdwards.ExtendedPoint.ZERO;
-
-    const x_mont = fieldMath.Fp.mul(ZERO_POINT.ex, r)
-    const y_mont = fieldMath.Fp.mul(ZERO_POINT.ey, r)
-    const t_mont = fieldMath.Fp.mul(ZERO_POINT.et, r)
-    const z_mont = fieldMath.Fp.mul(ZERO_POINT.ez, r)
-
-    const mont_zero = {
-        x: x_mont,
-        y: y_mont,
-        t: t_mont,
-        z: z_mont,
-    }
-
-    const data_as_uint8s = new Uint8Array(data)
-
-    stagingBuffer.unmap();
-
-    const elapsed = Date.now() - start
-    console.log(`GPU took ${elapsed}ms`)
-
-    // TODO: skip this check in production
-    for (const point of u8s_to_points(data_as_uint8s, num_words, word_size)) {
-        assert(point.x === mont_zero.x)
-        assert(point.y === mont_zero.y)
-        assert(point.t === mont_zero.t)
-        assert(point.z === mont_zero.z)
-    }
-    return output_storage_buffer
 }
 
 export async function smtvp_gpu(
@@ -275,12 +135,11 @@ export async function smtvp_gpu(
     n0: bigint,
     r: bigint,
     rinv: bigint,
-    previous_output_buffer: GPUBuffer,
 ) {
     const num_x_workgroups = 256;
 
     const max_col_idx = Math.max(...csr_sm.col_idx)
-    const output_buffer_length = max_col_idx * num_words * 4 * 4
+    const output_buffer_length = (max_col_idx + 1) * num_words * 4 * 4
 
     const col_idx_bytes = numbers_to_u8s_for_gpu(csr_sm.col_idx)
     const row_ptr_bytes = numbers_to_u8s_for_gpu(csr_sm.row_ptr)
@@ -308,9 +167,10 @@ export async function smtvp_gpu(
     const shaderCode = mustache.render(
         smtvp_shader,
         {
-            num_words,
+            max_col_idx_plus_one: max_col_idx + 1,
             word_size,
             num_rows,
+            num_words,
             n0,
             p_limbs,
             mask: BigInt(2) ** BigInt(word_size) - BigInt(1),
@@ -436,6 +296,7 @@ export async function smtvp_gpu(
 
     const start = Date.now()
 
+    /*
     // Copy the previous shader's output buffer to the output buffer of this
     // shader. The values should each be the point at infinity in Montgomery
     // form (x: 0, y: r, t: 0, z: r).
@@ -446,6 +307,7 @@ export async function smtvp_gpu(
         0, // destinationOffset
         previous_output_buffer.size // size
     );
+    */
 
     // 6: Initiate render pass
     const passEncoder = commandEncoder.beginComputePass();
@@ -496,7 +358,7 @@ export async function smtvp_gpu(
     }
     const smtvp_result = await csr_sm.smtvp(vec, fieldMath)
     const smtvp_result_affine = smtvp_result.map((x) => x.toAffine())
-    console.log(smtvp_result_affine)
+    console.log('points from cpu, in affine:', smtvp_result_affine)
 
     const output_points = u8s_to_points(data_as_uint8s, num_words, word_size)
 
@@ -513,11 +375,9 @@ export async function smtvp_gpu(
     }
     // convert output_points_non_mont into affine
     const output_points_non_mont_and_affine = output_points_non_mont.map((x) => x.toAffine())
-    console.log(output_points_non_mont_and_affine)
+    console.log('points from gpu, in affine:', output_points_non_mont_and_affine)
 
-    debugger
     assert(smtvp_result_affine.length === output_points_non_mont_and_affine.length)
-
 
     //for (let i = 0; i < smtvp_result_affine.length; i ++) {
         //assert(smtvp_result_affine[i].x === output_points_non_mont_and_affine[i].x)
