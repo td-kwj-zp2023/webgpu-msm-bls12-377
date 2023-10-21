@@ -1,6 +1,7 @@
 import assert from 'assert'
 import crypto from 'crypto'
 import * as bigintCryptoUtils from 'bigint-crypto-utils'
+
 import { BigIntPoint } from "../reference/types"
 
 export const points_to_u8s_for_gpu = (
