@@ -1,6 +1,5 @@
 import { BigIntPoint, U32ArrayPoint } from "../../reference/types";
-import { DenseMatrix, ELLSparseMatrix, CSRSparseMatrix } from '../matrices/matrices'; 
-import { FieldMath } from "../../reference/utils/FieldMath";
+import { DenseMatrix, ELLSparseMatrix, CSRSparseMatrix, fieldMath } from '../matrices/matrices'; 
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import { strict as assert } from 'assert';
 import { bigIntToU32Array, generateRandomFields } from '../../reference/webgpu/utils';
@@ -10,7 +9,7 @@ export async function init(
   inputSize: number,
   baseAffinePoints: BigIntPoint[],
   scalars: bigint[]
-): Promise<any> {  
+): Promise<CSRSparseMatrix[]> {  
   // λ-bit scalars
   const lambda = 256
 
@@ -24,8 +23,6 @@ export async function init(
   const num_rows = threads
   const num_columns = Math.pow(2, s) - 1
 
-  // Instantiate 'FieldMath' object
-  const fieldMath = new FieldMath();
   const ZERO_POINT = fieldMath.customEdwards.ExtendedPoint.ZERO;
 
   const csr_sparse_matrix_array: CSRSparseMatrix[] = []
@@ -74,10 +71,10 @@ export async function init(
     csr_sparse_matrix_array.push(csr_sparse_matrix)
   }
 
-  return { csr_sparse_matrix_array, fieldMath }
+  return csr_sparse_matrix_array
 }
 
-export async function transpose_and_spmv(csr_sparse_matrix: CSRSparseMatrix, fieldMath: FieldMath): Promise<ExtPointType> {
+export async function transpose_and_spmv(csr_sparse_matrix: CSRSparseMatrix): Promise<ExtPointType> {
   // Transpose CSR sparse matrix
   const csr_sparse_matrix_transposed = await csr_sparse_matrix.transpose()
 
@@ -97,10 +94,10 @@ export async function transpose_and_spmv(csr_sparse_matrix: CSRSparseMatrix, fie
   return aggregate_svmp
 }
 
-export async function smtvp(csr_sparse_matrix: CSRSparseMatrix, fieldMath: FieldMath): Promise<ExtPointType> {
+export async function smtvp(csr_sparse_matrix: CSRSparseMatrix): Promise<ExtPointType> {
   // Derive partial bucket sums by performing SMTVP
   const vector_smtvp: bigint[] = Array(csr_sparse_matrix.row_ptr.length - 1).fill(BigInt(1));
-  const buckets_svtmp: ExtPointType[] = await csr_sparse_matrix.smtvp(vector_smtvp, fieldMath)
+  const buckets_svtmp: ExtPointType[] = await csr_sparse_matrix.smtvp(vector_smtvp)
 
   // Aggregate SVTMP buckets with running sum 
   let aggregate_svtmp: ExtPointType = fieldMath.customEdwards.ExtendedPoint.ZERO
@@ -120,19 +117,19 @@ export async function execute_cuzk(
     scalars: bigint[]
 ): Promise<ExtPointType> {    
   // Initialize instance 
-  const parameters = await init(inputSize, baseAffinePoints, scalars)
+  const csr_sparse_matrix_array = await init(inputSize, baseAffinePoints, scalars)
 
   // Perform Transpose and SPMV 
   const G: ExtPointType[] = []
-  for (let i = 0; i < parameters.csr_sparse_matrix_array.length; i++) {
-    const partial_sum = await transpose_and_spmv(parameters.csr_sparse_matrix_array[i], parameters.fieldMath)
+  for (let i = 0; i < csr_sparse_matrix_array.length; i++) {
+    const partial_sum = await transpose_and_spmv(csr_sparse_matrix_array[i])
     G.push(partial_sum)
   }
 
   // Perform SMTVP
   // const G: ExtPointType[] = []
   // for (let i = 0; i < parameters.csr_sparse_matrix_array.length; i++) {
-  //   const partial_sum = await smtvp(parameters.csr_sparse_matrix_array[i], parameters.fieldMath)
+  //   const partial_sum = await smtvp(parameters.csr_sparse_matrix_array[i])
   //   G.push(partial_sum)
   // }
 

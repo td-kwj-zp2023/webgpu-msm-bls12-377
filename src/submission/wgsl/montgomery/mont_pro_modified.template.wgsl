@@ -1,5 +1,3 @@
-{{> bigint_struct }}
-
 @group(0)
 @binding(0)
 var<storage, read_write> buf: array<BigInt>;
@@ -10,12 +8,6 @@ const MASK = {{ mask }}u;
 const N0 = {{ n0 }}u;
 const NSAFE = {{ nsafe }}u;
 const COST = {{ cost }}u;
-
-fn get_p() -> BigInt {
-    var p: BigInt;
-{{{ p_limbs }}}
-    return p;
-}
 
 fn montgomery_product(x: ptr<function, BigInt>, y: ptr<function, BigInt>) -> BigInt {
     var s: BigInt;

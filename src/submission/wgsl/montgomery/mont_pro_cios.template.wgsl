@@ -1,9 +1,3 @@
-{{> bigint_struct }}
-
-struct BigIntMediumWide {
-    limbs: array<u32, {{ num_words_plus_one }}>
-}
-
 @group(0)
 @binding(0)
 var<storage, read_write> buf: array<BigInt>;
@@ -13,12 +7,6 @@ const WORD_SIZE = {{ word_size }}u;
 const MASK = {{ mask }}u;
 const N0 = {{ n0 }}u;
 const COST = {{ cost }}u;
-
-fn get_p() -> BigInt {
-    var p: BigInt;
-{{{ p_limbs }}}
-    return p;
-}
 
 fn gen_p_medium_wide() -> BigIntMediumWide {
     var p = get_p();

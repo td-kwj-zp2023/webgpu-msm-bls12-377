@@ -1,17 +1,12 @@
+{{> bigint_functions }}
+{{> field_functions }}
+{{> structs }}
+
 const NUM_WORDS = {{ num_words }}u;
 const WORD_SIZE = {{ word_size }}u;
 const MASK = {{ mask }}u;
 const TWO_POW_WORD_SIZE = {{ two_pow_word_size }}u;
 const N0 = {{ n0 }}u;
-
-{{> bigint_funcs }}
-{{> bigint_struct }}
-
-fn get_p() -> BigInt {
-    var p: BigInt;
-{{{ p_limbs }}}
-    return p;
-}
 
 fn montgomery_product(x: ptr<function, BigInt>, y: ptr<function, BigInt>) -> BigInt {
     var s: BigInt;
