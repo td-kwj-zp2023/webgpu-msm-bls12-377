@@ -167,7 +167,7 @@ export async function smtvp_gpu(
     const shaderCode = mustache.render(
         smtvp_shader,
         {
-            max_col_idx_plus_one: max_col_idx + 1,
+            //max_col_idx,
             word_size,
             num_rows,
             num_words,
