@@ -1,5 +1,4 @@
 const NUM_ROWS = {{ num_rows }}u;
-/*const MAX_COL_IDX = {{ max_col_idx }}u;*/
 
 {{> bigint_struct }}
 
@@ -164,15 +163,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     /*output[global_id.x] = add_points(points[global_id.x], points[global_id.x]);*/
 
-    // Determine the maximum column index
-    var max_col_idx = arrayLength(&output) - 1u;
-    /*col_idx[global_id.x];*/
-    /*for (var i = 1u; i < arrayLength(&col_idx); i ++) {*/
-        /*var val = col_idx[global_id.x + i];*/
-        /*if (val > max_col_idx) {*/
-            /*max_col_idx = val;*/
-        /*}*/
-    /*}*/
+    var vec_len = arrayLength(&output) - 1u;
 
     // Store the point at infinity in the output buffer
     for (var i = 0u; i < arrayLength(&output); i ++) {
@@ -189,8 +180,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         output[global_id.x + i] = inf;
     }
 
-    // Perform SMTVP
-    for (var i = 0u; i < max_col_idx + 1u; i ++) {
+    // Perform SMTVP on an array of 1s
+    for (var i = 0u; i < vec_len + 1u; i ++) {
         let row_start = row_ptr[global_id.x + i];
         let row_end = row_ptr[global_id.x + i + 1];
         for (var j = row_start; j < row_end; j ++) {
