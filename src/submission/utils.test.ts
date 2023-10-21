@@ -3,7 +3,6 @@ import {
     from_words_le,
     compute_misc_params,
 } from './utils'
-import { log } from 'console'
 import * as bigintCryptoUtils from 'bigint-crypto-utils'
 
 describe('utils', () => {
@@ -53,5 +52,3 @@ describe('utils', () => {
         })
     })
 })
-
-// export {}

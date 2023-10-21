@@ -17,11 +17,6 @@ export const points_to_u8s_for_gpu = (
       const t_bytes = bigint_to_u8_for_gpu(points[i].t, num_words, word_size)
       const z_bytes = bigint_to_u8_for_gpu(points[i].z, num_words, word_size)
 
-      console.log("x_bytes is: ", x_bytes.length)
-      console.log("y_bytes is: ", y_bytes.length)
-      console.log("t_bytes is: ", t_bytes.length)
-      console.log("z_bytes is: ", z_bytes.length)
-
       for (let j = 0; j < x_bytes.length; j ++) {
           result[i * 4 * x_bytes.length + j] = x_bytes[j]
           result[i * 4 * x_bytes.length + j + x_bytes.length] = y_bytes[j]
