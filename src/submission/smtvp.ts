@@ -118,17 +118,29 @@ export const smtvp = async (
     )
 
     const device = await get_device()
+
+    const col_idxs: number[] = []
+    for (const csr_sm of csr_sparse_matrices) {
+        for (const c of csr_sm.col_idx) {
+            col_idxs.push(c)
+        }
+    }
+    const max_col_idx = Math.max(...col_idxs)
+
+    const fieldMath = new FieldMath();
     for (let i = 0; i < csr_sparse_matrices.length; i ++) {
-        await smtvp_gpu(device, csr_sparse_matrices[i], num_words, word_size, p, n0, params.r, params.rinv)
-        break
+        await smtvp_run(device, csr_sparse_matrices[i], fieldMath, max_col_idx, num_words, word_size, p, n0, params.r, params.rinv)
+        console.log(i, 'success')
     }
 
     return { x: BigInt(1), y: BigInt(0) }
 }
 
-export async function smtvp_gpu(
+export async function smtvp_run(
     device: GPUDevice,
     csr_sm: CSRSparseMatrix,
+    fieldMath: FieldMath,
+    max_col_idx: number,
     num_words: number,
     word_size: number,
     p: bigint,
@@ -136,15 +148,28 @@ export async function smtvp_gpu(
     r: bigint,
     rinv: bigint,
 ) {
-    const num_x_workgroups = 256;
+    const cpu_start = Date.now()
+    // Perform SMTVP in CPU
+    const vec: bigint[] = []
+    for (let i = 0; i < csr_sm.row_ptr.length - 1; i ++) {
+        vec.push(BigInt(1))
+    }
+    const smtvp_result = await csr_sm.smtvp(vec, fieldMath)
+    const smtvp_result_affine = smtvp_result.map((x) => x.toAffine())
+    console.log('points from cpu, in affine:', smtvp_result_affine)
+    const cpu_elapsed = Date.now() - cpu_start
+    console.log(`CPU took ${cpu_elapsed}ms`)
 
-    const max_col_idx = Math.max(...csr_sm.col_idx)
+    // Create GPUCommandEncoder to issue commands to the GPU
+    const commandEncoder = device.createCommandEncoder();
+
+    const num_x_workgroups = 1;
+    //const num_rows = csr_sm.row_ptr.length - 1
+
     const output_buffer_length = (max_col_idx + 1) * num_words * 4 * 4
 
     const col_idx_bytes = numbers_to_u8s_for_gpu(csr_sm.col_idx)
     const row_ptr_bytes = numbers_to_u8s_for_gpu(csr_sm.row_ptr)
-   
-    const fieldMath = new FieldMath();
 
     // Convert each point coordinate for each point in the CSR matrix into
     // Montgomery form
@@ -159,174 +184,167 @@ export async function smtvp_gpu(
             }
         )
     }
+
     const points_bytes = points_to_u8s_for_gpu(points_with_mont_coords, num_words, word_size)
 
-    const num_rows = csr_sm.row_ptr.length - 1
+    const shaderCode = setup_shader_code(p, num_words, word_size, n0)
 
-    const p_limbs = gen_p_limbs(p, num_words, word_size)
-    const shaderCode = mustache.render(
-        smtvp_shader,
-        {
-            //max_col_idx,
-            word_size,
-            num_rows,
-            num_words,
-            n0,
-            p_limbs,
-            mask: BigInt(2) ** BigInt(word_size) - BigInt(1),
-            two_pow_word_size: BigInt(2) ** BigInt(word_size),
-        },
-        {
-            bigint_struct,
-            bigint_funcs,
-            montgomery_product_funcs,
-        },
-    )
+    const shaderModule = device.createShaderModule({ code: shaderCode })
 
-    //console.log(shaderCode)
-
-    // 2: Create a shader module from the shader template literal
-    const shaderModule = device.createShaderModule({
-        code: shaderCode
-    })
-
-    const output_storage_buffer = device.createBuffer({
-        size: output_buffer_length,
-        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST
-    });
-
-    const col_idx_storage_buffer = device.createBuffer({
-        size: col_idx_bytes.length,
-        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
-    });
-    device.queue.writeBuffer(col_idx_storage_buffer, 0, col_idx_bytes);
-
-    const row_ptr_storage_buffer = device.createBuffer({
-        size: row_ptr_bytes.length,
-        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
-    });
-    device.queue.writeBuffer(row_ptr_storage_buffer, 0, row_ptr_bytes);
-
-    const points_storage_buffer = device.createBuffer({
-        size: points_bytes.length,
-        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
-    });
-    device.queue.writeBuffer(points_storage_buffer, 0, points_bytes);
-
-    const stagingBuffer = device.createBuffer({
-        size: points_bytes.length,
-        usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST
-    });
-
-    const bindGroupLayout = device.createBindGroupLayout({
-        entries: [
-            {
-                binding: 0,
-                visibility: GPUShaderStage.COMPUTE,
-                buffer: {
-                    type: "storage"
-                },
-            },
-            {
-                binding: 1,
-                visibility: GPUShaderStage.COMPUTE,
-                buffer: {
-                    type: "read-only-storage"
-                },
-            },
-            {
-                binding: 2,
-                visibility: GPUShaderStage.COMPUTE,
-                buffer: {
-                    type: "read-only-storage"
-                },
-            },
-            {
-                binding: 3,
-                visibility: GPUShaderStage.COMPUTE,
-                buffer: {
-                    type: "read-only-storage"
-                },
-            },
-        ]
-    });
-
-    const bindGroup = device.createBindGroup({
-        layout: bindGroupLayout,
-        entries: [
-            {
-                binding: 0,
-                resource: {
-                    buffer: output_storage_buffer,
-                }
-            },
-            {
-                binding: 1,
-                resource: {
-                    buffer: col_idx_storage_buffer,
-                }
-            },
-            {
-                binding: 2,
-                resource: {
-                    buffer: row_ptr_storage_buffer,
-                }
-            },
-            {
-                binding: 3,
-                resource: {
-                    buffer: points_storage_buffer,
-                }
-            },
-        ]
-    });
-
-    const computePipeline = device.createComputePipeline({
-        layout: device.createPipelineLayout({
-            bindGroupLayouts: [bindGroupLayout]
-        }),
-        compute: {
-            module: shaderModule,
-            entryPoint: 'main'
-        }
-    });
-
-    // 5: Create GPUCommandEncoder to issue commands to the GPU
-    const commandEncoder = device.createCommandEncoder();
+    let previous_output_storage_buffer: GPUBuffer|null = null
 
     const start = Date.now()
 
-    /*
-    // Copy the previous shader's output buffer to the output buffer of this
-    // shader. The values should each be the point at infinity in Montgomery
-    // form (x: 0, y: r, t: 0, z: r).
-    commandEncoder.copyBufferToBuffer(
-        previous_output_buffer, // source
-        0, // sourceOffset
-        output_storage_buffer, // destination
-        0, // destinationOffset
-        previous_output_buffer.size // size
-    );
-    */
+    for (let i = 0; i < csr_sm.row_ptr.length - 1; i ++) {
+        const loop_index_bytes = new Uint8Array([i, 0, 0, 0, 0, 0, 0, 0])
 
-    // 6: Initiate render pass
-    const passEncoder = commandEncoder.beginComputePass();
+        // Create input buffers
+        const col_idx_storage_buffer = device.createBuffer({
+            size: col_idx_bytes.length,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+        });
 
-    // 7: Issue commands
-    passEncoder.setPipeline(computePipeline);
-    passEncoder.setBindGroup(0, bindGroup);
-    passEncoder.dispatchWorkgroups(num_x_workgroups)
+        const row_ptr_storage_buffer = device.createBuffer({
+            size: row_ptr_bytes.length,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+        });
 
-    // End the render pass
-    passEncoder.end();
+        const points_storage_buffer = device.createBuffer({
+            size: points_bytes.length,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+        });
 
-    commandEncoder.copyBufferToBuffer(
-        output_storage_buffer, // source
-        0, // sourceOffset
-        stagingBuffer, // destination
-        0, // destinationOffset
-        output_buffer_length // size
-    );
+        const loop_index_storage_buffer = device.createBuffer({
+            size: loop_index_bytes.length,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST
+        });
+
+        device.queue.writeBuffer(col_idx_storage_buffer, 0, col_idx_bytes);
+        device.queue.writeBuffer(row_ptr_storage_buffer, 0, row_ptr_bytes);
+        device.queue.writeBuffer(points_storage_buffer, 0, points_bytes);
+        device.queue.writeBuffer(loop_index_storage_buffer, 0, loop_index_bytes);
+
+        // Create result buffers
+        const output_storage_buffer = device.createBuffer({
+            size: output_buffer_length,
+            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST
+        });
+
+        /*
+        // Before the 0th pass, store the point at infinity at each element of the output buffer
+        // TODO: benchmark whether initiating the paf values in the shader code is more efficient
+        // since copying data from CPU to GPU is inefficient
+        if (i === 0) {
+            const paf_points_mont: BigIntPoint[] = []
+            for (let j = 0; j < max_col_idx + 1; j ++) {
+                paf_points_mont.push({
+                    x: BigInt(0),
+                    y: r,
+                    t: BigInt(0),
+                    z: r,
+                })
+            }
+            const paf_bytes = points_to_u8s_for_gpu(paf_points_mont, num_words, word_size)
+            device.queue.writeBuffer(output_storage_buffer, 0, paf_bytes);
+        }
+        */
+
+        // Create bind group layout
+        const bindGroupLayout = device.createBindGroupLayout({
+            entries: [
+                {
+                    binding: 0,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "storage" },
+                },
+                {
+                    binding: 1,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "read-only-storage" },
+                },
+                {
+                    binding: 2,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "read-only-storage" },
+                },
+                {
+                    binding: 3,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "read-only-storage" },
+                },
+                {
+                    binding: 4,
+                    visibility: GPUShaderStage.COMPUTE,
+                    buffer: { type: "storage" },
+                },
+            ]
+        });
+        
+        // Create bind group
+        const bindGroup = create_bind_group(
+            device, 
+            bindGroupLayout,
+            [
+                output_storage_buffer,
+                col_idx_storage_buffer,
+                row_ptr_storage_buffer,
+                points_storage_buffer,
+                loop_index_storage_buffer,
+            ],
+        )
+
+        // Create pipeline
+        const computePipeline = device.createComputePipeline({
+            layout: device.createPipelineLayout({
+                bindGroupLayouts: [bindGroupLayout]
+            }),
+            compute: {
+                module: shaderModule,
+                entryPoint: 'main'
+            }
+        });
+
+        // Copy previous result buffer to input buffer
+        if (previous_output_storage_buffer) {
+            commandEncoder.copyBufferToBuffer(
+                previous_output_storage_buffer, // source
+                0, // sourceOffset
+                output_storage_buffer, // destination
+                0, // destinationOffset
+                output_buffer_length // size
+            );
+        }
+
+        // Initiate compute pass
+        const passEncoder = commandEncoder.beginComputePass();
+
+        // Issue commands
+        passEncoder.setPipeline(computePipeline);
+        passEncoder.setBindGroup(0, bindGroup);
+        passEncoder.dispatchWorkgroups(num_x_workgroups)
+
+        // End the render pass
+        passEncoder.end();
+
+        previous_output_storage_buffer = output_storage_buffer
+    }
+
+    // Create buffer to read result
+    const stagingBuffer = device.createBuffer({
+        size: output_buffer_length,
+        usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST
+    });
+
+    if (previous_output_storage_buffer != null) {
+        commandEncoder.copyBufferToBuffer(
+            previous_output_storage_buffer, // source
+            0, // sourceOffset
+            stagingBuffer, // destination
+            0, // destinationOffset
+            output_buffer_length,
+        );
+    }
+
     // 8: End frame by passing array of command buffers to command queue for execution
     device.queue.submit([commandEncoder.finish()]);
 
@@ -334,13 +352,12 @@ export async function smtvp_gpu(
     await stagingBuffer.mapAsync(
         GPUMapMode.READ,
         0, // Offset
-        points_bytes.length
+        output_buffer_length,
     );
 
     const copyArrayBuffer = stagingBuffer.getMappedRange(0, output_buffer_length)
     const data = copyArrayBuffer.slice(0);
     stagingBuffer.unmap();
-
     const elapsed = Date.now() - start
 
     console.log(`GPU took ${elapsed}ms`)
@@ -350,15 +367,6 @@ export async function smtvp_gpu(
     const bigIntPointToExtPointType = (bip: BigIntPoint): ExtPointType => {
         return fieldMath.createPoint(bip.x, bip.y, bip.t, bip.z)
     }
-
-    // Perform SMTVP in CPU
-    const vec: bigint[] = []
-    for (let i = 0; i < csr_sm.row_ptr.length - 1; i ++) {
-        vec.push(BigInt(1))
-    }
-    const smtvp_result = await csr_sm.smtvp(vec, fieldMath)
-    const smtvp_result_affine = smtvp_result.map((x) => x.toAffine())
-    console.log('points from cpu, in affine:', smtvp_result_affine)
 
     const output_points = u8s_to_points(data_as_uint8s, num_words, word_size)
 
@@ -377,129 +385,46 @@ export async function smtvp_gpu(
     const output_points_non_mont_and_affine = output_points_non_mont.map((x) => x.toAffine())
     console.log('points from gpu, in affine:', output_points_non_mont_and_affine)
 
-    assert(smtvp_result_affine.length === output_points_non_mont_and_affine.length)
-
-    //for (let i = 0; i < smtvp_result_affine.length; i ++) {
-        //assert(smtvp_result_affine[i].x === output_points_non_mont_and_affine[i].x)
-        //assert(smtvp_result_affine[i].y === output_points_non_mont_and_affine[i].y)
-    //}
-    return
-
-    console.log('0th output point from gpu:', output_points[0])
-
-    const output_points_as_affine: any[] = []
-    for (const output_point of output_points) {
-        const pt = fieldMath.createPoint(
-            fieldMath.Fp.mul(output_point.x, rinv),
-            fieldMath.Fp.mul(output_point.y, rinv),
-            fieldMath.Fp.mul(output_point.t, rinv),
-            fieldMath.Fp.mul(output_point.z, rinv),
-        )
-        pt.assertValidity()
-        output_points_as_affine.push(pt.toAffine())
+    for (let i = 0; i < smtvp_result_affine.length; i ++) {
+        assert(smtvp_result_affine[i].x === output_points_non_mont_and_affine[i].x)
+        assert(smtvp_result_affine[i].y === output_points_non_mont_and_affine[i].y)
     }
-    console.log('0th output point from gpu as affine:', output_points_as_affine[0])
-    //const extPointTypeToBigIntPoint = (e: ExtPointType): BigIntPoint => {
-        //return {
-            //x: e.ex,
-            //y: e.ey,
-            //t: e.et,
-            //z: e.ez,
-        //}
-    //}
-
-    // Add the points using noble-curves
-    const pt = bigIntPointToExtPointType(csr_sm.data[0])
-    const expected_orig = pt.add(pt)
-    expected_orig.assertValidity()
-
-    // add_points in Typescript for line-by-line debugging
-    const expected_mont = add_points(
-        points_with_mont_coords[0],
-        points_with_mont_coords[0],
-        p,
-        r,
-        rinv,
-        fieldMath,
-    )
-
-    // Convert from Montgomery form
-    const expected_mont_to_orig = fieldMath.createPoint(
-        fieldMath.Fp.mul(expected_mont.ex, rinv),
-        fieldMath.Fp.mul(expected_mont.ey, rinv),
-        fieldMath.Fp.mul(expected_mont.et, rinv),
-        fieldMath.Fp.mul(expected_mont.ez, rinv),
-    )
-    expected_mont_to_orig.assertValidity()
-
-    console.log('noble affine output:', expected_orig.toAffine())
-    console.log('ts affine output:   ', expected_mont_to_orig.toAffine())
-
-    assert(expected_orig.x === expected_mont_to_orig.x)
-    assert(expected_orig.y === expected_mont_to_orig.y)
-    assert(expected_orig.x === output_points_as_affine[0].x)
-    assert(expected_orig.y === output_points_as_affine[0].y)
 }
 
-export const add_points = (
-    p1: BigIntPoint,
-    p2: BigIntPoint,
+const setup_shader_code = (
     p: bigint,
-    r: bigint,
-    rinv: bigint,
-    fieldMath: FieldMath,
-): ExtPointType => {
-    const montgomery_product = (
-        a: bigint,
-        b: bigint,
-    ): bigint => {
-        const fp = fieldMath.Fp
-        const ab = fp.mul(a, b)
-        const abr = fp.mul(ab, rinv)
-        return abr
-    }
-
-    const fr_add = fieldMath.Fp.add
-    const fr_sub = fieldMath.Fp.sub
-
-    const p1x = p1.x
-    const p2x = p2.x
-    const a = montgomery_product(p1x, p2x)
-
-    const p1y = p1.y
-    const p2y = p2.y
-    const b = montgomery_product(p1y, p2y)
-
-    const p1t = p1.t
-    const p2t = p2.t
-    const t2 = montgomery_product(p1t, p2t)
-
-    const EDWARDS_D = fieldMath.Fp.mul(BigInt(3021), r)
-    const c = montgomery_product(EDWARDS_D, t2)
-
-    const p1z = p1.z
-    const p2z = p2.z
-    const d = montgomery_product(p1z, p2z)
-
-    const xpy = fr_add(p1x, p1y)
-    const xpy2 = fr_add(p2x, p2y)
-    let e = montgomery_product(xpy, xpy2)
-
-    e = fr_sub(e, a)
-    e = fr_sub(e, b)
-
-    const f = fr_sub(d, c)
-    const g = fr_add(d, c)
-
-    const a_neg = fr_sub(p, a)
-
-    const h = fr_sub(b, a_neg)
-
-    const added_x = montgomery_product(e, f);
-    const added_y = montgomery_product(g, h);
-    const added_t = montgomery_product(e, h);
-    const added_z = montgomery_product(f, g);
-
-    return fieldMath.createPoint(added_x, added_y, added_t, added_z)
+    num_words: number,
+    word_size: number,
+    n0: bigint,
+) => {
+    const p_limbs = gen_p_limbs(p, num_words, word_size)
+    const shaderCode = mustache.render(
+        smtvp_shader,
+        {
+            word_size,
+            num_words,
+            n0,
+            p_limbs,
+            mask: BigInt(2) ** BigInt(word_size) - BigInt(1),
+            two_pow_word_size: BigInt(2) ** BigInt(word_size),
+        },
+        {
+            bigint_struct,
+            bigint_funcs,
+            montgomery_product_funcs,
+        },
+    )
+    // console.log(shaderCode)
+    return shaderCode
 }
 
+const create_bind_group = (device: GPUDevice,layout: GPUBindGroupLayout, buffers: GPUBuffer[]) => {
+    const entries: any[] = []
+    for (let i = 0; i < buffers.length; i ++) {
+        entries.push({
+            binding: i,
+            resource: { buffer: buffers[i] }
+        })
+    }
+    return device.createBindGroup({ layout, entries })
+}
