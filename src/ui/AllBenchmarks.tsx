@@ -88,6 +88,17 @@ export const AllBenchmarks: React.FC = () => {
       setU32Points(newU32Points);
 
       const newScalars = generateRandomFields(inputSize);
+    
+    /*
+      // Use constants instead of random field elements just for testing
+      const newScalars: bigint[] = []
+      for (let i = 0; i < inputSize; i ++) {
+          const p = BigInt('0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001')
+          const x = BigInt('1111111111111111111111111111111111111111111111111111111111111111111111111111')
+          newScalars.push((x * BigInt(i) % p))
+      }
+     */
+        
       setBigIntScalars(newScalars);
       const newU32Scalars = newScalars.map((scalar) => bigIntToU32Array(scalar));
       setU32Scalars(newU32Scalars);
