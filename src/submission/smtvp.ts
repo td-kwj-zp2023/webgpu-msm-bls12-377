@@ -6,7 +6,7 @@ import smtvp_shader from '../submission/wgsl/smtvp.template.wgsl'
 import bigint_struct from '../submission/wgsl/structs/bigint.template.wgsl'
 import bigint_funcs from '../submission/wgsl/bigint.template.wgsl'
 import montgomery_product_funcs from '../submission/wgsl/montgomery_product.template.wgsl'
-import { compute_misc_params, u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, gen_p_limbs } from './utils'
+import { compute_misc_params, u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, gen_p_limbs, to_words_le } from './utils'
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import assert from 'assert'
 
@@ -196,7 +196,8 @@ export async function smtvp_run(
     const start = Date.now()
 
     for (let i = 0; i < csr_sm.row_ptr.length - 1; i ++) {
-        const loop_index_bytes = new Uint8Array([i, 0, 0, 0, 0, 0, 0, 0])
+        const w = to_words_le(BigInt(i), 8, 8)
+        const loop_index_bytes = new Uint8Array(w)
 
         // Create input buffers
         const col_idx_storage_buffer = device.createBuffer({
