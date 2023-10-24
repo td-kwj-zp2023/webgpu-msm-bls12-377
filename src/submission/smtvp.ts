@@ -8,21 +8,8 @@ import bigint_funcs from '../submission/wgsl/bigint.template.wgsl'
 import montgomery_product_funcs from '../submission/wgsl/montgomery_product.template.wgsl'
 import { compute_misc_params, u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, gen_p_limbs, to_words_le } from './utils'
 import { ExtPointType } from "@noble/curves/abstract/edwards";
+import { get_device, create_bind_group } from './gpu'
 import assert from 'assert'
-
-export async function get_device() {
-    const gpuErrMsg = "Please use a browser that has WebGPU enabled.";
-    const adapter = await navigator.gpu.requestAdapter({
-        powerPreference: 'high-performance',
-    });
-    if (!adapter) {
-        console.log(gpuErrMsg)
-        throw Error('Couldn\'t request WebGPU adapter.')
-    }
-
-    const device = await adapter.requestDevice()
-    return device
-}
 
 export async function gen_csr_sparse_matrices(
     baseAffinePoints: BigIntPoint[],
@@ -417,15 +404,4 @@ const setup_shader_code = (
     )
     // console.log(shaderCode)
     return shaderCode
-}
-
-const create_bind_group = (device: GPUDevice,layout: GPUBindGroupLayout, buffers: GPUBuffer[]) => {
-    const entries: any[] = []
-    for (let i = 0; i < buffers.length; i ++) {
-        entries.push({
-            binding: i,
-            resource: { buffer: buffers[i] }
-        })
-    }
-    return device.createBindGroup({ layout, entries })
 }
