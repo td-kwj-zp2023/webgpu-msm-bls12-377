@@ -2,6 +2,7 @@ import { assert } from "console"
 import { BigIntPoint, U32ArrayPoint } from "../../reference/types";
 import { bigIntToU32Array, generateRandomFields } from '../../reference/webgpu/utils';
 import { init, transpose_and_spmv, smtvp } from './cuzk_serial'
+import { fieldMath } from '../matrices/matrices'; 
 
 export const generate_points = async(inputSize: number): Promise<{
     bigIntPoints: BigIntPoint[],
@@ -60,14 +61,14 @@ describe('cuzk serial test', () => {
             scalars.bigIntScalars[15] = BigInt(8372)
 
             // Initialize instance 
-            const parameters = await init(inputSize, points.bigIntPoints, scalars.bigIntScalars)
+            const csr_sparse_matrix_array = await init(inputSize, points.bigIntPoints, scalars.bigIntScalars)
 
             // Perform Transpose and SPMV 
-            const cuzk_result_1 = await transpose_and_spmv(parameters.csr_sparse_matrix_array[15], parameters.fieldMath)
+            const cuzk_result_1 = await transpose_and_spmv(csr_sparse_matrix_array[15])
             console.log(cuzk_result_1)
             
             // Perform SMTVP
-            const cuzk_result_2 = await smtvp(parameters.csr_sparse_matrix_array[15], parameters.fieldMath)
+            const cuzk_result_2 = await smtvp(csr_sparse_matrix_array[15])
             console.log(cuzk_result_2)
 
             // Assertion checks

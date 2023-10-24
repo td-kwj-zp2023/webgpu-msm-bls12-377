@@ -5,12 +5,15 @@ import {
     gen_p_limbs,
     bigints_to_u8_for_gpu,
 } from '../submission/utils'
-import bigint_struct from '../submission/wgsl/structs/bigint.template.wgsl'
-import bigint_funcs from '../submission/wgsl/bigint.template.wgsl'
-import montgomery_product_funcs from '../submission/wgsl/montgomery_product.template.wgsl'
-import mont_pro_optimised_shader from '../submission/wgsl/mont_pro_optimised.template.wgsl'
-import mont_pro_modified_shader from '../submission/wgsl/mont_pro_modified.template.wgsl'
-import mont_pro_cios_shader from '../submission/wgsl/mont_pro_cios.template.wgsl'
+import structs from '../submission/wgsl/struct/structs.template.wgsl'
+import bigint_functions from '../submission/wgsl/bigint/bigint.template.wgsl'
+import curve_functions from '../submission/wgsl/curve/ec.template.wgsl'
+import curve_parameters from '../submission/wgsl/curve/ec_parameters.template.wgsl'
+import field_functions from '../submission/wgsl/field/field.template.wgsl'
+import montgomery_product_functions from '../submission/wgsl/montgomery/montgomery_product.template.wgsl'
+import mont_pro_optimised_shader from '../submission/wgsl/montgomery/mont_pro_optimised.template.wgsl'
+import mont_pro_modified_shader from '../submission/wgsl/montgomery/mont_pro_modified.template.wgsl'
+import mont_pro_cios_shader from '../submission/wgsl/montgomery/mont_pro_cios.template.wgsl'
 
 //import { our_msm } from '../submission/entries/entry'
 import React, { useEffect } from 'react';
@@ -77,9 +80,15 @@ export const MontProOptimised: React.FC = () => {
                             p_limbs,
                         },
                         {
-                            bigint_struct,
-                            bigint_funcs,
-                            montgomery_product_funcs,
+                            structs,
+                            bigint_functions,
+                            curve_functions,
+                            curve_parameters,
+                            field_functions,
+                            montgomery_product_functions,
+                            mont_pro_optimised_shader,
+                            mont_pro_modified_shader,
+                            mont_pro_cios_shader
                         }
                     )
                 } else if (word_size > 13 && word_size < 16) {
@@ -97,7 +106,7 @@ export const MontProOptimised: React.FC = () => {
                             nsafe: misc_params.nsafe,
                         },
                         {
-                            bigint_struct,
+                            structs,
                         }
                     )
                 } else if (word_size === 16) {
@@ -117,7 +126,7 @@ export const MontProOptimised: React.FC = () => {
                             nsafe: misc_params.nsafe,
                         },
                         {
-                            bigint_struct,
+                            structs,
                         }
                     )
                 }
