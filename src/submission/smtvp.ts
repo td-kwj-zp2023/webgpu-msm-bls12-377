@@ -154,7 +154,7 @@ export async function smtvp_run(
     for (let i = 0; i < csr_sm.row_ptr.length - 1; i ++) {
         vec.push(BigInt(1))
     }
-    const smtvp_result = await csr_sm.smtvp(vec, fieldMath)
+    const smtvp_result = await csr_sm.smtvp(vec)
     const smtvp_result_affine = smtvp_result.map((x) => x.toAffine())
     console.log('points from cpu, in affine:', smtvp_result_affine)
     const cpu_elapsed = Date.now() - cpu_start

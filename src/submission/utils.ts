@@ -4,73 +4,73 @@ import * as bigintCryptoUtils from 'bigint-crypto-utils'
 import { BigIntPoint } from "../reference/types"
 
 export const points_to_u8s_for_gpu = (
-    points: BigIntPoint[],
-    num_words: number,
-    word_size: number,
+  points: BigIntPoint[],
+  num_words: number,
+  word_size: number,
 ): Uint8Array => {
-    const size = points.length * num_words * 4 * 4
-    const result = new Uint8Array(size)
+  const size = points.length * num_words * 4 * 4
+  const result = new Uint8Array(size)
 
-    for (let i = 0; i < points.length; i ++) {
-        const x_bytes = bigint_to_u8_for_gpu(points[i].x, num_words, word_size)
-        const y_bytes = bigint_to_u8_for_gpu(points[i].y, num_words, word_size)
-        const t_bytes = bigint_to_u8_for_gpu(points[i].t, num_words, word_size)
-        const z_bytes = bigint_to_u8_for_gpu(points[i].z, num_words, word_size)
+  for (let i = 0; i < points.length; i ++) {
+      const x_bytes = bigint_to_u8_for_gpu(points[i].x, num_words, word_size)
+      const y_bytes = bigint_to_u8_for_gpu(points[i].y, num_words, word_size)
+      const t_bytes = bigint_to_u8_for_gpu(points[i].t, num_words, word_size)
+      const z_bytes = bigint_to_u8_for_gpu(points[i].z, num_words, word_size)
 
-        for (let j = 0; j < x_bytes.length; j ++) {
-            result[i * 4 * x_bytes.length + j] = x_bytes[j]
-            result[i * 4 * x_bytes.length + j + x_bytes.length] = y_bytes[j]
-            result[i * 4 * x_bytes.length + j + x_bytes.length * 2] = t_bytes[j]
-            result[i * 4 * x_bytes.length + j + x_bytes.length * 3] = z_bytes[j]
-        }
-    }
+      for (let j = 0; j < x_bytes.length; j ++) {
+          result[i * 4 * x_bytes.length + j] = x_bytes[j]
+          result[i * 4 * x_bytes.length + j + x_bytes.length] = y_bytes[j]
+          result[i * 4 * x_bytes.length + j + x_bytes.length * 2] = t_bytes[j]
+          result[i * 4 * x_bytes.length + j + x_bytes.length * 3] = z_bytes[j]
+      }
+  }
 
-    return result
+  return result
 }
 
 export const u8s_to_points = (
-    bytes: Uint8Array,
-    num_words: number,
-    word_size: number,
+  bytes: Uint8Array,
+  num_words: number,
+  word_size: number,
 ): BigIntPoint[] => {
-    // Since each limb is a u32, there are 4 u8s per limb
-    const num_u8s_per_coord = num_words * 4
-    const num_u8s_per_point = num_u8s_per_coord * 4
+  // Since each limb is a u32, there are 4 u8s per limb
+  const num_u8s_per_coord = num_words * 4
+  const num_u8s_per_point = num_u8s_per_coord * 4
 
-    assert(bytes.length % num_u8s_per_point === 0)
-    const result: BigIntPoint[] = []
-    for (let i = 0; i < bytes.length / num_u8s_per_point; i ++) {
-        const x_i = i * num_u8s_per_point
-        const y_i = i * num_u8s_per_point + num_u8s_per_coord
-        const t_i = i * num_u8s_per_point + num_u8s_per_coord * 2
-        const z_i = i * num_u8s_per_point + num_u8s_per_coord * 3
+  assert(bytes.length % num_u8s_per_point === 0)
+  const result: BigIntPoint[] = []
+  for (let i = 0; i < bytes.length / num_u8s_per_point; i ++) {
+      const x_i = i * num_u8s_per_point
+      const y_i = i * num_u8s_per_point + num_u8s_per_coord
+      const t_i = i * num_u8s_per_point + num_u8s_per_coord * 2
+      const z_i = i * num_u8s_per_point + num_u8s_per_coord * 3
 
-        const x_u8s = bytes.slice(x_i, x_i + num_u8s_per_coord)
-        const y_u8s = bytes.slice(y_i, y_i + num_u8s_per_coord)
-        const t_u8s = bytes.slice(t_i, t_i + num_u8s_per_coord)
-        const z_u8s = bytes.slice(z_i, z_i + num_u8s_per_coord)
+      const x_u8s = bytes.slice(x_i, x_i + num_u8s_per_coord)
+      const y_u8s = bytes.slice(y_i, y_i + num_u8s_per_coord)
+      const t_u8s = bytes.slice(t_i, t_i + num_u8s_per_coord)
+      const z_u8s = bytes.slice(z_i, z_i + num_u8s_per_coord)
 
-        const x = u8s_to_bigint(x_u8s, num_words, word_size)
-        const y = u8s_to_bigint(y_u8s, num_words, word_size)
-        const t = u8s_to_bigint(t_u8s, num_words, word_size)
-        const z = u8s_to_bigint(z_u8s, num_words, word_size)
+      const x = u8s_to_bigint(x_u8s, num_words, word_size)
+      const y = u8s_to_bigint(y_u8s, num_words, word_size)
+      const t = u8s_to_bigint(t_u8s, num_words, word_size)
+      const z = u8s_to_bigint(z_u8s, num_words, word_size)
 
-        result.push({x, y, t, z})
-    }
+      result.push({x, y, t, z})
+  }
 
-    return result
+  return result
 }
 
 export const u8s_to_bigint = (u8s: Uint8Array, num_words: number, word_size: number): bigint => {
-    const a = new Uint16Array(u8s.buffer)
-    const limbs: number[] = []
-    for (let i = 0; i < a.length; i ++) {
-        if (i % 2 === 0) {
-            limbs.push(a[i])
-        }
-    }
+  const a = new Uint16Array(u8s.buffer)
+  const limbs: number[] = []
+  for (let i = 0; i < a.length; i ++) {
+      if (i % 2 === 0) {
+          limbs.push(a[i])
+      }
+  }
 
-    return from_words_le(new Uint16Array(limbs), num_words, word_size)
+  return from_words_le(new Uint16Array(limbs), num_words, word_size)
 }
 
 export const numbers_to_u8s_for_gpu = (
@@ -186,9 +186,9 @@ export const compute_misc_params = (
         max_terms: number,
         k: number,
         nsafe: number,
-        n0: bigint,
-        r: bigint,
-        rinv: bigint,
+        n0: bigint
+        r: bigint
+        rinv: bigint
 } => {
     const max_int_width = 32
     assert(word_size > 0)
@@ -225,7 +225,7 @@ export const compute_misc_params = (
     const neg_n_inv = r - pprime
     const n0 = neg_n_inv % (BigInt(2) ** BigInt(word_size))
 
-    return { num_words, max_terms, k, nsafe, n0, r: r % p, rinv }
+    return { num_words, max_terms, k, nsafe, n0, r: r % p, rinv}
 }
 
 export const genRandomFieldElement = (p: bigint): bigint => {
