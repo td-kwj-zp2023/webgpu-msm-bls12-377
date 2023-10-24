@@ -1,6 +1,4 @@
-struct BigInt {
-    limbs: array<u32, {{ num_words }}>
-}
+{{> bigint_struct }}
 
 @group(0)
 @binding(0)

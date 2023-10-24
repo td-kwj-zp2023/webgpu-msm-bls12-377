@@ -1,6 +1,4 @@
-struct BigInt {
-    limbs: array<u32, {{ num_words }}>
-}
+{{> bigint_struct }}
 
 struct BigIntMediumWide {
     limbs: array<u32, {{ num_words_plus_one }}>
