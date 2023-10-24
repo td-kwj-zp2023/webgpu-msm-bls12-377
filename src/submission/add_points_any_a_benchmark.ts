@@ -1,16 +1,20 @@
 import mustache from 'mustache'
+import assert from 'assert'
 import { BigIntPoint } from "../reference/types"
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import { FieldMath } from "../reference/utils/FieldMath";
 import { genRandomFieldElement } from './utils'
 import { compute_misc_params, u8s_to_points, points_to_u8s_for_gpu, gen_p_limbs } from './utils'
 import add_points_any_a_shader from '../submission/wgsl/add_points_any_a.template.wgsl'
+import add_points_a_minus_one_shader from '../submission/wgsl/add_points_a_minus_one.template.wgsl'
 import bigint_struct from '../submission/wgsl/structs/bigint.template.wgsl'
 import bigint_funcs from '../submission/wgsl/bigint.template.wgsl'
 import montgomery_product_funcs from '../submission/wgsl/montgomery_product.template.wgsl'
 import { get_device, create_bind_group } from './gpu'
+import { add_points_any_a } from './add_points'
 
 const setup_shader_code = (
+    shader: string,
     p: bigint,
     num_words: number,
     word_size: number,
@@ -19,7 +23,7 @@ const setup_shader_code = (
 ) => {
     const p_limbs = gen_p_limbs(p, num_words, word_size)
     const shaderCode = mustache.render(
-        add_points_any_a_shader,
+        shader,
         {
             word_size,
             num_words,
@@ -43,11 +47,17 @@ const expensive_computation = (
     a: ExtPointType,
     b: ExtPointType,
     cost: number,
+    fieldMath: FieldMath,
 ): ExtPointType => {
-    let c = a.add(b)
+    let c = add_points_any_a(a, b, fieldMath)
     for (let i = 1; i < cost; i ++) {
-        c = c.add(a)
+        c = add_points_any_a(c, a, fieldMath)
     }
+    //let c = add_points_a_minus_one(a, b, fieldMath)
+    //for (let i = 1; i < cost; i ++) {
+        //c = add_points_a_minus_one(c, a, fieldMath)
+    //}
+
     return c
 }
 
@@ -57,8 +67,9 @@ export const add_points_any_a_benchmark = async (
     baseAffinePoints: BigIntPoint[],
     scalars: bigint[]
 ): Promise<{x: bigint, y: bigint}> => {
-    const cost = 10240
+    const cost = 10240 * 2
     const fieldMath = new FieldMath();
+    fieldMath.aleoD = BigInt(-1)
     const p = BigInt('0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001')
 
     // pt is not the generator of the group. it's just a valid curve point.
@@ -75,7 +86,8 @@ export const add_points_any_a_benchmark = async (
     // Compute in CPU
     // Start timer
     const start_cpu = Date.now()
-    const expected_cpu = expensive_computation(a, b, cost)
+    const expected_cpu = expensive_computation(a, b, cost, fieldMath)
+    const expected_cpu_affine = expected_cpu.toAffine()
     // End Timer
     const elapsed_cpu = Date.now() - start_cpu
     console.log(`CPU took ${elapsed_cpu}ms`)
@@ -86,8 +98,9 @@ export const add_points_any_a_benchmark = async (
     const n0 = params.n0
     const num_words = params.num_words
     const r = params.r
+    const rinv = params.rinv
 
-    // TODO: convert to Mont form
+    // Convert to Mont form
     const points_with_mont_coords: BigIntPoint[] = []
     for (const pt of [a, b]) {
         points_with_mont_coords.push(
@@ -104,7 +117,11 @@ export const add_points_any_a_benchmark = async (
 
     const device = await get_device()
     const commandEncoder = device.createCommandEncoder();
-    const shaderCode = setup_shader_code(p, num_words, word_size, n0, cost)
+
+    //add_points_a_minus_one_shader,
+    //add_points_any_a_shader,
+ 
+    const shaderCode = setup_shader_code(add_points_any_a_shader, p, num_words, word_size, n0, cost)
     const shaderModule = device.createShaderModule({ code: shaderCode })
 
     const start_gpu = Date.now()
@@ -190,8 +207,25 @@ export const add_points_any_a_benchmark = async (
 
     const output_points = u8s_to_points(data_as_uint8s, num_words, word_size)
 
-    console.log(expected_cpu)
-    console.log(output_points)
+    // convert output_points out of Montgomery coords
+    const output_points_non_mont: ExtPointType[] = []
+    for (const pt of output_points) {
+        const non = {
+            x: fieldMath.Fp.mul(pt.x, rinv),
+            y: fieldMath.Fp.mul(pt.y, rinv),
+            t: fieldMath.Fp.mul(pt.t, rinv),
+            z: fieldMath.Fp.mul(pt.z, rinv),
+        }
+        output_points_non_mont.push(bigIntPointToExtPointType(non))
+    }
+    // convert output_points_non_mont into affine
+    const output_points_non_mont_and_affine = output_points_non_mont.map((x) => x.toAffine())
+    console.log('result from gpu, in affine:', output_points_non_mont_and_affine[0])
+
+    console.log(expected_cpu.toAffine())
+
+    assert(output_points_non_mont_and_affine[0].x === expected_cpu_affine.x)
+    assert(output_points_non_mont_and_affine[0].y === expected_cpu_affine.y)
 
     return { x: BigInt(1), y: BigInt(0) }
 }
