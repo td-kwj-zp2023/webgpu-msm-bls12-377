@@ -44,6 +44,7 @@ export const MontProOptimised: React.FC = () => {
 
             const timings: any = {}
 
+            //for (let word_size = 12; word_size < 17; word_size ++) {
             for (let word_size = 13; word_size < 14; word_size ++) {
                 timings[word_size] = []
 

@@ -4,6 +4,7 @@ import { bigIntToU32Array, generateRandomFields } from '../reference/webgpu/util
 import { BigIntPoint, U32ArrayPoint } from '../reference/types';
 import { webgpu_compute_msm, wasm_compute_msm, webgpu_pippenger_msm, webgpu_best_msm, wasm_compute_msm_parallel } from '../reference/reference';
 import { compute_cuzk_typescript, compute_cuzk_typescript_web_workers, compute_cuzk_wgsl } from '../submission/submission';
+import { smtvp } from '../submission/smtvp';
 import CSVExportButton from './CSVExportButton';
 import { TestCaseDropDown } from './TestCaseDropDown';
 import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
@@ -87,6 +88,17 @@ export const AllBenchmarks: React.FC = () => {
       setU32Points(newU32Points);
 
       const newScalars = generateRandomFields(inputSize);
+    
+    /*
+      // Use constants instead of random field elements just for testing
+      const newScalars: bigint[] = []
+      for (let i = 0; i < inputSize; i ++) {
+          const p = BigInt('0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001')
+          const x = BigInt('1111111111111111111111111111111111111111111111111111111111111111111111111111')
+          newScalars.push((x * BigInt(i) % p))
+      }
+     */
+        
       setBigIntScalars(newScalars);
       const newU32Scalars = newScalars.map((scalar) => bigIntToU32Array(scalar));
       setU32Scalars(newU32Scalars);
@@ -185,6 +197,16 @@ export const AllBenchmarks: React.FC = () => {
         scalars={bigIntScalars}
         expectedResult={expectedResult}
         msmFunc={compute_cuzk_wgsl}
+        postResult={postResult}
+        bold={true}
+      />
+      <Benchmark
+        name={'SMTVP (WGSL)'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={smtvp}
         postResult={postResult}
         bold={true}
       />
