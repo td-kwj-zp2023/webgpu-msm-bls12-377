@@ -1,12 +1,11 @@
-{{> bigint_struct }}
+{{> structs }}
+{{> montgomery_product_functions }}
 
 @group(0)
 @binding(0)
 var<storage, read_write> buf: array<BigInt>;
 
 const COST = {{ cost }}u;
-
-{{> montgomery_product_funcs }}
 
 @compute
 @workgroup_size(256)

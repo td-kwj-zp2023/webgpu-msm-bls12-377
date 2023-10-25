@@ -1,178 +1,114 @@
-import { BigIntPoint, U32ArrayPoint } from "../../reference/types";
-import { DenseMatrix, ELLSparseMatrix, CSRSparseMatrix } from '../matrices/matrices'; 
-import { FieldMath } from "../../reference/utils/FieldMath";
 import { ExtPointType } from "@noble/curves/abstract/edwards";
-import { strict as assert } from 'assert';
-import { bigIntToU32Array, generateRandomFields } from '../../reference/webgpu/utils';
-import { Field } from "@noble/curves/abstract/modular";
+import { BigIntPoint } from "../../reference/types";
+import { CSRSparseMatrix, ELLSparseMatrix, fieldMath } from '../matrices/matrices';
+import { webWorkers } from "./workers/worker";
 
 export async function init(
-  inputSize: number,
-  baseAffinePoints: BigIntPoint[],
-  scalars: bigint[]
-): Promise<any> {  
-  // λ-bit scalars
-  const lambda = 256
-
-  // s-bit window size 
-  const s = 16
-
-  // Thread count
-  const threads = 16
-
-  // Number of rows and columns (ie. row-space)
-  const num_rows = threads
-  const num_columns = Math.pow(2, s) - 1
-
-  self.onmessage = async function (e) {
-    console.log("Worker!")
-//     const { baseAffinePoints, scalars, start, end } = e.data;
-
-//   // Instantiate 'FieldMath' object
-//   const fieldMath = new FieldMath();
-//   const ZERO_POINT = fieldMath.customEdwards.ExtendedPoint.ZERO;
-
-//   const csr_sparse_matrix_array: CSRSparseMatrix[] = []
+    inputSize: number,
+    baseAffinePoints: BigIntPoint[],
+    scalars: bigint[]
+): Promise<CSRSparseMatrix[]> {  
+    // λ-bit scalars
+    const lambda = 256
   
-//   for (let i = start; i < end; i++) {
-//     // Instantiate empty ELL sparse matrix format
-//     const data = new Array(num_rows);
-//     for (let i = 0; i < num_rows; i++) {
-//         data[i] = new Array(num_columns).fill(ZERO_POINT);
-//     }
-
-//     const col_idx = new Array(num_rows);
-//     for (let i = 0; i < num_rows; i++) {
-//         col_idx[i] = new Array(num_columns).fill(0);
-//     }
-
-//     const row_length = Array(num_rows).fill(0);
-
-//     // Perform scalar decomposition
-//     const scalars_decomposed: bigint[][] = []
-//     for (let j =  Math.ceil(lambda / s); j > 0; j--) {
-//       const chunk: bigint[] = [];
-//       for (let i = 0; i < scalars.length; i++) {
-//         const mask = (BigInt(1) << BigInt(s)) - BigInt(1)  
-//         const limb = (scalars[i] >> BigInt(((j - 1) * s))) & mask // Right shift and extract lower 32-bits 
-//         chunk.push(limb)
-//       }
-//       scalars_decomposed.push(chunk);
-//     }
-    
-//     // Divide EC points into t parts
-//     for (let thread_idx = 0; thread_idx < num_rows; thread_idx++) {
-//       const z = 0
-//       for (let j = 0; j < num_columns; j++) {
-//           const point_i = thread_idx + j * threads
-//           data[thread_idx][j] = baseAffinePoints[point_i]
-//           col_idx[thread_idx][j] = scalars_decomposed[i][point_i]
-//           row_length[thread_idx] += 1
-//       }
-//     }
-    
-//     // Transform ELL sparse matrix to CSR sparse matrix
-//     const ell_sparse_matrix = new ELLSparseMatrix(data, col_idx, row_length)
-//     const csr_sparse_matrix = await new CSRSparseMatrix([], [], []).ell_to_csr_sparse_matrix(ell_sparse_matrix)
-
-//     csr_sparse_matrix_array.push(csr_sparse_matrix)
-//   }
-
-    self.postMessage("test");
-
-//   return { csr_sparse_matrix_array, fieldMath }
-}}
-
-export async function transpose_and_spmv(csr_sparse_matrix: CSRSparseMatrix, fieldMath: FieldMath): Promise<ExtPointType> {
-  // Transpose CSR sparse matrix
-  const csr_sparse_matrix_transposed = await csr_sparse_matrix.transpose()
-
-  // Derive partial bucket sums by performing SMVP
-  const vector_smvp: bigint[] = Array(csr_sparse_matrix_transposed.row_ptr.length - 1).fill(BigInt(1));
-  const buckets_svmp: ExtPointType[] = await csr_sparse_matrix_transposed.smvp(vector_smvp, fieldMath)
-
-  // Aggregate SVMP buckets with running sum 
-  let aggregate_svmp: ExtPointType = fieldMath.customEdwards.ExtendedPoint.ZERO
-  for (const [i, bucket] of buckets_svmp.entries()) {
-    if (i == 0) {
-        continue
-    }
-    aggregate_svmp = aggregate_svmp.add(bucket.multiply(BigInt(i)))
-  }
+    // s-bit window size 
+    const s = 16
   
-  return aggregate_svmp
-}
-
-export async function smtvp(csr_sparse_matrix: CSRSparseMatrix, fieldMath: FieldMath): Promise<ExtPointType> {
-  // Derive partial bucket sums by performing SMTVP
-  const vector_smtvp: bigint[] = Array(csr_sparse_matrix.row_ptr.length - 1).fill(BigInt(1));
-  const buckets_svtmp: ExtPointType[] = await csr_sparse_matrix.smtvp(vector_smtvp, fieldMath)
-
-  // Aggregate SVTMP buckets with running sum 
-  let aggregate_svtmp: ExtPointType = fieldMath.customEdwards.ExtendedPoint.ZERO
-  for (const [i, bucket] of buckets_svtmp.entries()) {
-    if (i == 0) {
-        continue
+    // Thread count
+    const threads = 16
+  
+    // Number of rows and columns (ie. row-space)
+    const num_rows = threads
+    const num_columns = Math.pow(2, s) - 1
+  
+    // Intantiate empty array of sparse matrices
+    const csr_sparse_matrix_array: CSRSparseMatrix[] = []
+    
+    const ZERO_POINT = fieldMath.customEdwards.ExtendedPoint.ZERO;
+    for (let i = 0; i < num_rows; i++) {
+      // Instantiate empty ELL sparse matrix format
+      const data = new Array(num_rows);
+      for (let i = 0; i < num_rows; i++) {
+          data[i] = new Array(num_columns).fill(ZERO_POINT);
+      }
+  
+      const col_idx = new Array(num_rows);
+      for (let i = 0; i < num_rows; i++) {
+          col_idx[i] = new Array(num_columns).fill(0);
+      }
+  
+      const row_length = Array(num_rows).fill(0);
+  
+      // Perform scalar decomposition
+      const scalars_decomposed: bigint[][] = []
+      for (let j =  Math.ceil(lambda / s); j > 0; j--) {
+        const chunk: bigint[] = [];
+        for (let i = 0; i < scalars.length; i++) {
+          const mask = (BigInt(1) << BigInt(s)) - BigInt(1)  
+          const limb = (scalars[i] >> BigInt(((j - 1) * s))) & mask // Right shift and extract lower 32-bits 
+          chunk.push(limb)
+        }
+        scalars_decomposed.push(chunk);
+      }
+      
+      // Divide EC points into t parts
+      for (let thread_idx = 0; thread_idx < num_rows; thread_idx++) {
+        const z = 0
+        for (let j = 0; j < num_columns; j++) {
+            const point_i = thread_idx + j * threads
+            data[thread_idx][j] = baseAffinePoints[point_i]
+            col_idx[thread_idx][j] = scalars_decomposed[i][point_i]
+            row_length[thread_idx] += 1
+        }
+      }
+      
+      // Transform ELL sparse matrix to CSR sparse matrix
+      const ell_sparse_matrix = new ELLSparseMatrix(data, col_idx, row_length)
+      const csr_sparse_matrix = await new CSRSparseMatrix([], [], []).ell_to_csr_sparse_matrix(ell_sparse_matrix)
+  
+      csr_sparse_matrix_array.push(csr_sparse_matrix)
     }
-    aggregate_svtmp = aggregate_svtmp.add(bucket.multiply(BigInt(i)))
+  
+    return csr_sparse_matrix_array 
   }
-
-  return aggregate_svtmp
-}
 
 export async function execute_cuzk_parallel(
     inputSize: number,
     baseAffinePoints: BigIntPoint[],
     scalars: bigint[]
-): Promise<any> {    
-    // Number of Web Workers
-    const numWorkers = 2; 
-    const workers: { worker: Worker; completed: boolean; }[] = []
-    const tasksPerWorker = 1
-
-    console.log("numWorkers")
-
+): Promise<ExtPointType> {    
     // Initialize instance 
-    const parameters = await init(inputSize, baseAffinePoints, scalars)
+    const csr_sparse_matrices = await init(inputSize, baseAffinePoints, scalars)
 
-    for (let i = 0; i < numWorkers; i++) {
-        const start = i * tasksPerWorker
-        const end = (i + 1) * tasksPerWorker
+    // Use `hardwareConcurrency` instead
+    const maxWebWorkers = 8; 
 
-        // Spawn new web worker
-        const worker = new Worker('./worker.js')
-        worker.onmessage = function (e) {
-            const data = e.data;
-            console.log('Received data from worker:', data);
-            if (workers.every(worker => worker.completed)) {
-                console.log("All workers done!")
-            }
-        };
-        
-        worker.postMessage({ baseAffinePoints, scalars, start, end });
-        workers.push({ worker, completed: false });
+    // Array of web worker promises
+    const workerPromises = [];
+
+    // Execute 2 rounds of 8 concurrent web workers each
+    for (let i = 0; i < maxWebWorkers; i++) {
+        workerPromises.push(webWorkers(csr_sparse_matrices[i]))
+    }
+    const results: ExtPointType[] = await Promise.all(workerPromises);
+    
+    for (let i = maxWebWorkers; i < maxWebWorkers * 2; i++) {
+        workerPromises.push(webWorkers(csr_sparse_matrices[i]))
+    }
+    const results1: ExtPointType[] = await Promise.all(workerPromises);
+
+    // Serialize results to points
+    const G: ExtPointType[] = []
+    for (let i = 0; i < results1.length; i++) {
+        G.push(fieldMath.createPoint(results1[i].ex, results1[i].ey, results1[i].et, results1[i].ez))
     }
 
-  // Perform Transpose and SPMV 
-//   const G: ExtPointType[] = []
-//   for (let i = 0; i < parameters.csr_sparse_matrix_array.length; i++) {
-//     const partial_sum = await transpose_and_spmv(parameters.csr_sparse_matrix_array[i], parameters.fieldMath)
-//     G.push(partial_sum)
-//   }
-
-  // Perform SMTVP
-  // const G: ExtPointType[] = []
-  // for (let i = 0; i < parameters.csr_sparse_matrix_array.length; i++) {
-  //   const partial_sum = await smtvp(parameters.csr_sparse_matrix_array[i], parameters.fieldMath)
-  //   G.push(partial_sum)
-  // }
-
-  // Perform Honer's rule
-//   let T = G[0];
-//   for (let i = 1; i < G.length; i++) {
-//     T = T.multiply(BigInt(Math.pow(2, 16)));
-//     T = T.add(G[i]);
-//   }
-
-//   return T
+    // Perform Honer's rule
+    let T = G[0];
+    for (let i = 1; i < G.length; i++) {
+        T = T.multiply(BigInt(Math.pow(2, 16)));
+        T = T.add(G[i]);
+    }
+  
+    return T
 }
