@@ -40,6 +40,11 @@ fn get_edwards_d() -> BigInt {
 }
 
 fn add_points(p1: Point, p2: Point) -> Point {
+    // Operation counts
+    // montgomery_product: 10
+    // fr_add: 3
+    // fr_sub: 5
+
     var p1x = p1.x;
     var p2x = p2.x;
     var a = montgomery_product(&p1x, &p2x);
