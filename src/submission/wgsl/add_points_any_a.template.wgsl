@@ -40,6 +40,9 @@ fn get_edwards_d() -> BigInt {
 }
 
 fn add_points(p1: Point, p2: Point) -> Point {
+    // This is add-2008-hwcd
+    // https://eprint.iacr.org/2008/522.pdf section 3.1, p5 (9M + 2D)
+    // https://hyperelliptic.org/EFD/g1p/auto-twisted-extended.html#addition-add-2008-hwcd
     // Operation counts
     // montgomery_product: 10
     // fr_add: 3
@@ -63,6 +66,7 @@ fn add_points(p1: Point, p2: Point) -> Point {
     var p1z = p1.z;
     var p2z = p2.z;
     var d = montgomery_product(&p1z, &p2z);
+
     var xpy = fr_add(&p1x, &p1y);
     var xpy2 = fr_add(&p2x, &p2y);
     var e = montgomery_product(&xpy, &xpy2);

@@ -41,30 +41,16 @@ fn get_r2() -> BigInt {
 }
 
 fn add_points(p1: Point, p2: Point) -> Point {
-    /*
-    const A = fieldMath.Fp.mul(
-        fieldMath.Fp.sub(Y1, X1),
-        fieldMath.Fp.add(Y2, X2)
-    )
-    const B = fieldMath.Fp.mul(
-        fieldMath.Fp.add(Y1, X1),
-        fieldMath.Fp.sub(Y2, X2)
-    )
-    const F = fieldMath.Fp.sub(B, A)
-    const C = fieldMath.Fp.mul(fieldMath.Fp.mul(Z1, BigInt(2)), T2)
-    const D = fieldMath.Fp.mul(fieldMath.Fp.mul(T1, BigInt(2)), Z2)
-    const E = fieldMath.Fp.add(D, C)
-    const G = fieldMath.Fp.add(B, A)
-    const H = fieldMath.Fp.sub(D, C)
-    const X3 = fieldMath.Fp.mul(E, F)
-    const Y3 = fieldMath.Fp.mul(G, H)
-    const T3 = fieldMath.Fp.mul(E, H)
-    const Z3 = fieldMath.Fp.mul(F, G)
-    */
-
-    // montgomery_product: 10
+    // This is add-2008-hwcd-4
+    // https://eprint.iacr.org/2008/522.pdf section 3.2, p7 (8M)
+    // From http://hyperelliptic.org/EFD/g1p/auto-twisted-extended-1.html#addition-add-2008-hwcd-4
+    
+    // Operation counts
+    // montgomery_product: 10 (2 of which are *2 - can this be further
+    // optimised? The paper counts this as 8M)
     // fr_add: 4
     // fr_sub: 4
+
 
     var p1x = p1.x;
     var p1y = p1.y;
@@ -80,16 +66,18 @@ fn add_points(p1: Point, p2: Point) -> Point {
 
     var f = fr_sub(&b, &a);
 
-    var r2 = get_r2();
+    /*var r2 = get_r2();*/
 
     var p1z = p1.z;
     var p2t = p2.t;
-    var z1_m_r2 = montgomery_product(&p1z, &r2);
+    /*var z1_m_r2 = montgomery_product(&p1z, &r2);*/
+    var z1_m_r2 = fr_double(&p1z);
     var c = montgomery_product(&z1_m_r2, &p2t);
 
     var p1t = p1.t;
     var p2z = p2.z;
-    var t1_m_r2 = montgomery_product(&p1t, &r2);
+    /*var t1_m_r2 = montgomery_product(&p1t, &r2);*/
+    var t1_m_r2 = fr_double(&p1t);
     var d = montgomery_product(&t1_m_r2, &p2z);
 
     var e = fr_add(&d, &c);
@@ -104,6 +92,12 @@ fn add_points(p1: Point, p2: Point) -> Point {
 }
 
 {{> montgomery_product_funcs }}
+
+fn fr_double(a: ptr<function, BigInt>) -> BigInt { 
+    var res: BigInt;
+    bigint_double(a, &res);
+    return fr_reduce(&res);
+}
 
 fn fr_add(a: ptr<function, BigInt>, b: ptr<function, BigInt>) -> BigInt { 
     var res: BigInt;
