@@ -58,8 +58,6 @@ export const add_points_a_minus_one = (
     b: ExtPointType,
     fieldMath: FieldMath,
 ): ExtPointType => {
-    const ed_a = BigInt(-1)
-    const ed_d = BigInt(3021)
     const X1 = a.ex
     const Y1 = a.ey
     const T1 = a.et

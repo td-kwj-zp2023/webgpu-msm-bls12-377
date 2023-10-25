@@ -62,6 +62,10 @@ fn add_points(p1: Point, p2: Point) -> Point {
     const Z3 = fieldMath.Fp.mul(F, G)
     */
 
+    // montgomery_product: 10
+    // fr_add: 4
+    // fr_sub: 4
+
     var p1x = p1.x;
     var p1y = p1.y;
     var p2x = p2.x;

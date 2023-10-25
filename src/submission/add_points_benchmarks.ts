@@ -11,7 +11,7 @@ import bigint_struct from '../submission/wgsl/structs/bigint.template.wgsl'
 import bigint_funcs from '../submission/wgsl/bigint.template.wgsl'
 import montgomery_product_funcs from '../submission/wgsl/montgomery_product.template.wgsl'
 import { get_device, create_bind_group } from './gpu'
-import { add_points_any_a } from './add_points'
+import { add_points_any_a, add_points_a_minus_one } from './add_points'
 
 const setup_shader_code = (
     shader: string,
@@ -48,52 +48,100 @@ const expensive_computation = (
     b: ExtPointType,
     cost: number,
     fieldMath: FieldMath,
+    add_points_func: any,
 ): ExtPointType => {
-    let c = add_points_any_a(a, b, fieldMath)
+    let c = add_points_func(a, b, fieldMath)
     for (let i = 1; i < cost; i ++) {
-        c = add_points_any_a(c, a, fieldMath)
+        c = add_points_func(c, a, fieldMath)
     }
-    //let c = add_points_a_minus_one(a, b, fieldMath)
-    //for (let i = 1; i < cost; i ++) {
-        //c = add_points_a_minus_one(c, a, fieldMath)
-    //}
 
     return c
 }
-
-// Ignore the input points and scalars. Generate two random Extended
-// Twisted Edwards points, perform many additions, and print the time taken.
-export const add_points_any_a_benchmark = async (
+export const add_points_benchmarks = async(
     baseAffinePoints: BigIntPoint[],
     scalars: bigint[]
 ): Promise<{x: bigint, y: bigint}> => {
-    const cost = 10240 * 2
+    const cost = 10240 * 3
     const fieldMath = new FieldMath();
     fieldMath.aleoD = BigInt(-1)
     const p = BigInt('0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001')
 
-    // pt is not the generator of the group. it's just a valid curve point.
+    // Ignore the input points and scalars. Generate two random Extended
+    // Twisted Edwards points, perform many additions, and print the time taken.
     const x = BigInt('2796670805570508460920584878396618987767121022598342527208237783066948667246');
     const y = BigInt('8134280397689638111748378379571739274369602049665521098046934931245960532166');
     const t = BigInt('3446088593515175914550487355059397868296219355049460558182099906777968652023');
     const z = BigInt('1');
+    // Note that pt is not the generator of the group. it's just a valid curve point.
     const pt = fieldMath.createPoint(x, y, t, z)
 
     // Generate two random points by multiplying by random field elements
     const a = pt.multiply(genRandomFieldElement(p))
     const b = pt.multiply(genRandomFieldElement(p))
 
+    const num_x_workgroups = 1;
+    const word_size = 13
+
+    const num_runs = 17
+
+    console.log('Cost:', cost)
+    const print_avg_timings = (timings: any[]) => {
+        if (timings.length === 1) {
+            console.log(`CPU took ${timings[0].elapsed_cpu}`)
+            console.log(`GPU took ${timings[0].elapsed_gpu}`)
+        } else {
+            let total_gpu = 0
+            let total_cpu = 0
+            for (let i = 1; i < timings.length; i ++) {
+                total_cpu += timings[i].elapsed_cpu
+                total_gpu += timings[i].elapsed_gpu
+            }
+            const avg_gpu = total_gpu / (timings.length - 1)
+            const avg_cpu = total_cpu / (timings.length - 1)
+            console.log(`Average timing for CPU over ${num_runs} runs (skipping the first): ${avg_cpu}ms`)
+            console.log(`Average timing for GPU over ${num_runs} runs (skipping the first): ${avg_gpu}ms`)
+        }
+        console.log(timings)
+    }
+
+    console.log('Benchmarking add_points for any EDWARDS_A value')
+    const timings_any_a: any[] = []
+    for (let i = 0; i < num_runs; i ++) {
+        const r = await do_benchmark(add_points_any_a_shader, a, b, p, cost, num_x_workgroups, word_size, fieldMath, add_points_any_a)
+        timings_any_a.push(r)
+    }
+    print_avg_timings(timings_any_a)
+
+    console.log('Benchmarking add_points where the EDWARDS_A value equals -1')
+    const timings_a_minus_one: any[] = []
+    for (let i = 0; i < num_runs; i ++) {
+        const r = await do_benchmark(add_points_a_minus_one_shader, a, b, p, cost, num_x_workgroups, word_size, fieldMath, add_points_a_minus_one)
+        timings_a_minus_one.push(r)
+    }
+    print_avg_timings(timings_a_minus_one)
+    return { x: BigInt(1), y: BigInt(0) }
+}
+
+const do_benchmark = async (
+    shader: string,
+    a: ExtPointType,
+    b: ExtPointType,
+    p: bigint,
+    cost: number,
+    num_x_workgroups: number,
+    word_size: number,
+    fieldMath: FieldMath,
+    add_points_func: any,
+): Promise<{ elapsed_cpu: number, elapsed_gpu: number }> => {
     // Compute in CPU
     // Start timer
     const start_cpu = Date.now()
-    const expected_cpu = expensive_computation(a, b, cost, fieldMath)
+    const expected_cpu = expensive_computation(a, b, cost, fieldMath, add_points_func)
     const expected_cpu_affine = expected_cpu.toAffine()
     // End Timer
     const elapsed_cpu = Date.now() - start_cpu
-    console.log(`CPU took ${elapsed_cpu}ms`)
+    //console.log(`CPU took ${elapsed_cpu}ms`)
 
-    const num_x_workgroups = 1;
-    const word_size = 13
     const params = compute_misc_params(p, word_size)
     const n0 = params.n0
     const num_words = params.num_words
@@ -118,10 +166,7 @@ export const add_points_any_a_benchmark = async (
     const device = await get_device()
     const commandEncoder = device.createCommandEncoder();
 
-    //add_points_a_minus_one_shader,
-    //add_points_any_a_shader,
- 
-    const shaderCode = setup_shader_code(add_points_any_a_shader, p, num_words, word_size, n0, cost)
+    const shaderCode = setup_shader_code(shader, p, num_words, word_size, n0, cost)
     const shaderModule = device.createShaderModule({ code: shaderCode })
 
     const start_gpu = Date.now()
@@ -197,7 +242,7 @@ export const add_points_any_a_benchmark = async (
     stagingBuffer.unmap();
     const elapsed_gpu = Date.now() - start_gpu
 
-    console.log(`GPU took ${elapsed_gpu}ms`)
+    //console.log(`GPU took ${elapsed_gpu}ms`)
 
     const data_as_uint8s = new Uint8Array(data)
 
@@ -220,12 +265,12 @@ export const add_points_any_a_benchmark = async (
     }
     // convert output_points_non_mont into affine
     const output_points_non_mont_and_affine = output_points_non_mont.map((x) => x.toAffine())
-    console.log('result from gpu, in affine:', output_points_non_mont_and_affine[0])
+    //console.log('result from gpu, in affine:', output_points_non_mont_and_affine[0])
 
-    console.log(expected_cpu.toAffine())
+    //console.log(expected_cpu.toAffine())
 
     assert(output_points_non_mont_and_affine[0].x === expected_cpu_affine.x)
     assert(output_points_non_mont_and_affine[0].y === expected_cpu_affine.y)
 
-    return { x: BigInt(1), y: BigInt(0) }
+    return { elapsed_cpu, elapsed_gpu }
 }
