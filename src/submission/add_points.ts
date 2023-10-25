@@ -76,8 +76,8 @@ export const add_points_a_minus_one = (
         fieldMath.Fp.sub(Y2, X2)
     )
     const F = fieldMath.Fp.sub(B, A)
-    const C = fieldMath.Fp.mul(fieldMath.Fp.mul(Z1, BigInt(2)), T2)
-    const D = fieldMath.Fp.mul(fieldMath.Fp.mul(T1, BigInt(2)), Z2)
+    const C = fieldMath.Fp.mul(fieldMath.Fp.add(Z1, Z1), T2)
+    const D = fieldMath.Fp.mul(fieldMath.Fp.add(T1, T1), Z2)
     const E = fieldMath.Fp.add(D, C)
     const G = fieldMath.Fp.add(B, A)
     const H = fieldMath.Fp.sub(D, C)
@@ -87,32 +87,3 @@ export const add_points_a_minus_one = (
     const Z3 = fieldMath.Fp.mul(F, G)
     return fieldMath.createPoint(X3, Y3, T3, Z3);
 }
-/*
-add(other) {
-    isPoint(other);
-    const { a, d } = CURVE;
-    const { ex: X1, ey: Y1, ez: Z1, et: T1 } = this;
-    const { ex: X2, ey: Y2, ez: Z2, et: T2 } = other;
-    // Faster algo for adding 2 Extended Points when curve's a=-1.
-    // http://hyperelliptic.org/EFD/g1p/auto-twisted-extended-1.html#addition-add-2008-hwcd-4
-    // Cost: 8M + 8add + 2*2.
-    // Note: It does not check whether the `other` point is valid.
-    if (a === BigInt(-1)) {
-        const A = modP((Y1 - X1) * (Y2 + X2));
-        const B = modP((Y1 + X1) * (Y2 - X2));
-        const F = modP(B - A);
-        if (F === _0n)
-            return this.double(); // Same point. Tests say it doesn't affect timing
-        const C = modP(Z1 * _2n * T2);
-        const D = modP(T1 * _2n * Z2);
-        const E = D + C;
-        const G = B + A;
-        const H = D - C;
-        const X3 = modP(E * F);
-        const Y3 = modP(G * H);
-        const T3 = modP(E * H);
-        const Z3 = modP(F * G);
-        return new Point(X3, Y3, Z3, T3);
-    }
-}
- */

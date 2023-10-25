@@ -78,6 +78,8 @@ export const add_points_benchmarks = async(
     // Generate two random points by multiplying by random field elements
     const a = pt.multiply(genRandomFieldElement(p))
     const b = pt.multiply(genRandomFieldElement(p))
+    console.log(a)
+    console.log(b)
 
     const num_x_workgroups = 1;
     const word_size = 13
@@ -104,7 +106,7 @@ export const add_points_benchmarks = async(
         console.log(timings)
     }
 
-    console.log('Benchmarking add_points for any EDWARDS_A value')
+    console.log('Benchmarking add_points for add-2008-hwcd')
     const timings_any_a: any[] = []
     for (let i = 0; i < num_runs; i ++) {
         const r = await do_benchmark(add_points_any_a_shader, a, b, p, cost, num_x_workgroups, word_size, fieldMath, add_points_any_a)
@@ -112,7 +114,7 @@ export const add_points_benchmarks = async(
     }
     print_avg_timings(timings_any_a)
 
-    console.log('Benchmarking add_points where the EDWARDS_A value equals -1')
+    console.log('Benchmarking add_points for add-2008-hwcd-4')
     const timings_a_minus_one: any[] = []
     for (let i = 0; i < num_runs; i ++) {
         const r = await do_benchmark(add_points_a_minus_one_shader, a, b, p, cost, num_x_workgroups, word_size, fieldMath, add_points_a_minus_one)
