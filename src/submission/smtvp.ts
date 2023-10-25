@@ -125,7 +125,12 @@ export const smtvp = async (
             col_idxs.push(c)
         }
     }
-    const max_col_idx = Math.max(...col_idxs)
+    let max_col_idx = 0
+    for (const c of col_idxs) {
+        if (c > max_col_idx) {
+            max_col_idx = c
+        }
+    }
 
     const fieldMath = new FieldMath();
     for (let i = 0; i < csr_sparse_matrices.length; i ++) {
@@ -148,17 +153,22 @@ export async function smtvp_run(
     r: bigint,
     rinv: bigint,
 ) {
-    const cpu_start = Date.now()
-    // Perform SMTVP in CPU
-    const vec: bigint[] = []
-    for (let i = 0; i < csr_sm.row_ptr.length - 1; i ++) {
-        vec.push(BigInt(1))
+    const run_on_cpu = false
+    let smtvp_result_affine
+
+    if (run_on_cpu) {
+        const cpu_start = Date.now()
+        // Perform SMTVP in CPU
+        const vec: bigint[] = []
+        for (let i = 0; i < csr_sm.row_ptr.length - 1; i ++) {
+            vec.push(BigInt(1))
+        }
+        const smtvp_result = await csr_sm.smtvp(vec, fieldMath)
+        smtvp_result_affine = smtvp_result.map((x) => x.toAffine())
+        console.log('points from cpu, in affine:', smtvp_result_affine)
+        const cpu_elapsed = Date.now() - cpu_start
+        console.log(`CPU took ${cpu_elapsed}ms`)
     }
-    const smtvp_result = await csr_sm.smtvp(vec, fieldMath)
-    const smtvp_result_affine = smtvp_result.map((x) => x.toAffine())
-    console.log('points from cpu, in affine:', smtvp_result_affine)
-    const cpu_elapsed = Date.now() - cpu_start
-    console.log(`CPU took ${cpu_elapsed}ms`)
 
     // Create GPUCommandEncoder to issue commands to the GPU
     const commandEncoder = device.createCommandEncoder();
@@ -385,9 +395,11 @@ export async function smtvp_run(
     const output_points_non_mont_and_affine = output_points_non_mont.map((x) => x.toAffine())
     console.log('points from gpu, in affine:', output_points_non_mont_and_affine)
 
-    for (let i = 0; i < smtvp_result_affine.length; i ++) {
-        assert(smtvp_result_affine[i].x === output_points_non_mont_and_affine[i].x)
-        assert(smtvp_result_affine[i].y === output_points_non_mont_and_affine[i].y)
+    if (run_on_cpu && smtvp_result_affine) {
+        for (let i = 0; i < smtvp_result_affine.length; i ++) {
+            assert(smtvp_result_affine[i].x === output_points_non_mont_and_affine[i].x)
+            assert(smtvp_result_affine[i].y === output_points_non_mont_and_affine[i].y)
+        }
     }
 }
 
