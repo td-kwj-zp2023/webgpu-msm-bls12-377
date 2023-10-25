@@ -80,6 +80,7 @@ const config = {
   ],
   devtool: "inline-source-map",
   devServer: {
+    // watchContentBase: true,
     headers: {
       "Cross-Origin-Embedder-Policy": "require-corp",
       "Cross-Origin-Opener-Policy": "same-origin",
@@ -110,9 +111,11 @@ const workerConfig = {
     syncWebAssembly: true,
     topLevelAwait: true
   },
-  target: 'webworker',
+  target: 'web',
   entry: {
     wasmMSM: './src/workers/wasmMSM.ts',
+    webworkers: './src/submission/cuzk/workers/csrSparseMatrixWorker.ts',
+
   },
   output: {
     pathinfo: false,

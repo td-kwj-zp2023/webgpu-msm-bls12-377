@@ -3,6 +3,9 @@ import { strict as assert } from 'assert';
 import { FieldMath } from "../../reference/utils/FieldMath";
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 
+const fieldMath = new FieldMath();
+export { fieldMath };
+
 /**
  * Dense Matrix Class
  */
@@ -177,7 +180,7 @@ export class CSRSparseMatrix implements Interface.CSRSparseMatrix {
     }
 
     // Perform SMVP. See https://ieeexplore.ieee.org/document/7097920, Figure 2a. 
-    async smvp(vec: bigint[], fieldMath: FieldMath): Promise<ExtPointType[]> {
+    async smvp(vec: bigint[]): Promise<ExtPointType[]> {
         // Check if vector length equals the number of rows
         assert(vec.length == this.row_ptr.length - 1)
 
@@ -190,7 +193,7 @@ export class CSRSparseMatrix implements Interface.CSRSparseMatrix {
         }
         
         const currentSum = fieldMath.customEdwards.ExtendedPoint.ZERO;
-
+        
         // Convert points
         const s: ExtPointType[] = [];
         for (let i = 0; i < this.data.length; i++) {
@@ -216,7 +219,7 @@ export class CSRSparseMatrix implements Interface.CSRSparseMatrix {
     }
 
     // Perform SMTVP. See https://ieeexplore.ieee.org/document/7097920, Figure 2b.
-    async smtvp(vec: bigint[], fieldMath: FieldMath): Promise<ExtPointType[]> {
+    async smtvp(vec: bigint[]): Promise<ExtPointType[]> {
         // Check if vector length equals the number of rows
         assert(vec.length == this.row_ptr.length - 1)
         
@@ -390,6 +393,4 @@ export class CSRSparseMatrix implements Interface.CSRSparseMatrix {
 
         return new CSRSparseMatrix(sparse_matrix, col_idx, row_ptr)
     }
-
-
 }
