@@ -163,7 +163,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     if (loop_index == 0u) {
         for (var i = 0u; i < arrayLength(&output); i ++) {
             var y: BigInt = get_r();
-            var z: BigInt = get_r();
+            var z: BigInt = y;
 
             var inf: Point;
             inf.y = y;
