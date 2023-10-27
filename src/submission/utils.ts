@@ -222,6 +222,8 @@ export const compute_misc_params = (
         assert((p * pprime) % r + r == BigInt(1))
     }
 
+    //console.log(to_words_le((r * BigInt(2)) % p, num_words, word_size))
+
     const neg_n_inv = r - pprime
     const n0 = neg_n_inv % (BigInt(2) ** BigInt(word_size))
 
