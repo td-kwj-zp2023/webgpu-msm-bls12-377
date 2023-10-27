@@ -16,32 +16,6 @@ var<storage, read_write> points: array<Point>;
 @group(0) @binding(1)
 var<storage, read_write> output: array<Point>;
 
-fn get_r2() -> BigInt {
-    var r2: BigInt;
-    r2.limbs[0] = 7754u;
-    r2.limbs[1] = 8191u;
-    r2.limbs[2] = 8191u;
-    r2.limbs[3] = 7679u;
-    r2.limbs[4] = 3168u;
-    r2.limbs[5] = 7964u;
-    r2.limbs[6] = 8191u;
-    r2.limbs[7] = 259u;
-    r2.limbs[8] = 6248u;
-    r2.limbs[9] = 1202u;
-    r2.limbs[10] = 5996u;
-    r2.limbs[11] = 4465u;
-    r2.limbs[12] = 227u;
-    r2.limbs[13] = 519u;
-    r2.limbs[14] = 6702u;
-    r2.limbs[15] = 966u;
-    r2.limbs[16] = 6045u;
-    r2.limbs[17] = 289u;
-    r2.limbs[18] = 4132u;
-    r2.limbs[19] = 29u;
-    
-    return r2;
-}
-
 fn add_points(p1: Point, p2: Point) -> Point {
     // This is add-2008-hwcd-4
     // https://eprint.iacr.org/2008/522.pdf section 3.2, p7 (8M)
@@ -52,7 +26,6 @@ fn add_points(p1: Point, p2: Point) -> Point {
     // optimised? The paper counts this as 8M)
     // fr_add: 4
     // fr_sub: 4
-
 
     var p1x = p1.x;
     var p1y = p1.y;
@@ -68,17 +41,13 @@ fn add_points(p1: Point, p2: Point) -> Point {
 
     var f = fr_sub(&b, &a);
 
-    /*var r2 = get_r2();*/
-
     var p1z = p1.z;
     var p2t = p2.t;
-    /*var z1_m_r2 = montgomery_product(&p1z, &r2);*/
     var z1_m_r2 = fr_double(&p1z);
     var c = montgomery_product(&z1_m_r2, &p2t);
 
     var p1t = p1.t;
     var p2z = p2.z;
-    /*var t1_m_r2 = montgomery_product(&p1t, &r2);*/
     var t1_m_r2 = fr_double(&p1t);
     var d = montgomery_product(&t1_m_r2, &p2z);
 
