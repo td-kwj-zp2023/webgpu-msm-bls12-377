@@ -24,22 +24,27 @@ export async function get_device() {
     return device
 }
 
+/*
+ * Returns an array of CSR sparse matrices. Each sparse matrix contains the
+ * same number of points, but different col_idx values.
+ */
 export async function gen_csr_sparse_matrices(
     baseAffinePoints: BigIntPoint[],
     scalars: bigint[],
     lambda: number, // λ-bit scalars
-    s: number, // s-bit window size 
+    window_size: number, // s-bit window size 
     threads: number, // Thread count
-): Promise<any> {  
+): Promise<CSRSparseMatrix[]> {  
     // Number of rows and columns (ie. row-space)
     const num_rows = threads
-    const num_columns = Math.pow(2, s) - 1
+    const num_columns = Math.pow(2, window_size) - 1
 
     // Instantiate 'FieldMath' object
     const fieldMath = new FieldMath();
     const ZERO_POINT = fieldMath.customEdwards.ExtendedPoint.ZERO;
 
     const csr_sparse_matrix_array: CSRSparseMatrix[] = []
+    const mask = (BigInt(1) << BigInt(window_size)) - BigInt(1)  
 
     for (let i = 0; i < num_rows; i++) {
         // Instantiate empty ELL sparse matrix format
@@ -55,13 +60,14 @@ export async function gen_csr_sparse_matrices(
 
         const row_length = Array(num_rows).fill(0);
 
-        // Perform scalar decomposition
+        // Perform scalar decomposition. scalars_decomposed should contain (lambda / window_size) arrays of 
         const scalars_decomposed: number[][] = []
-        for (let j =  Math.ceil(lambda / s); j > 0; j--) {
+        for (let j =  Math.ceil(lambda / window_size); j > 0; j--) {
             const chunk: number[] = [];
-            for (let i = 0; i < scalars.length; i++) {
-                const mask = (BigInt(1) << BigInt(s)) - BigInt(1)  
-                const limb = (scalars[i] >> BigInt(((j - 1) * s))) & mask // Right shift and extract lower 32-bits 
+
+            // For each scalar, extract the j-th chunk
+            for (const scalar of scalars) {
+                const limb = (scalar >> BigInt(((j - 1) * window_size))) & mask // Right shift and extract lower window_size-bits 
                 chunk.push(Number(limb))
             }
             scalars_decomposed.push(chunk);
@@ -100,20 +106,19 @@ export const smtvp = async (
     const num_words = params.num_words
     assert(num_words === 20)
 
-    // λ-bit scalars. 13 * 20 = 260
+    // Each scalar has λ bits. e.g. 13 * 20 = 260 bits
     const lambda = word_size * num_words
 
-    // s-bit window size 
-    const s = word_size
+    const window_size = word_size
 
     // Thread count
-    const threads = 16
+    const threads = 20
 
     const csr_sparse_matrices = await gen_csr_sparse_matrices(
         baseAffinePoints,
         scalars,
         lambda,
-        s,
+        window_size,
         threads
     )
 
