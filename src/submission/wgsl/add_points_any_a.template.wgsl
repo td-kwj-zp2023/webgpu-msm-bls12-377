@@ -13,6 +13,8 @@ struct Point {
 
 @group(0) @binding(0)
 var<storage, read_write> points: array<Point>;
+@group(0) @binding(1)
+var<storage, read_write> output: array<Point>;
 
 fn get_edwards_d() -> BigInt {
     var d: BigInt;
@@ -135,5 +137,5 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     for (var i = 1u; i < {{ cost }}; i ++) {
         c = add_points(c, a);
     }
-    points[global_id.x] = c;
+    output[global_id.x] = c;
 }
