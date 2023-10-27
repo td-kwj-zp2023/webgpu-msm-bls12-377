@@ -9,7 +9,7 @@ export const multipassEntryCreator = async (
     passes: IGPUExecution[],
     entryInfo: IEntryInfo,
     workgroup_size: number,
-): Promise<Uint32Array> => {
+): Promise<Uint8Array> => {
   // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
   const gpu = (await getDevice())!;
   
@@ -36,7 +36,7 @@ export const multipassEntryCreator = async (
           usage: inputData.inputBufferUsages[i]
         });
         const arrayBufferInput = inputBuffer.getMappedRange();
-        new Uint32Array(arrayBufferInput).set(mappedInput);
+        new Uint8Array(arrayBufferInput).set(mappedInput);
         inputBuffer.unmap();
         inputBuffers.push(inputBuffer);
       } else {
@@ -121,7 +121,7 @@ export const multipassEntryCreator = async (
 
   await gpuReadBuffer.mapAsync(GPUMapMode.READ);
   const arrayBuffer = gpuReadBuffer.getMappedRange();
-  const result = new Uint32Array(arrayBuffer.slice(0));
+  const result = new Uint8Array(arrayBuffer.slice(0));
   gpuReadBuffer.unmap();
 
   // Destroy all buffers
@@ -137,13 +137,13 @@ export const multipassEntryCreator = async (
  * Description of gpu inputs.
  * 
  * Expected that inputTypes and inputSizes are the same length.
- * mappedInputs should be a map of input index to Uint32Array.
+ * mappedInputs should be a map of input index to Uint8Array.
  */
 export interface IGPUInput {
   inputBufferTypes: GPUBufferBindingType[];
   inputBufferSizes: number[];
   inputBufferUsages: number[];
-  mappedInputs?: Map<number, Uint32Array>;
+  mappedInputs?: Map<number, Uint8Array>;
 }
 
 /**

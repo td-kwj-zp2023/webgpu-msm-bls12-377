@@ -12,6 +12,7 @@ import bigint_funcs from '../submission/wgsl/bigint.template.wgsl'
 import montgomery_product_funcs from '../submission/wgsl/montgomery_product.template.wgsl'
 import { get_device, create_bind_group } from './gpu'
 import { add_points_any_a, add_points_a_minus_one } from './add_points'
+import { GPUExecution, IEntryInfo, IGPUInput, IGPUResult, IShaderCode, multipassEntryCreator } from "./entries/multipassEntryCreator";
 
 const setup_shader_code = (
     shader: string,
@@ -78,8 +79,6 @@ export const add_points_benchmarks = async(
     // Generate two random points by multiplying by random field elements
     const a = pt.multiply(genRandomFieldElement(p))
     const b = pt.multiply(genRandomFieldElement(p))
-    console.log(a)
-    console.log(b)
 
     const num_x_workgroups = 1;
     const word_size = 13
@@ -164,87 +163,37 @@ const do_benchmark = async (
     }
 
     const points_bytes = points_to_u8s_for_gpu(points_with_mont_coords, num_words, word_size)
-
-    const device = await get_device()
-    const commandEncoder = device.createCommandEncoder();
-
     const shaderCode = setup_shader_code(shader, p, num_words, word_size, n0, cost)
-    const shaderModule = device.createShaderModule({ code: shaderCode })
+
+    const executionSteps: GPUExecution[] = [];
+    const addPointsShader: IShaderCode = {
+        code: shaderCode,
+        entryPoint: "main"
+    }
+    const addPointsInputs: IGPUInput = {
+        inputBufferTypes: ["storage"],
+        inputBufferSizes: [points_bytes.length],
+        inputBufferUsages: [GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC],
+        mappedInputs: new Map<number, Uint8Array>([[0, points_bytes]])
+    }
+    
+    // Note that the framework currently requires a separate output buffer
+    const addPointsResult: IGPUResult = {
+      resultBufferTypes: ["storage"],
+      resultBufferSizes: [points_bytes.length],
+      resultBufferUsages: [GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC]
+    }
+    const addPointsStep = new GPUExecution(addPointsShader, addPointsInputs, addPointsResult)
+    executionSteps.push(addPointsStep)
+
+    const entryInfo: IEntryInfo = {
+        numInputs: 1,
+        outputSize: points_bytes.length
+    }
 
     const start_gpu = Date.now()
-
-    const points_storage_buffer = device.createBuffer({
-        size: points_bytes.length,
-        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC
-    });
-    device.queue.writeBuffer(points_storage_buffer, 0, points_bytes);
-    const bindGroupLayout = device.createBindGroupLayout({
-        entries: [
-            {
-                binding: 0,
-                visibility: GPUShaderStage.COMPUTE,
-                buffer: { type: "storage" },
-            },
-        ]
-    })
-
-    const bindGroup = create_bind_group(
-        device, 
-        bindGroupLayout,
-        [ points_storage_buffer ],
-    )
-
-    const computePipeline = device.createComputePipeline({
-        layout: device.createPipelineLayout({
-            bindGroupLayouts: [bindGroupLayout]
-        }),
-        compute: {
-            module: shaderModule,
-            entryPoint: 'main'
-        }
-    });
-
-    // Initiate compute pass
-    const passEncoder = commandEncoder.beginComputePass();
-
-    // Issue commands
-    passEncoder.setPipeline(computePipeline);
-    passEncoder.setBindGroup(0, bindGroup);
-    passEncoder.dispatchWorkgroups(num_x_workgroups)
-
-    // End the render pass
-    passEncoder.end();
-
-    // Create buffer to read result
-    const stagingBuffer = device.createBuffer({
-        size: points_storage_buffer.size,
-        usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST
-    });
-
-    commandEncoder.copyBufferToBuffer(
-        points_storage_buffer, // source
-        0, // sourceOffset
-        stagingBuffer, // destination
-        0, // destinationOffset
-        points_storage_buffer.size,
-    );
-
-    // 8: End frame by passing array of command buffers to command queue for execution
-    device.queue.submit([commandEncoder.finish()]);
-
-    // map staging buffer to read results back to JS
-    await stagingBuffer.mapAsync(
-        GPUMapMode.READ,
-        0, // Offset
-        points_storage_buffer.size,
-    );
-
-    const copyArrayBuffer = stagingBuffer.getMappedRange(0, points_storage_buffer.size)
-    const data = copyArrayBuffer.slice(0);
-    stagingBuffer.unmap();
+    const data = await multipassEntryCreator(executionSteps, entryInfo, num_x_workgroups)
     const elapsed_gpu = Date.now() - start_gpu
-
-    //console.log(`GPU took ${elapsed_gpu}ms`)
 
     const data_as_uint8s = new Uint8Array(data)
 
@@ -265,6 +214,7 @@ const do_benchmark = async (
         }
         output_points_non_mont.push(bigIntPointToExtPointType(non))
     }
+
     // convert output_points_non_mont into affine
     const output_points_non_mont_and_affine = output_points_non_mont.map((x) => x.toAffine())
     //console.log('result from gpu, in affine:', output_points_non_mont_and_affine[0])
