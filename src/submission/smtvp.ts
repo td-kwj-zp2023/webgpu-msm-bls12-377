@@ -133,15 +133,34 @@ export const smtvp = async (
     }
 
     const fieldMath = new FieldMath();
+
+    const timings: any[] = []
+
     for (let i = 0; i < csr_sparse_matrices.length; i ++) {
-        await smtvp_run(device, csr_sparse_matrices[i], fieldMath, max_col_idx, num_words, word_size, p, n0, params.r, params.rinv)
-        console.log(i, 'success')
+        const t = await smtvp_run(device, csr_sparse_matrices[i], fieldMath, max_col_idx, num_words, word_size, p, n0, params.r, params.rinv)
+        timings.push(t)
+    }
+
+    if (timings.length === 1) {
+        console.log(`CPU took ${timings[0].cpu_elapsed} (1 CSR sparse matrix)`)
+        console.log(`GPU took ${timings[0].gpu_elapsed} (1 CSR sparse matrix)`)
+    } else {
+        let cpu_total = 0
+        let gpu_total = 0
+        for (let i = 1; i < timings.length; i ++) {
+            cpu_total += timings[i].cpu_elapsed
+            gpu_total += timings[i].gpu_elapsed
+        }
+        const cpu_average = cpu_total / (timings.length - 1)
+        const gpu_average = gpu_total / (timings.length - 1)
+        console.log(`CPU took an average of ${cpu_average}ms per CSR sparse matrix. Benchmark ignores the first)`)
+        console.log(`GPU took an average of ${gpu_average}ms per CSR sparse matrix. Benchmark ignores the first)`)
     }
 
     return { x: BigInt(1), y: BigInt(0) }
 }
 
-export async function smtvp_run(
+export const smtvp_run = async (
     device: GPUDevice,
     csr_sm: CSRSparseMatrix,
     fieldMath: FieldMath,
@@ -152,7 +171,9 @@ export async function smtvp_run(
     n0: bigint,
     r: bigint,
     rinv: bigint,
-) {
+): Promise<{ cpu_elapsed: number, gpu_elapsed: number }> => {
+    let cpu_elapsed = 0
+    let gpu_elapsed = 0
     const run_on_cpu = true
     let smtvp_result_affine
 
@@ -165,8 +186,8 @@ export async function smtvp_run(
         }
         const smtvp_result = await csr_sm.smtvp(vec)
         smtvp_result_affine = smtvp_result.map((x) => x.toAffine())
-        console.log('points from cpu, in affine:', smtvp_result_affine)
-        const cpu_elapsed = Date.now() - cpu_start
+        //console.log('points from cpu, in affine:', smtvp_result_affine)
+        cpu_elapsed = Date.now() - cpu_start
         console.log(`CPU took ${cpu_elapsed}ms`)
     }
 
@@ -368,9 +389,9 @@ export async function smtvp_run(
     const copyArrayBuffer = stagingBuffer.getMappedRange(0, output_buffer_length)
     const data = copyArrayBuffer.slice(0);
     stagingBuffer.unmap();
-    const elapsed = Date.now() - start
+    gpu_elapsed = Date.now() - start
 
-    console.log(`GPU took ${elapsed}ms`)
+    console.log(`GPU took ${gpu_elapsed}ms`)
 
     const data_as_uint8s = new Uint8Array(data)
 
@@ -393,7 +414,7 @@ export async function smtvp_run(
     }
     // convert output_points_non_mont into affine
     const output_points_non_mont_and_affine = output_points_non_mont.map((x) => x.toAffine())
-    console.log('points from gpu, in affine:', output_points_non_mont_and_affine)
+    //console.log('points from gpu, in affine:', output_points_non_mont_and_affine)
 
     if (run_on_cpu && smtvp_result_affine) {
         for (let i = 0; i < smtvp_result_affine.length; i ++) {
@@ -401,6 +422,8 @@ export async function smtvp_run(
             assert(smtvp_result_affine[i].y === output_points_non_mont_and_affine[i].y)
         }
     }
+
+    return { cpu_elapsed, gpu_elapsed }
 }
 
 const setup_shader_code = (
