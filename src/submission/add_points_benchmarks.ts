@@ -80,6 +80,10 @@ export const add_points_benchmarks = async(
     const a = pt.multiply(genRandomFieldElement(p))
     const b = pt.multiply(genRandomFieldElement(p))
 
+    // Uncomment to test a == b
+    //const a = pt
+    //const b = pt
+
     const num_x_workgroups = 1;
     const word_size = 13
 
@@ -120,6 +124,7 @@ export const add_points_benchmarks = async(
         timings_a_minus_one.push(r)
     }
     print_avg_timings(timings_a_minus_one)
+
     return { x: BigInt(1), y: BigInt(0) }
 }
 
@@ -141,6 +146,14 @@ const do_benchmark = async (
     const expected_cpu_affine = expected_cpu.toAffine()
     // End Timer
     const elapsed_cpu = Date.now() - start_cpu
+
+    const f = (a: ExtPointType, b: ExtPointType) => {
+        return a.add(b)
+    }
+    const expected_cpu_noble_affine = expensive_computation(a, b, cost, fieldMath, f).toAffine()
+
+    assert(expected_cpu_affine.x === expected_cpu_noble_affine.x)
+    assert(expected_cpu_affine.y === expected_cpu_noble_affine.y)
     //console.log(`CPU took ${elapsed_cpu}ms`)
 
     const params = compute_misc_params(p, word_size)
