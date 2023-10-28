@@ -19,7 +19,7 @@ var<storage, read_write> output: array<Point>;
 fn add_points(p1: Point, p2: Point) -> Point {
     // This is add-2008-hwcd-4
     // https://eprint.iacr.org/2008/522.pdf section 3.2, p7 (8M)
-    // From http://hyperelliptic.org/EFD/g1p/auto-twisted-extended-1.html#addition-add-2008-hwcd-4
+    // http://hyperelliptic.org/EFD/g1p/auto-twisted-extended-1.html#addition-add-2008-hwcd-4
     
     // Operation counts
     // montgomery_product: 10 (2 of which are *2 - can this be further
@@ -48,7 +48,9 @@ fn add_points(p1: Point, p2: Point) -> Point {
     }
 
     if (b_eq_a == 1u) {
-        // Double the point instead
+        // The dedicated addition formula in add-2008-hwcd-4 assumes that a and
+        // b are distinct, so double the point instead if a == b. 
+
         var a = montgomery_product(&p1x, &p1x);
         var b = montgomery_product(&p1y, &p1y);
         var p1z = p1.z;
@@ -68,31 +70,6 @@ fn add_points(p1: Point, p2: Point) -> Point {
         var t3 = montgomery_product(&e, &h);
         var z3 = montgomery_product(&f, &g);
         return Point(x3, y3, t3, z3);
-        /*
-        const A = fieldMath.Fp.mul(X1, X1)
-        const B = fieldMath.Fp.mul(Y1, Y1)
-        const C = fieldMath.Fp.mul(BigInt(2), fieldMath.Fp.mul(Z1, Z1))
-        const D = fieldMath.Fp.mul(BigInt(-1), A)
-        const x1y1 = fieldMath.Fp.add(X1, Y1)
-
-        const E = fieldMath.Fp.sub(
-            fieldMath.Fp.sub(
-                fieldMath.Fp.mul(x1y1, x1y1),
-                A,
-            ),
-            B
-        )
-
-        const G = fieldMath.Fp.add(D, B)
-        const F = fieldMath.Fp.sub(G, C)
-        const H = fieldMath.Fp.sub(D, B)
-
-        const X3 = fieldMath.Fp.mul(E, F)
-        const Y3 = fieldMath.Fp.mul(G, H)
-        const T3 = fieldMath.Fp.mul(E, H)
-        const Z3 = fieldMath.Fp.mul(F, G)
-        return fieldMath.createPoint(X3, Y3, T3, Z3)
-        */
     }
 
     var f = fr_sub(&b, &a);
