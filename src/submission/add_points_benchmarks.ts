@@ -80,6 +80,10 @@ export const add_points_benchmarks = async(
     const a = pt.multiply(genRandomFieldElement(p))
     const b = pt.multiply(genRandomFieldElement(p))
 
+    // Uncomment to test a == b
+    //const a = pt
+    //const b = pt
+
     const num_x_workgroups = 1;
     const word_size = 13
 
@@ -90,6 +94,7 @@ export const add_points_benchmarks = async(
         if (timings.length === 1) {
             console.log(`CPU took ${timings[0].elapsed_cpu}`)
             console.log(`GPU took ${timings[0].elapsed_gpu}`)
+            return { avg_cpu: timings[0].elapsed_cpu, avg_gpu: timings[0].elapsed_gpu }
         } else {
             let total_gpu = 0
             let total_cpu = 0
@@ -99,8 +104,10 @@ export const add_points_benchmarks = async(
             }
             const avg_gpu = total_gpu / (timings.length - 1)
             const avg_cpu = total_cpu / (timings.length - 1)
-            console.log(`Average timing for CPU over ${num_runs} runs (skipping the first): ${avg_cpu}ms`)
-            console.log(`Average timing for GPU over ${num_runs} runs (skipping the first): ${avg_gpu}ms`)
+            console.log(`Average timing for CPU over ${num_runs} runs (ignoring the first): ${avg_cpu}ms`)
+            console.log(`Average timing for GPU over ${num_runs} runs (ignoring the first): ${avg_gpu}ms`)
+
+            return { avg_cpu, avg_gpu }
         }
         console.log(timings)
     }
@@ -111,7 +118,8 @@ export const add_points_benchmarks = async(
         const r = await do_benchmark(add_points_any_a_shader, a, b, p, cost, num_x_workgroups, word_size, fieldMath, add_points_any_a)
         timings_any_a.push(r)
     }
-    print_avg_timings(timings_any_a)
+
+    const timings_any = print_avg_timings(timings_any_a)
 
     console.log('Benchmarking add_points for add-2008-hwcd-4')
     const timings_a_minus_one: any[] = []
@@ -119,7 +127,13 @@ export const add_points_benchmarks = async(
         const r = await do_benchmark(add_points_a_minus_one_shader, a, b, p, cost, num_x_workgroups, word_size, fieldMath, add_points_a_minus_one)
         timings_a_minus_one.push(r)
     }
-    print_avg_timings(timings_a_minus_one)
+
+    const timings_minus = print_avg_timings(timings_a_minus_one)
+
+    const gpu_diff = timings_any.avg_gpu - timings_minus.avg_gpu
+    const percent_diff = gpu_diff / timings_any.avg_gpu * 100
+    console.log(`Difference: ${percent_diff}%`)
+
     return { x: BigInt(1), y: BigInt(0) }
 }
 
@@ -141,6 +155,14 @@ const do_benchmark = async (
     const expected_cpu_affine = expected_cpu.toAffine()
     // End Timer
     const elapsed_cpu = Date.now() - start_cpu
+
+    const f = (a: ExtPointType, b: ExtPointType) => {
+        return a.add(b)
+    }
+    const expected_cpu_noble_affine = expensive_computation(a, b, cost, fieldMath, f).toAffine()
+
+    assert(expected_cpu_affine.x === expected_cpu_noble_affine.x)
+    assert(expected_cpu_affine.y === expected_cpu_noble_affine.y)
     //console.log(`CPU took ${elapsed_cpu}ms`)
 
     const params = compute_misc_params(p, word_size)
