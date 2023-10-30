@@ -3,8 +3,8 @@ import { Benchmark } from './Benchmark';
 import { bigIntToU32Array, generateRandomFields } from '../reference/webgpu/utils';
 import { BigIntPoint, U32ArrayPoint } from '../reference/types';
 import { webgpu_compute_msm, wasm_compute_msm, webgpu_pippenger_msm, webgpu_best_msm, wasm_compute_msm_parallel } from '../reference/reference';
-import { compute_cuzk_typescript, compute_cuzk_typescript_web_workers, compute_cuzk_wgsl } from '../submission/submission';
-import { smtvp } from '../submission/smtvp';
+import { cuzk_typescript_serial, cuzk_typescript_web_workers, transpose_wgsl, smtvp_wgsl } from '../submission/submission';
+import { smtvp } from '../submission/cuzk/smtvp_wgsl';
 import CSVExportButton from './CSVExportButton';
 import { TestCaseDropDown } from './TestCaseDropDown';
 import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
@@ -176,7 +176,7 @@ export const AllBenchmarks: React.FC = () => {
         baseAffinePoints={baseAffineBigIntPoints}
         scalars={bigIntScalars}
         expectedResult={expectedResult}
-        msmFunc={compute_cuzk_typescript}
+        msmFunc={cuzk_typescript_serial}
         postResult={postResult}
         bold={true}
       />
@@ -186,17 +186,17 @@ export const AllBenchmarks: React.FC = () => {
         baseAffinePoints={baseAffineBigIntPoints}
         scalars={bigIntScalars}
         expectedResult={expectedResult}
-        msmFunc={compute_cuzk_typescript_web_workers}
+        msmFunc={cuzk_typescript_web_workers}
         postResult={postResult}
         bold={true}
       />
       <Benchmark
-        name={'cuzk (WGSL)'}
+        name={'Transpose (WGSL)'}
         disabled={disabledBenchmark}
         baseAffinePoints={baseAffineBigIntPoints}
         scalars={bigIntScalars}
         expectedResult={expectedResult}
-        msmFunc={compute_cuzk_wgsl}
+        msmFunc={transpose_wgsl}
         postResult={postResult}
         bold={true}
       />
@@ -206,7 +206,7 @@ export const AllBenchmarks: React.FC = () => {
         baseAffinePoints={baseAffineBigIntPoints}
         scalars={bigIntScalars}
         expectedResult={expectedResult}
-        msmFunc={smtvp}
+        msmFunc={smtvp_wgsl}
         postResult={postResult}
         bold={true}
       />

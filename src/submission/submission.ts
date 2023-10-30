@@ -1,10 +1,11 @@
 import { BigIntPoint, U32ArrayPoint } from "../reference/types";
 import { execute_cuzk } from "./cuzk/cuzk_serial"
 import { execute_cuzk_parallel } from "./cuzk/cuzk_parallel"
-import { execute_cuzk_wgsl } from "./cuzk/cuzk_wgsl"
+import { transpose } from "./cuzk/transpose_wgsl"
+import {smtvp } from "./cuzk/smtvp_wgsl"
 
 // Typescript implementation of cuZK
-export const compute_cuzk_typescript = async (
+export const cuzk_typescript_serial = async (
   baseAffinePoints: BigIntPoint[],
   scalars: bigint[]
 ): Promise<any> => {
@@ -22,7 +23,7 @@ export const compute_cuzk_typescript = async (
 };
 
 // Typescript implementation of cuZK with web-workers
-export const compute_cuzk_typescript_web_workers = async (
+export const cuzk_typescript_web_workers = async (
   baseAffinePoints: BigIntPoint[],
   scalars: bigint[]
 ): Promise<{x: bigint, y: bigint}> => {
@@ -39,16 +40,29 @@ export const compute_cuzk_typescript_web_workers = async (
   return { x, y }
 };
 
-// WGSL implementation of cuZK
-export const compute_cuzk_wgsl = async (
+// WGSL implementation of Sparse-Matrix Transpose
+export const transpose_wgsl = async (
   baseAffinePoints: BigIntPoint[],
   scalars: bigint[]
 ): Promise<any> => {
-  console.log("Starting WGSL cuZK!")
+  console.log("Starting WGSL Sparse-Matrix Transpose!")
   
   const inputSize = 16
 
-  const result = await execute_cuzk_wgsl(inputSize, baseAffinePoints, scalars)
+  const result = await transpose(inputSize, baseAffinePoints, scalars)
+
+  throw new Error("Not implemented");
+};
+
+
+// WGSL implementation of Sparse-Matrix Transpose
+export const smtvp_wgsl = async (
+  baseAffinePoints: BigIntPoint[],
+  scalars: bigint[]
+): Promise<any> => {
+  console.log("Starting WGSL SMTVP!")
+  
+  const result = await smtvp(baseAffinePoints, scalars)
 
   throw new Error("Not implemented");
 };

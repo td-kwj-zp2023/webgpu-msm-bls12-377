@@ -1,15 +1,21 @@
-{{> bigint_struct }}
+{{> structs }}
+{{> montgomery_product_funcs }}
+{{> field_functions }}
+{{> bigint_functions }}
+{{> curve_parameters }}
+{{> curve_functions }}
 
 @group(0)
 @binding(0)
 var<storage, read_write> buf: array<BigInt>;
 
+const COST = {{ cost }}u;
+
 const NUM_WORDS = {{ num_words }}u;
 const WORD_SIZE = {{ word_size }}u;
 const MASK = {{ mask }}u;
+const TWO_POW_WORD_SIZE = {{ two_pow_word_size }}u;
 const N0 = {{ n0 }}u;
-const NSAFE = {{ nsafe }}u;
-const COST = {{ cost }}u;
 
 fn get_p() -> BigInt {
     var p: BigInt;
@@ -30,19 +36,10 @@ fn montgomery_product(x: ptr<function, BigInt>, y: ptr<function, BigInt>) -> Big
 
         var c = (t + qi * p.limbs[0]) >> WORD_SIZE;
 
-        for (var j = 1u; j < NUM_WORDS - 1u; j ++) {
-            var t = s.limbs[j] + (*x).limbs[i] * (*y).limbs[j] + qi * p.limbs[j];
-            if ((j - 1u) % NSAFE == 0u) {
-                t += c;
-            }
+        s.limbs[0] = s.limbs[1] + (*x).limbs[i] * (*y).limbs[1] + qi * p.limbs[1] + c;
 
-            c = t >> WORD_SIZE;
-            if (j % NSAFE == 0u) {
-                c = t >> WORD_SIZE;
-                s.limbs[j - 1u] = t & MASK;
-            } else {
-                s.limbs[j - 1u] = t;
-            }
+        for (var j = 2u; j < NUM_WORDS; j ++) {
+            s.limbs[j - 1u] = s.limbs[j] + (*x).limbs[i] * (*y).limbs[j] + qi * p.limbs[j];
         }
 
         s.limbs[NUM_WORDS - 2u] = (*x).limbs[i] * (*y).limbs[NUM_WORDS - 1u] + qi * p.limbs[NUM_WORDS - 1u];
@@ -60,42 +57,15 @@ fn montgomery_product(x: ptr<function, BigInt>, y: ptr<function, BigInt>) -> Big
 
 fn conditional_reduce(x: ptr<function, BigInt>, y: ptr<function, BigInt>) -> BigInt {
     // Determine if x > y
-    var x_gt_y = gt(x, y);
+    var x_gt_y = bigint_gt(x, y);
 
     if (x_gt_y == 1u) {
-        return sub(x, y);
+        var res: BigInt;
+        bigint_sub(x, y, &res);
+        return res;
     }
 
     return *x;
-}
-
-fn gt(x: ptr<function, BigInt>, y: ptr<function, BigInt>) -> u32 {
-    for (var idx = 0u; idx < NUM_WORDS; idx ++) {
-        var i = NUM_WORDS - 1u - idx;
-        if ((*x).limbs[i] < (*y).limbs[i]) {
-            return 0u;
-        } else if ((*x).limbs[i] > (*y).limbs[i]) {
-            return 1u;
-        }
-    }
-    return 0u;
-}
-
-fn sub(x: ptr<function, BigInt>, y: ptr<function, BigInt>) -> BigInt {
-    var w = MASK + 1u;
-    var borrow = 0u;
-    var res: BigInt;
-    var m = 1u << WORD_SIZE;
-    for (var i = 0u; i < NUM_WORDS; i ++) {
-        res.limbs[i] = (*x).limbs[i] - (*y).limbs[i] - borrow;
-        if ((*x).limbs[i] < (*y).limbs[i] + borrow) {
-            res.limbs[i] += w;
-            borrow = 1u;
-        } else {
-            borrow = 0u;
-        }
-    }
-    return res;
 }
 
 @compute
