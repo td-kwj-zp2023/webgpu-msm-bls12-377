@@ -58,10 +58,10 @@ export class DenseMatrix implements Interface.DenseMatrix {
  */
 export class ELLSparseMatrix implements Interface.ELLSparseMatrix {  
     public data: any[];
-    public col_idx: number[][];
+    public col_idx: any[];
     public row_length: number[];
 
-    constructor(matrix: any[] = [], col_idx: number[][] = [], row_length: number[] = []) {
+    constructor(matrix: any[] = [], col_idx: any[] = [], row_length: number[] = []) {
         this.data = matrix ? matrix : [];
         this.col_idx = matrix ? col_idx : [];
         this.row_length = matrix ? row_length : [];
@@ -84,8 +84,8 @@ export class ELLSparseMatrix implements Interface.ELLSparseMatrix {
         }
 
         // Initialize ELL sparse matrix 
-        const sparse_matrix: number[][] = [];
-        const col_idx: number[][] = [];
+        const sparse_matrix: any[] = [];
+        const col_idx: any[] = [];
         const row_length = []
 
         for (const [i, j] of dense_matrix.data.entries()) { 
@@ -122,10 +122,10 @@ export class ELLSparseMatrix implements Interface.ELLSparseMatrix {
  */
 export class CSRSparseMatrix implements Interface.CSRSparseMatrix {  
     public data: any[];
-    public col_idx: number[];
-    public row_ptr: number[];
+    public col_idx: any[];
+    public row_ptr: any[];
 
-    constructor(matrix: any[] = [], col_idx: number[] = [], row_ptr: number[] = []) {
+    constructor(matrix: any[] = [], col_idx: any[] = [], row_ptr: any[] = []) {
         this.data = matrix ? matrix : [];
         this.col_idx = matrix ? col_idx : [];
         this.row_ptr = matrix ? row_ptr : [];
@@ -133,8 +133,8 @@ export class CSRSparseMatrix implements Interface.CSRSparseMatrix {
 
     async ell_to_csr_sparse_matrix(ell_sparse_matrix: ELLSparseMatrix): Promise<CSRSparseMatrix> {
         const sparse_matrix = []
-        const col_idx: number[] = []
-        const row_ptr: number[] = []
+        const col_idx: any[] = []
+        const row_ptr: any[] = []
 
         // Fill sparse matrix
         for (const i of ell_sparse_matrix.data) {
