@@ -46,8 +46,8 @@ describe('utils', () => {
                 expect((p * egcdResult.y) % r == BigInt(1))
             }
             
-            const expected = { num_words, max_terms: 40, k: 65, nsafe: 32, n0: BigInt(8191), r: r % p}
             const misc = compute_misc_params(p, word_size)
+            const expected = { num_words, max_terms: 40, k: 65, nsafe: 32, n0: BigInt(8191), r: r % p, rinv: misc.rinv }
             expect(misc).toEqual(expected)
         })
     })
