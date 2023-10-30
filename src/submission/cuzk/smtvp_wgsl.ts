@@ -133,19 +133,17 @@ export const smtvp = async (
             col_idxs.push(c)
         }
     }
-<<<<<<< HEAD:src/submission/smtvp.ts
-    let max_col_idx = 0
-    for (const c of col_idxs) {
-        if (c > max_col_idx) {
-            max_col_idx = c
-        }
-    }
-
-    const fieldMath = new FieldMath();
 
     const timings: any[] = []
 
     for (let i = 0; i < csr_sparse_matrices.length; i ++) {
+        let max_col_idx = 0
+        for (const c of col_idxs) {
+            if (c > max_col_idx) {
+                max_col_idx = c
+            }
+        }
+    
         const t = await smtvp_run(device, csr_sparse_matrices[i], fieldMath, max_col_idx, num_words, word_size, p, n0, params.r, params.rinv)
         timings.push(t)
     }
@@ -164,19 +162,6 @@ export const smtvp = async (
         const gpu_average = gpu_total / (timings.length - 1)
         console.log(`CPU took an average of ${cpu_average}ms per CSR sparse matrix. Benchmark ignores the first)`)
         console.log(`GPU took an average of ${gpu_average}ms per CSR sparse matrix. Benchmark ignores the first)`)
-=======
-
-    for (let i = 0; i < csr_sparse_matrices.length; i ++) {
-        let max_col_idx = 0
-        for (const j of csr_sparse_matrices[i].col_idx) {
-            if (j > max_col_idx) {
-                max_col_idx = j
-            }
-        }
-
-        await smtvp_run(device, csr_sparse_matrices[i], fieldMath, max_col_idx, num_words, word_size, p, n0, params.r, params.rinv)
-        console.log(i, 'success')
->>>>>>> cuZK:src/submission/cuzk/smtvp_wgsl.ts
     }
 
     return { x: BigInt(1), y: BigInt(0) }
