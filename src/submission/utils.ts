@@ -2,6 +2,21 @@ import assert from 'assert'
 import crypto from 'crypto'
 import * as bigintCryptoUtils from 'bigint-crypto-utils'
 import { BigIntPoint } from "../reference/types"
+import { FieldMath } from "../reference/utils/FieldMath";
+import { ExtPointType } from "@noble/curves/abstract/edwards";
+
+export const bigIntPointToExtPointType = (bip: BigIntPoint, fieldMath: FieldMath): ExtPointType => {
+    return fieldMath.createPoint(bip.x, bip.y, bip.t, bip.z)
+}
+
+export const extPointTypeToBigIntPoint = (ept: ExtPointType): BigIntPoint => {
+    return {
+        x: ept.ex,
+        y: ept.ey,
+        t: ept.et,
+        z: ept.ez,
+    }
+}
 
 export const points_to_u8s_for_gpu = (
   points: BigIntPoint[],
