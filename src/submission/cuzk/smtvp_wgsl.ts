@@ -1,15 +1,15 @@
 import mustache from 'mustache'
-import { BigIntPoint } from "../reference/types"
-import { FieldMath } from "../reference/utils/FieldMath";
-import { ELLSparseMatrix, CSRSparseMatrix } from './matrices/matrices'; 
-import smtvp_shader from '../submission/wgsl/cuzk/smtvp.template.wgsl'
-import structs from './wgsl/struct/structs.template.wgsl'
-import bigint_functions from './wgsl/bigint/bigint.template.wgsl'
-import field_functions from './wgsl/field/field.template.wgsl'
-import curve_functions from './wgsl/curve/ec.template.wgsl'
-import curve_parameters from './wgsl/curve/parameters.template.wgsl'
-import montgomery_product_funcs from './wgsl/montgomery/mont_pro_product.template.wgsl'
-import { compute_misc_params, u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, gen_p_limbs, to_words_le } from './utils'
+import { BigIntPoint } from "../../reference/types"
+import { FieldMath } from "../../reference/utils/FieldMath";
+import { ELLSparseMatrix, CSRSparseMatrix } from '../matrices/matrices'; 
+import smtvp_shader from '../wgsl/cuzk/smtvp.template.wgsl'
+import structs from '../wgsl/struct/structs.template.wgsl'
+import bigint_functions from '../wgsl/bigint/bigint.template.wgsl'
+import field_functions from '../wgsl/field/field.template.wgsl'
+import curve_functions from '../wgsl/curve/ec.template.wgsl'
+import curve_parameters from '../wgsl/curve/parameters.template.wgsl'
+import montgomery_product_funcs from '../wgsl/montgomery/mont_pro_product.template.wgsl'
+import { compute_misc_params, u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, gen_p_limbs, to_words_le } from '../utils'
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import assert from 'assert'
 
