@@ -8,10 +8,9 @@ import {
 import structs from '../submission/wgsl/struct/structs.template.wgsl'
 import bigint_functions from '../submission/wgsl/bigint/bigint.template.wgsl'
 import curve_functions from '../submission/wgsl/curve/ec.template.wgsl'
-import curve_parameters from '../submission/wgsl/curve/ec_parameters.template.wgsl'
+import curve_parameters from '../submission/wgsl/curve/parameters.template.wgsl'
 import field_functions from '../submission/wgsl/field/field.template.wgsl'
-import montgomery_product_functions from '../submission/wgsl/montgomery/montgomery_product.template.wgsl'
-import mont_pro_optimised_shader from '../submission/wgsl/montgomery/mont_pro_optimised.template.wgsl'
+import mont_pro_optimised_shader from '../submission/wgsl/montgomery/mont_pro_optimized.template.wgsl'
 import mont_pro_modified_shader from '../submission/wgsl/montgomery/mont_pro_modified.template.wgsl'
 import mont_pro_cios_shader from '../submission/wgsl/montgomery/mont_pro_cios.template.wgsl'
 
@@ -44,8 +43,7 @@ export const MontProOptimised: React.FC = () => {
 
             const timings: any = {}
 
-            //for (let word_size = 12; word_size < 17; word_size ++) {
-            for (let word_size = 13; word_size < 14; word_size ++) {
+            for (let word_size = 12; word_size < 17; word_size ++) {
                 timings[word_size] = []
 
                 const misc_params = compute_misc_params(p, word_size)
@@ -85,13 +83,9 @@ export const MontProOptimised: React.FC = () => {
                             curve_functions,
                             curve_parameters,
                             field_functions,
-                            montgomery_product_functions,
-                            mont_pro_optimised_shader,
-                            mont_pro_modified_shader,
-                            mont_pro_cios_shader
                         }
                     )
-                } else if (word_size > 13 && word_size < 16) {
+                }  else if (word_size > 13 && word_size < 16) {
                     console.log(`Performing ${num_inputs} (a ^ ${cost} * b * r) (using MontProModified) with ${word_size}-bit limbs over ${num_runs} runs on ${num_x_workgroups} workgroups`)
                     shaderCode = mustache.render(
                         mont_pro_modified_shader,
@@ -130,7 +124,6 @@ export const MontProOptimised: React.FC = () => {
                         }
                     )
                 }
-                //console.log(shaderCode)
 
                 for (let run = 0; run < num_runs; run ++) {
                     const expected: bigint[] = []

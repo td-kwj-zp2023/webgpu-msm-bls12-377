@@ -1,7 +1,3 @@
-
-{{> montgomery_product_functions }}
-{{> curve_parameters }}
-
 fn add_points(p1: Point, p2: Point) -> Point {
     var p1x = p1.x;
     var p2x = p2.x;

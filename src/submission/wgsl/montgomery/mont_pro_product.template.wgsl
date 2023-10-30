@@ -4,8 +4,6 @@ const MASK = {{ mask }}u;
 const TWO_POW_WORD_SIZE = {{ two_pow_word_size }}u;
 const N0 = {{ n0 }}u;
 
-{{> bigint_funcs }}
-
 fn get_p() -> BigInt {
     var p: BigInt;
 {{{ p_limbs }}}
