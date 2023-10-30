@@ -29,20 +29,25 @@ export async function get_device() {
     return device
 }
 
+/*
+ * Returns an array of CSR sparse matrices. Each sparse matrix contains the
+ * same number of points, but different col_idx values.
+ */
 export async function gen_csr_sparse_matrices(
     baseAffinePoints: BigIntPoint[],
     scalars: bigint[],
     lambda: number, // λ-bit scalars
-    s: number, // s-bit window size 
+    window_size: number, // s-bit window size 
     threads: number, // Thread count
-): Promise<any> {  
+): Promise<CSRSparseMatrix[]> {  
     // Number of rows and columns (ie. row-space)
     const num_rows = threads
-    const num_columns = Math.pow(2, s) - 1
+    const num_columns = Math.pow(2, window_size) - 1
 
     const ZERO_POINT = fieldMath.customEdwards.ExtendedPoint.ZERO;
 
     const csr_sparse_matrix_array: CSRSparseMatrix[] = []
+    const mask = (BigInt(1) << BigInt(window_size)) - BigInt(1)  
 
     for (let i = 0; i < num_rows; i++) {
         // Instantiate empty ELL sparse matrix format
@@ -58,13 +63,14 @@ export async function gen_csr_sparse_matrices(
 
         const row_length = Array(num_rows).fill(0);
 
-        // Perform scalar decomposition
+        // Perform scalar decomposition. scalars_decomposed should contain (lambda / window_size) arrays of 
         const scalars_decomposed: number[][] = []
-        for (let j =  Math.ceil(lambda / s); j > 0; j--) {
+        for (let j =  Math.ceil(lambda / window_size); j > 0; j--) {
             const chunk: number[] = [];
-            for (let i = 0; i < scalars.length; i++) {
-                const mask = (BigInt(1) << BigInt(s)) - BigInt(1)  
-                const limb = (scalars[i] >> BigInt(((j - 1) * s))) & mask // Right shift and extract lower 32-bits 
+
+            // For each scalar, extract the j-th chunk
+            for (const scalar of scalars) {
+                const limb = (scalar >> BigInt(((j - 1) * window_size))) & mask // Right shift and extract lower window_size-bits 
                 chunk.push(Number(limb))
             }
             scalars_decomposed.push(chunk);
@@ -103,20 +109,19 @@ export const smtvp = async (
     const num_words = params.num_words
     assert(num_words === 20)
 
-    // λ-bit scalars. 13 * 20 = 260
+    // Each scalar has λ bits. e.g. 13 * 20 = 260 bits
     const lambda = word_size * num_words
 
-    // s-bit window size 
-    const s = word_size
+    const window_size = word_size
 
     // Thread count
-    const threads = 16
+    const threads = 20
 
     const csr_sparse_matrices = await gen_csr_sparse_matrices(
         baseAffinePoints,
         scalars,
         lambda,
-        s,
+        window_size,
         threads
     )
 
@@ -129,22 +134,40 @@ export const smtvp = async (
         }
     }
 
+    const timings: any[] = []
+
     for (let i = 0; i < csr_sparse_matrices.length; i ++) {
         let max_col_idx = 0
-        for (const j of csr_sparse_matrices[i].col_idx) {
-            if (j > max_col_idx) {
-                max_col_idx = j
+        for (const c of col_idxs) {
+            if (c > max_col_idx) {
+                max_col_idx = c
             }
         }
+    
+        const t = await smtvp_run(device, csr_sparse_matrices[i], fieldMath, max_col_idx, num_words, word_size, p, n0, params.r, params.rinv)
+        timings.push(t)
+    }
 
-        await smtvp_run(device, csr_sparse_matrices[i], fieldMath, max_col_idx, num_words, word_size, p, n0, params.r, params.rinv)
-        console.log(i, 'success')
+    if (timings.length === 1) {
+        console.log(`CPU took ${timings[0].cpu_elapsed} (1 CSR sparse matrix)`)
+        console.log(`GPU took ${timings[0].gpu_elapsed} (1 CSR sparse matrix)`)
+    } else {
+        let cpu_total = 0
+        let gpu_total = 0
+        for (let i = 1; i < timings.length; i ++) {
+            cpu_total += timings[i].cpu_elapsed
+            gpu_total += timings[i].gpu_elapsed
+        }
+        const cpu_average = cpu_total / (timings.length - 1)
+        const gpu_average = gpu_total / (timings.length - 1)
+        console.log(`CPU took an average of ${cpu_average}ms per CSR sparse matrix. Benchmark ignores the first)`)
+        console.log(`GPU took an average of ${gpu_average}ms per CSR sparse matrix. Benchmark ignores the first)`)
     }
 
     return { x: BigInt(1), y: BigInt(0) }
 }
 
-export async function smtvp_run(
+export const smtvp_run = async (
     device: GPUDevice,
     csr_sm: CSRSparseMatrix,
     fieldMath: FieldMath,
@@ -155,18 +178,25 @@ export async function smtvp_run(
     n0: bigint,
     r: bigint,
     rinv: bigint,
-) {
-    const cpu_start = Date.now()
-    // Perform SMTVP in CPU
-    const vec: bigint[] = []
-    for (let i = 0; i < csr_sm.row_ptr.length - 1; i ++) {
-        vec.push(BigInt(1))
+): Promise<{ cpu_elapsed: number, gpu_elapsed: number }> => {
+    let cpu_elapsed = 0
+    let gpu_elapsed = 0
+    const run_on_cpu = true
+    let smtvp_result_affine
+
+    if (run_on_cpu) {
+        const cpu_start = Date.now()
+        // Perform SMTVP in CPU
+        const vec: bigint[] = []
+        for (let i = 0; i < csr_sm.row_ptr.length - 1; i ++) {
+            vec.push(BigInt(1))
+        }
+        const smtvp_result = await csr_sm.smtvp(vec)
+        smtvp_result_affine = smtvp_result.map((x) => x.toAffine())
+        //console.log('points from cpu, in affine:', smtvp_result_affine)
+        cpu_elapsed = Date.now() - cpu_start
+        console.log(`CPU took ${cpu_elapsed}ms`)
     }
-    const smtvp_result = await csr_sm.smtvp(vec)
-    const smtvp_result_affine = smtvp_result.map((x) => x.toAffine())
-    console.log('points from cpu, in affine:', smtvp_result_affine)
-    const cpu_elapsed = Date.now() - cpu_start
-    console.log(`CPU took ${cpu_elapsed}ms`)
 
     // Create GPUCommandEncoder to issue commands to the GPU
     const commandEncoder = device.createCommandEncoder();
@@ -367,9 +397,9 @@ export async function smtvp_run(
     const copyArrayBuffer = stagingBuffer.getMappedRange(0, output_buffer_length)
     const data = copyArrayBuffer.slice(0);
     stagingBuffer.unmap();
-    const elapsed = Date.now() - start
+    gpu_elapsed = Date.now() - start
 
-    console.log(`GPU took ${elapsed}ms`)
+    console.log(`GPU took ${gpu_elapsed}ms`)
 
     const data_as_uint8s = new Uint8Array(data)
 
@@ -392,12 +422,16 @@ export async function smtvp_run(
     }
     // convert output_points_non_mont into affine
     const output_points_non_mont_and_affine = output_points_non_mont.map((x) => x.toAffine())
-    console.log('points from gpu, in affine:', output_points_non_mont_and_affine)
+    //console.log('points from gpu, in affine:', output_points_non_mont_and_affine)
 
-    for (let i = 0; i < smtvp_result_affine.length; i ++) {
-        assert(smtvp_result_affine[i].x === output_points_non_mont_and_affine[i].x)
-        assert(smtvp_result_affine[i].y === output_points_non_mont_and_affine[i].y)
+    if (run_on_cpu && smtvp_result_affine) {
+        for (let i = 0; i < smtvp_result_affine.length; i ++) {
+            assert(smtvp_result_affine[i].x === output_points_non_mont_and_affine[i].x)
+            assert(smtvp_result_affine[i].y === output_points_non_mont_and_affine[i].y)
+        }
     }
+
+    return { cpu_elapsed, gpu_elapsed }
 }
 
 const setup_shader_code = (
