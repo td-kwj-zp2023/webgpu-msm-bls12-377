@@ -12,7 +12,7 @@ import montgomery_product_functions from '../wgsl/montgomery/mont_pro_product.te
 import { u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, compute_misc_params, to_words_le } from '../utils'
 import assert from 'assert'
 
-export async function execute_cuzk_wgsl(
+export async function transpose(
     inputSize: number,
     baseAffinePoints: BigIntPoint[],
     scalars: bigint[]
