@@ -1,16 +1,25 @@
 import mustache from 'mustache'
-import { BigIntPoint } from "../reference/types"
-import { FieldMath } from "../reference/utils/FieldMath";
-import { ELLSparseMatrix, CSRSparseMatrix } from './matrices/matrices'; 
-import smtvp_shader from '../submission/wgsl/smtvp.template.wgsl'
-import bigint_struct from '../submission/wgsl/structs/bigint.template.wgsl'
-import bigint_funcs from '../submission/wgsl/bigint.template.wgsl'
-import montgomery_product_funcs from '../submission/wgsl/montgomery_product.template.wgsl'
-import { bigIntPointToExtPointType, compute_misc_params, u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, gen_p_limbs, to_words_le } from './utils'
+import { bigIntPointToExtPointType, compute_misc_params, u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, gen_p_limbs, to_words_le } from '../utils'
+import { BigIntPoint } from "../../reference/types"
+import { FieldMath } from "../../reference/utils/FieldMath";
+import { ELLSparseMatrix, CSRSparseMatrix } from '../matrices/matrices'; 
+import smtvp_shader from '../wgsl/cuzk/smtvp.template.wgsl'
+import structs from '../wgsl/struct/structs.template.wgsl'
+import bigint_functions from '../wgsl/bigint/bigint.template.wgsl'
+import field_functions from '../wgsl/field/field.template.wgsl'
+import curve_functions from '../wgsl/curve/ec.template.wgsl'
+import curve_parameters from '../wgsl/curve/parameters.template.wgsl'
+import montgomery_product_funcs from '../wgsl/montgomery/mont_pro_product.template.wgsl'
 import { ExtPointType } from "@noble/curves/abstract/edwards";
-import { get_device, create_bind_group } from './gpu'
+import { get_device, create_bind_group } from '../gpu'
 import assert from 'assert'
 
+const fieldMath = new FieldMath();
+
+/*
+ * Returns an array of CSR sparse matrices. Each sparse matrix contains the
+ * same number of points, but different col_idx values.
+ */
 export async function gen_csr_sparse_matrices(
     baseAffinePoints: BigIntPoint[],
     scalars: bigint[],
@@ -22,8 +31,6 @@ export async function gen_csr_sparse_matrices(
     const num_rows = threads
     const num_columns = Math.pow(2, window_size) - 1
 
-    // Instantiate 'FieldMath' object
-    const fieldMath = new FieldMath();
     const ZERO_POINT = fieldMath.customEdwards.ExtendedPoint.ZERO;
 
     const csr_sparse_matrix_array: CSRSparseMatrix[] = []
@@ -113,18 +120,17 @@ export const smtvp = async (
             col_idxs.push(c)
         }
     }
-    let max_col_idx = 0
-    for (const c of col_idxs) {
-        if (c > max_col_idx) {
-            max_col_idx = c
-        }
-    }
-
-    const fieldMath = new FieldMath();
 
     const timings: any[] = []
 
     for (let i = 0; i < csr_sparse_matrices.length; i ++) {
+        let max_col_idx = 0
+        for (const c of col_idxs) {
+            if (c > max_col_idx) {
+                max_col_idx = c
+            }
+        }
+    
         const t = await smtvp_run(device, csr_sparse_matrices[i], fieldMath, max_col_idx, num_words, word_size, p, n0, params.r, params.rinv)
         timings.push(t)
     }
@@ -431,11 +437,14 @@ const setup_shader_code = (
             two_pow_word_size: BigInt(2) ** BigInt(word_size),
         },
         {
-            bigint_struct,
-            bigint_funcs,
+            structs,
+            bigint_functions,
             montgomery_product_funcs,
+            field_functions,
+            curve_parameters,
+            curve_functions,
         },
     )
-    // console.log(shaderCode)
+
     return shaderCode
 }

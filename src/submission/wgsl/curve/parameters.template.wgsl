@@ -53,34 +53,3 @@ fn get_edwards_d() -> BigInt {
     
     return d;
 }
-
-// Scalar finite field
-fn get_p() -> BigInt {
-    var p: BigInt;
-    
-    p.limbs[0] = 1u;
-    p.limbs[1] = 0u;
-    p.limbs[2] = 0u;
-    p.limbs[3] = 768u;
-    p.limbs[4] = 4257u;
-    p.limbs[5] = 0u;
-    p.limbs[6] = 0u;
-    p.limbs[7] = 8154u;
-    p.limbs[8] = 2678u;
-    p.limbs[9] = 2765u;
-    p.limbs[10] = 3072u;
-    p.limbs[11] = 6255u;
-    p.limbs[12] = 4581u;
-    p.limbs[13] = 6694u;
-    p.limbs[14] = 6530u;
-    p.limbs[15] = 5290u;
-    p.limbs[16] = 6700u;
-    p.limbs[17] = 2804u;
-    p.limbs[18] = 2777u;
-    p.limbs[19] = 37u;
-    
-    return p;
-}
-
-
-

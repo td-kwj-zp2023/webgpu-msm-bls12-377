@@ -7,9 +7,8 @@ import { genRandomFieldElement } from './utils'
 import { compute_misc_params, u8s_to_points, points_to_u8s_for_gpu, gen_p_limbs } from './utils'
 import add_points_any_a_shader from '../submission/wgsl/add_points_any_a.template.wgsl'
 import add_points_a_minus_one_shader from '../submission/wgsl/add_points_a_minus_one.template.wgsl'
-import bigint_struct from '../submission/wgsl/structs/bigint.template.wgsl'
-import bigint_funcs from '../submission/wgsl/bigint.template.wgsl'
-import montgomery_product_funcs from '../submission/wgsl/montgomery_product.template.wgsl'
+import structs from '../submission/wgsl/struct/structs.template.wgsl'
+import bigint_funcs from '../submission/wgsl/bigint/bigint.template.wgsl'
 import { get_device, create_bind_group } from './gpu'
 import { add_points_any_a, add_points_a_minus_one } from './add_points'
 import { GPUExecution, IEntryInfo, IGPUInput, IGPUResult, IShaderCode, multipassEntryCreator } from "./entries/multipassEntryCreator";
@@ -35,9 +34,8 @@ const setup_shader_code = (
             two_pow_word_size: BigInt(2) ** BigInt(word_size),
         },
         {
-            bigint_struct,
+            structs,
             bigint_funcs,
-            montgomery_product_funcs,
         },
     )
     //console.log(shaderCode)
