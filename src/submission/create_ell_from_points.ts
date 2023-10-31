@@ -1,9 +1,8 @@
 import { to_words_le } from './utils'
 import { BigIntPoint } from "../reference/types"
 import { ELLSparseMatrix } from './matrices/matrices'; 
-import { bigIntPointToExtPointType } from './utils'
 import { FieldMath } from "../reference/utils/FieldMath";
-import { ExtPointType } from "@noble/curves/abstract/edwards";
+import { create_ell } from './create_ell'
 import assert from 'assert'
 
 // e.g. if the scalars converted to limbs = [
@@ -32,84 +31,28 @@ const decompose_scalars = (
     return result
 }
 
-// Compute a "plan" which helps the parent algo pre-aggregate the points which
-// share the same scalar chunk.
-export const gen_add_to = (
-    chunks: number[]
-): { add_to: number[], new_chunks: number[] } => {
-    const new_chunks = chunks.map((x) => x)
-    const occ = new Map()
-    const track = new Map()
-    for (let i = 0; i < chunks.length; i ++) {
-        const chunk = chunks[i]
-        if (occ.get(chunk) != undefined) {
-            occ.get(chunk).push(i)
-        } else {
-            occ.set(chunk, [i])
-        }
-
-        track.set(chunk, 0)
-    }
-
-    const add_to = Array.from(new Uint8Array(chunks.length))
-    for (let i = 0; i < chunks.length; i ++) {
-        const chunk = chunks[i]
-        const t = track.get(chunk)
-        if (t === occ.get(chunk).length - 1 || chunk === 0) {
-            continue
-        }
-
-        add_to[i] = occ.get(chunk)[t + 1]
-        track.set(chunk, t + 1)
-        new_chunks[i] = 0
-    }
-
-    // Sanity check
-    assert(add_to.length === chunks.length)
-    assert(add_to.length === new_chunks.length)
-
-    return { add_to, new_chunks }
+export async function create_ell_sparse_matrices_from_points_benchmark(
+    baseAffinePoints: BigIntPoint[],
+    scalars: bigint[],
+): Promise<{x: bigint, y: bigint}> {
+    const num_threads = 8
+    const ell_sms = await create_ell_sparse_matrices_from_points(baseAffinePoints, scalars, num_threads)
+    return { x: BigInt(0), y: BigInt(1) }
 }
 
-export function merge_points(
-    points: ExtPointType[],
-    add_to: number[],
-    zero_point: ExtPointType,
-) {
-    // merged_points will contain points that have been accumulated based on common scalar chunks.
-    // e.g. if points == [P1, P2, P3, P4] and scalar_chunks = [1, 1, 2, 3],
-    // merged_points will equal [0, P1 + P2, P3, P4]
-    const merged_points = points.map((x) => x)
+import { spawn, Thread, Worker } from 'threads'
+const fieldMath = new FieldMath()
 
-    // Next, add up the points whose scalar chunks match
-    for (let i = 0; i < add_to.length; i ++) {
-        if (add_to[i] != 0) {
-            const cur = merged_points[i]
-            merged_points[add_to[i]] = merged_points[add_to[i]].add(cur)
-            merged_points[i] = zero_point
-        }
-    }
-
-    return merged_points
-}
-
-export function create_ell_sparse_matrices_from_points(
+export async function create_ell_sparse_matrices_from_points(
     baseAffinePoints: BigIntPoint[],
     scalars: bigint[],
     num_threads: number,
-): ELLSparseMatrix[] {
+): Promise<ELLSparseMatrix[]> {
     // The number of threads is the number of rows of the matrix
     // As such the number of threads should divide the number of points
     assert(baseAffinePoints.length % num_threads === 0)
     assert(baseAffinePoints.length === scalars.length)
 
-    const fieldMath = new FieldMath()
-    const ZERO_POINT = fieldMath.createPoint(
-        BigInt(0),
-        BigInt(1),
-        BigInt(0),
-        BigInt(1),
-    )
     const num_words = 20
     const word_size = 13
 
@@ -118,41 +61,60 @@ export function create_ell_sparse_matrices_from_points(
 
     const ell_sms: ELLSparseMatrix[] = []
 
+    const web_worker = async (
+        baseAffinePoints: BigIntPoint[],
+        scalar_chunks: number[],
+        num_threads: number,
+    ) => {
+        const worker = await spawn(new Worker('./createEllWorker.js'))
+        const result = await worker(
+            baseAffinePoints,
+            scalar_chunks,
+            num_threads,
+        )
+        await Thread.terminate(worker)
+        return result
+    }
+
+    const start_webworkers = Date.now()
+    const h = navigator.hardwareConcurrency
+    const total_runs = decomposed_scalars.length
+    const num_parallel_runs = Math.ceil(total_runs / h)
+    for (let i = 0; i < num_parallel_runs; i ++) {
+        const promises = []
+        for (let j = 0; j < h; j ++) {
+            const run_idx = i * h + j
+            if (run_idx === total_runs) {
+                break
+            }
+            promises.push(web_worker(baseAffinePoints, decomposed_scalars[run_idx], num_threads))
+        }
+        const results = await Promise.all(promises)
+        for (const r of results) {
+            ell_sms.push(r)
+        }
+    }
+    const elapsed_webworkers = Date.now() - start_webworkers
+    console.log(`Webworkers took ${elapsed_webworkers}ms`)
+
+    const start_cpu = Date.now()
+    const ell_sms_cpu: ELLSparseMatrix[] = []
+
     // For each set of decomposed scalars (e.g. the 0th chunks of each scalar,
     // the 1th chunks, etc, generate an ELL sparse matrix
-    for (let i = 0; i < decomposed_scalars.length; i ++) {
-        const scalar_chunks = decomposed_scalars[i]
-        // Precompute the indices for the points to merge
-        const { add_to, new_chunks } = gen_add_to(scalar_chunks)
-        const merged_points = merge_points(
-            baseAffinePoints.map((x) => bigIntPointToExtPointType(x, fieldMath)),
-            add_to,
-            ZERO_POINT,
+    for (const scalar_chunks of decomposed_scalars) {
+        const ell_sm = create_ell(
+            baseAffinePoints,
+            scalar_chunks,
+            num_threads,
         )
-
-        // Create an ELL sparse matrix using merged_points and new_chunks
-        const num_cols = baseAffinePoints.length / num_threads
-        const data: ExtPointType[][] = []
-        const col_idx: number[][] = []
-        const row_length: number[] = []
-        
-        for (let i = 0; i < num_threads; i ++) {
-            const pt_row: ExtPointType[] = []
-            const idx_row: number[] = []
-            for (let j = 0; j < num_cols; j ++) {
-                const point_idx = num_cols * i + j
-                const pt = merged_points[point_idx]
-                if (new_chunks[point_idx] !== 0) {
-                    pt_row.push(pt)
-                    idx_row.push(new_chunks[point_idx])
-                }
-            }
-            data.push(pt_row)
-            col_idx.push(idx_row)
-            row_length.push(pt_row.length)
-        }
-        const ell_sm = new ELLSparseMatrix(data, col_idx, row_length)
-        ell_sms.push(ell_sm)
+        ell_sms_cpu.push(ell_sm)
     }
+    const elapsed_cpu = Date.now() - start_cpu
+    console.log(`CPU took ${elapsed_cpu}ms`)
+
+    //console.log(ell_sms)
+    //console.log(ell_sms_cpu)
     return ell_sms
 }
+
