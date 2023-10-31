@@ -6,6 +6,14 @@ import { FieldMath } from "../reference/utils/FieldMath";
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import assert from 'assert'
 
+// e.g. if the scalars converted to limbs = [
+//    [limb_a, limb_b],
+//    [limb_c, limb_d]
+// ]
+// return: [
+//    [limb_a, limb_c],
+//    [limb_b, limb_d]
+// ]
 const decompose_scalars = (
     scalars: bigint[],
     num_words: number,
@@ -24,6 +32,8 @@ const decompose_scalars = (
     return result
 }
 
+// Compute a "plan" which helps the parent algo pre-aggregate the points which
+// share the same scalar chunk.
 export const gen_add_to = (
     chunks: number[]
 ): { add_to: number[], new_chunks: number[] } => {
@@ -56,6 +66,7 @@ export const gen_add_to = (
 
     // Sanity check
     assert(add_to.length === chunks.length)
+    assert(add_to.length === new_chunks.length)
 
     return { add_to, new_chunks }
 }
@@ -65,6 +76,9 @@ export function merge_points(
     add_to: number[],
     zero_point: ExtPointType,
 ) {
+    // merged_points will contain points that have been accumulated based on common scalar chunks.
+    // e.g. if points == [P1, P2, P3, P4] and scalar_chunks = [1, 1, 2, 3],
+    // merged_points will equal [0, P1 + P2, P3, P4]
     const merged_points = points.map((x) => x)
 
     // Next, add up the points whose scalar chunks match
@@ -84,8 +98,10 @@ export function create_ell_sparse_matrices_from_points(
     scalars: bigint[],
     num_threads: number,
 ): ELLSparseMatrix[] {
-    assert(baseAffinePoints.length === scalars.length)
+    // The number of threads is the number of rows of the matrix
+    // As such the number of threads should divide the number of points
     assert(baseAffinePoints.length % num_threads === 0)
+    assert(baseAffinePoints.length === scalars.length)
 
     const fieldMath = new FieldMath()
     const ZERO_POINT = fieldMath.createPoint(
@@ -108,46 +124,32 @@ export function create_ell_sparse_matrices_from_points(
         const scalar_chunks = decomposed_scalars[i]
         // Precompute the indices for the points to merge
         const { add_to, new_chunks } = gen_add_to(scalar_chunks)
-
-        // merged_points contains the baseAffinePoints, but those whose scalar
-        // chunks match have been accumulated. For example
-        // if baseAffinePoints == [P1, P2, P3, P4] and scalar_chunks = [1, 1, 2, 3],
-        // merged_points will equal [P1 + P2, 0, P3, P4]
-        const merged_points: ExtPointType[] = []
-        for (let j = 0; j < baseAffinePoints.length; j ++) {
-            merged_points.push(bigIntPointToExtPointType(baseAffinePoints[j], fieldMath))
-        }
-
-        // Next, add up the points whose scalar chunks match
-        for (let j = 0; j < add_to.length; j ++) {
-            if (add_to[j] != 0) {
-                const cur = merged_points[j]
-                merged_points[add_to[j]] = merged_points[add_to[j]].add(cur)
-                merged_points[j] = ZERO_POINT
-            }
-        }
+        const merged_points = merge_points(
+            baseAffinePoints.map((x) => bigIntPointToExtPointType(x, fieldMath)),
+            add_to,
+            ZERO_POINT,
+        )
 
         // Create an ELL sparse matrix using merged_points and new_chunks
+        const num_cols = baseAffinePoints.length / num_threads
         const data: ExtPointType[][] = []
         const col_idx: number[][] = []
         const row_length: number[] = []
+        
         for (let i = 0; i < num_threads; i ++) {
-            const col_space = baseAffinePoints.length / num_threads
             const pt_row: ExtPointType[] = []
             const idx_row: number[] = []
-            let num_non_zero = 0
-            for (let j = 0; j < col_space; j ++) {
-                const point_idx = col_space * i + j
+            for (let j = 0; j < num_cols; j ++) {
+                const point_idx = num_cols * i + j
                 const pt = merged_points[point_idx]
                 if (new_chunks[point_idx] !== 0) {
                     pt_row.push(pt)
                     idx_row.push(new_chunks[point_idx])
-                    num_non_zero ++
                 }
             }
             data.push(pt_row)
             col_idx.push(idx_row)
-            row_length.push(num_non_zero)
+            row_length.push(pt_row.length)
         }
         const ell_sm = new ELLSparseMatrix(data, col_idx, row_length)
         ell_sms.push(ell_sm)
