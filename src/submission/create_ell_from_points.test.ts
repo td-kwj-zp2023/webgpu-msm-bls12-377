@@ -110,7 +110,7 @@ describe('Create an ELL sparse matrix from the MSM input points and scalars', ()
                 })
             }
 
-            const num_threads = 2
+            const num_threads = 16
             const ell_sms = create_ell_sparse_matrices_from_points(bigintAffinePoints, scalars, num_threads)
             //TODO: add checks here
         })
