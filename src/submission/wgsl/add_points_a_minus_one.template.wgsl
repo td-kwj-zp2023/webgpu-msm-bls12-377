@@ -1,12 +1,5 @@
 {{> structs }}
 
-struct Point {
-  x: BigInt,
-  y: BigInt,
-  t: BigInt,
-  z: BigInt
-}
-
 const NUM_WORDS = {{ num_words }}u;
 const WORD_SIZE = {{ word_size }}u;
 const MASK = {{ mask }}u;
