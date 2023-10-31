@@ -115,7 +115,7 @@ const workerConfig = {
   entry: {
     wasmMSM: './src/workers/wasmMSM.ts',
     webworkers: './src/submission/cuzk/workers/csrSparseMatrixWorker.ts',
-
+    createEllWorker: './src/submission/create_ell_worker.ts',
   },
   output: {
     pathinfo: false,

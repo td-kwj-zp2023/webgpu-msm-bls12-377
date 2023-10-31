@@ -4,6 +4,7 @@ import { bigIntToU32Array, generateRandomFields } from '../reference/webgpu/util
 import { BigIntPoint, U32ArrayPoint } from '../reference/types';
 import { webgpu_compute_msm, wasm_compute_msm, webgpu_pippenger_msm, webgpu_best_msm, wasm_compute_msm_parallel } from '../reference/reference';
 import { add_points_benchmarks } from '../submission/add_points_benchmarks';
+import { create_ell_sparse_matrices_from_points_benchmark } from '../submission/create_ell_from_points';
 import { cuzk_typescript_serial, cuzk_typescript_web_workers, transpose_wgsl, smtvp_wgsl } from '../submission/submission';
 import CSVExportButton from './CSVExportButton';
 import { TestCaseDropDown } from './TestCaseDropDown';
@@ -217,6 +218,16 @@ export const AllBenchmarks: React.FC = () => {
         scalars={bigIntScalars}
         expectedResult={expectedResult}
         msmFunc={smtvp_wgsl}
+        postResult={postResult}
+        bold={true}
+      />
+      <Benchmark
+        name={'Create ELL sparse matrices'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={create_ell_sparse_matrices_from_points_benchmark}
         postResult={postResult}
         bold={true}
       />
