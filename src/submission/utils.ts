@@ -18,6 +18,32 @@ export const extPointTypeToBigIntPoint = (ept: ExtPointType): BigIntPoint => {
     }
 }
 
+// e.g. if the scalars converted to limbs = [
+//    [limb_a, limb_b],
+//    [limb_c, limb_d]
+// ]
+// return: [
+//    [limb_a, limb_c],
+//    [limb_b, limb_d]
+// ]
+export const decompose_scalars = (
+    scalars: bigint[],
+    num_words: number,
+    word_size: number,
+): number[][] => {
+    const as_limbs: number[][] = []
+    for (const scalar of scalars) {
+        const limbs = to_words_le(scalar, num_words, word_size)
+        as_limbs.push(Array.from(limbs))
+    }
+    const result: number[][] = []
+    for (let i = 0; i < num_words; i ++) {
+        const t = as_limbs.map((limbs) => limbs[i])
+        result.push(t)
+    }
+    return result
+}
+
 export const points_to_u8s_for_gpu = (
   points: BigIntPoint[],
   num_words: number,
