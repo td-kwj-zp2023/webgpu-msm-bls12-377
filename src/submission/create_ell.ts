@@ -4,6 +4,78 @@ import { ELLSparseMatrix } from './matrices/matrices';
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import assert from 'assert'
 
+export const prep_for_sort_method = (
+    scalar_chunks: number[],
+    scalar_chunk_idx: number,
+    thread_idx: number,
+) => {
+    const pt_and_chunks = []
+    for (let i = 0; i < scalar_chunks.length; i ++) {
+        const pt_idx = thread_idx * scalar_chunks.length + i
+        pt_and_chunks.push([pt_idx, scalar_chunks[i]])
+    }
+
+    pt_and_chunks.sort((a: number[], b: number[]) => {
+        if (a[1] > b[1]) { return 1 }
+        else if (a[1] < b[1]) { return -1 }
+        return 0
+    })
+
+    const cluster_start_indices = [0]
+    let prev_chunk = pt_and_chunks[0][1]
+    for (let k = 1; k < pt_and_chunks.length; k ++) {
+        if (prev_chunk !== pt_and_chunks[k][1]) {
+            cluster_start_indices.push(k)
+        }
+        prev_chunk = pt_and_chunks[k][1]
+    }
+
+    const new_point_indices = pt_and_chunks.map((x) => x[0])
+    return { new_point_indices, cluster_start_indices }
+}
+
+export const prep_for_cluster_method = (
+    scalar_chunks: number[],
+    scalar_chunk_idx: number,
+    thread_idx: number,
+) => {
+    const new_point_indices: number[] = []
+    const cluster_start_indices: number[] = [0]
+
+    const clusters = new Map()
+    for (let i = 0; i < scalar_chunks.length; i ++) {
+        const pt_idx = thread_idx * scalar_chunks.length + i
+        const c = scalar_chunks[i]
+        const g = clusters.get(c)
+        if (g == undefined) {
+            clusters.set(c, [pt_idx])
+        } else {
+            g.push(pt_idx)
+            clusters.set(c, g)
+        }
+    }
+
+    for (const k of clusters.keys()) {
+        const cluster = clusters.get(k)
+        if (cluster.length === 1) {
+            new_point_indices.push(cluster[0])
+        } else {
+            for (const c of cluster) {
+                new_point_indices.unshift(c)
+            }
+        }
+    }
+
+    let prev_chunk = scalar_chunks[new_point_indices[0]]
+    for (let i = 1; i < new_point_indices.length; i ++) {
+        if (prev_chunk !== scalar_chunks[new_point_indices[i]]) {
+            cluster_start_indices.push(i)
+        }
+        prev_chunk = scalar_chunks[new_point_indices[i]]
+    }
+    return { new_point_indices, cluster_start_indices }
+}
+
 // Compute a "plan" which helps the parent algo pre-aggregate the points which
 // share the same scalar chunk.
 export const gen_add_to = (

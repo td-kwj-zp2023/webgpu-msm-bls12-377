@@ -2,11 +2,12 @@ import { create_ell_sparse_matrices_from_points } from './create_ell_from_points
 import { gen_add_to, merge_points } from './create_ell'
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import { FieldMath } from "../reference/utils/FieldMath";
-import { genRandomFieldElement, extPointTypeToBigIntPoint } from './utils'
+import { genRandomFieldElement, decompose_scalars } from './utils'
+import { prep_for_sort_method, prep_for_cluster_method } from './create_ell'
 import { CSRSparseMatrix } from './matrices/matrices'
 import { spawn, Thread, Worker } from 'threads'
 
-// const word_size = 13
+const word_size = 13
 const num_words = 20
 const p = BigInt('0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001')
 const fieldMath = new FieldMath();
@@ -27,6 +28,14 @@ const create_test_points = (num_inputs: number) => {
     }
 
     return points//.map((p) => { return { x: p.ex, y: p.ey, t: p.et, z: p.ez } })
+}
+
+const create_test_scalars = (num_inputs: number) => {
+    const scalars: bigint[] = []
+    for (let i = 0; i < num_inputs; i ++) {
+        scalars.push(genRandomFieldElement(p))
+    }
+    return scalars
 }
 
 // The performance of this algorithm is not great
@@ -65,6 +74,84 @@ const gen_random_test_case = (num_scalar_chunks: number, max: number) => {
 }
 
 describe('Create an ELL sparse matrix from the MSM input points and scalars', () => {
+    const num_inputs = 65536
+    let points: ExtPointType[]
+    let scalars: bigint[]
+
+    beforeAll(() => {
+        points = create_test_points(num_inputs)
+        scalars = create_test_scalars(num_inputs)
+    })
+
+    describe('pre-aggregation using the sort method', () => {
+        // 65536 inputs, 16 threads: 571ms
+        // 65536 inputs, 8 threads: 490ms
+        // 65536 inputs, 1 thread: 375ms
+        it('sort method', () => {
+            // Input: 
+            //   - point indices (0 to len(points) - 1)
+            //   - scalars
+            // Output:
+            //   for each decomposed_scalars:
+            //     - for each thread:
+            //       - new_point_indices[]
+            //       - cluster_start_indices[]
+            //       The output for each thread can be used to generate a list of
+            //       aggregated points and their corresponding scalar chunks
+            const num_threads = 1
+            const decomposed_scalars = decompose_scalars(scalars, num_words, word_size)
+
+            for (let scalar_chunk_idx = decomposed_scalars.length - 1; scalar_chunk_idx < decomposed_scalars.length; scalar_chunk_idx ++) {
+                const scalar_chunks = decomposed_scalars[scalar_chunk_idx]
+                for (let thread_idx = 0; thread_idx < num_threads; thread_idx ++) {
+                    const { new_point_indices, cluster_start_indices }  = prep_for_sort_method(
+                        scalar_chunks,
+                        scalar_chunk_idx,
+                        thread_idx,
+                    )
+                }
+            }
+        })
+    })
+
+    describe('pre-aggregation using the cluster method', () => {
+        // 65536 inputs, 16 threads: 4691ms
+        // 65536 inputs, 8 threads: 2547ms
+        // 65536 inputs, 1 thread: 2531ms
+        it('cluster method', () => {
+            // Input: 
+            //   - point indices (0 to len(points) - 1)
+            //   - scalars
+            // Output:
+            //   for each decomposed_scalars:
+            //     - for each thread:
+            //       - new_point_indices[]
+            //       - cluster_start_indices[]
+            //       The output for each thread can be used to generate a list of
+            //       aggregated points and their corresponding scalar chunks
+            //const { new_point_indices, cluster_start_indices }  = prep_for_cluster_method(
+                //[3, 2, 3, 1, 4, 4, 5, 4],
+                //0,
+                //0,
+            //)
+            //scalar_chunks: [3, 2, 3, 1, 4, 4, 5, 4]
+            //new_point_indices: [7, 5, 4, 2, 0, 1, 3, 6]
+            //expected: [0, 3, 5, 6, 7, 8]
+            const num_threads = 8
+            const decomposed_scalars = decompose_scalars(scalars, num_words, word_size)
+
+            for (let scalar_chunk_idx = decomposed_scalars.length - 1; scalar_chunk_idx < decomposed_scalars.length; scalar_chunk_idx ++) {
+                const scalar_chunks = decomposed_scalars[scalar_chunk_idx]
+                for (let thread_idx = 0; thread_idx < num_threads; thread_idx ++) {
+                    const { new_point_indices, cluster_start_indices }  = prep_for_cluster_method(
+                        scalar_chunks,
+                        scalar_chunk_idx,
+                        thread_idx,
+                    )
+                }
+            }
+    })
+
     // create_ell_sparse_matrices_from_points only works in the browser because
     // it uses navigator.hardwareConcurrency and web workers
     /*
@@ -118,7 +205,6 @@ describe('Create an ELL sparse matrix from the MSM input points and scalars', ()
             //TODO: add checks here
         })
     })
-    */
 
     describe('generate the add_to array', () => {
         it('static example test case', () => {
@@ -180,5 +266,7 @@ describe('Create an ELL sparse matrix from the MSM input points and scalars', ()
                 expect(new_chunks).toEqual(e.new_chunks)
             }
         })
+    })
+    */
     })
 })
