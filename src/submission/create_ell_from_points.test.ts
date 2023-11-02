@@ -84,10 +84,19 @@ describe('Create an ELL sparse matrix from the MSM input points and scalars', ()
     })
 
     describe('pre-aggregation using the sort method', () => {
-        // 65536 inputs, 16 threads: 571ms
-        // 65536 inputs, 8 threads: 490ms
-        // 65536 inputs, 1 thread: 375ms
-        it('sort method', () => {
+        // Serial performance in Node:
+        //   65536 inputs, 16 threads: 571ms
+        //   65536 inputs, 8 threads: 490ms
+        //   65536 inputs, 1 thread: 375ms
+        // Serial performance in browser:
+        //   65536 inputs, 16 threads: 352ms
+        //   65536 inputs, 8 threads: 307ms
+        //   65536 inputs, 1 thread: 182ms
+        // Web worker performance in browser:
+        //   65536 inputs, 16 threads: 816ms
+        //   65536 inputs, 8 threads: 522ms
+        //   65536 inputs, 1 thread: 501ms
+        it('run serially', () => {
             // Input: 
             //   - point indices (0 to len(points) - 1)
             //   - scalars
@@ -98,7 +107,16 @@ describe('Create an ELL sparse matrix from the MSM input points and scalars', ()
             //       - cluster_start_indices[]
             //       The output for each thread can be used to generate a list of
             //       aggregated points and their corresponding scalar chunks
-            const num_threads = 1
+            //scalar_chunks:     [3, 2, 3, 1, 4, 4, 5, 4]
+            //new_point_indices: [3, 1, 0, 2, 4, 5, 7, 6]
+            //expected:          [0, 1, 2, 4, 7]
+            const { new_point_indices, cluster_start_indices }  = prep_for_sort_method(
+                [3, 2, 3, 1, 4, 4, 5, 4],
+                0,
+                0,
+            )
+            //console.log(new_point_indices, cluster_start_indices)
+            const num_threads = 16
             const decomposed_scalars = decompose_scalars(scalars, num_words, word_size)
 
             for (let scalar_chunk_idx = decomposed_scalars.length - 1; scalar_chunk_idx < decomposed_scalars.length; scalar_chunk_idx ++) {
@@ -115,10 +133,19 @@ describe('Create an ELL sparse matrix from the MSM input points and scalars', ()
     })
 
     describe('pre-aggregation using the cluster method', () => {
-        // 65536 inputs, 16 threads: 4691ms
-        // 65536 inputs, 8 threads: 2547ms
-        // 65536 inputs, 1 thread: 2531ms
-        it('cluster method', () => {
+        // Serial performance in Node:
+        //   65536 inputs, 16 threads: 4691ms
+        //   65536 inputs, 8 threads: 2547ms
+        //   65536 inputs, 1 thread: 2531ms
+        // Serial performance in browser:
+        //   65536 inputs, 16 threads: 2400ms
+        //   65536 inputs, 8 threads: 1338ms
+        //   65536 inputs, 1 thread: 430ms
+        // Web worker performance in browser:
+        //   65536 inputs, 16 threads: 1061ms
+        //   65536 inputs, 8 threads: 708ms
+        //   65536 inputs, 1 thread: 447ms
+        it('runs serially', () => {
             // Input: 
             //   - point indices (0 to len(points) - 1)
             //   - scalars
@@ -129,15 +156,16 @@ describe('Create an ELL sparse matrix from the MSM input points and scalars', ()
             //       - cluster_start_indices[]
             //       The output for each thread can be used to generate a list of
             //       aggregated points and their corresponding scalar chunks
-            //const { new_point_indices, cluster_start_indices }  = prep_for_cluster_method(
-                //[3, 2, 3, 1, 4, 4, 5, 4],
-                //0,
-                //0,
-            //)
-            //scalar_chunks: [3, 2, 3, 1, 4, 4, 5, 4]
+            const { new_point_indices, cluster_start_indices }  = prep_for_cluster_method(
+                [3, 2, 3, 1, 4, 4, 5, 4],
+                0,
+                0,
+            )
+            //console.log(new_point_indices, cluster_start_indices)
+            //scalar_chunks:     [3, 2, 3, 1, 4, 4, 5, 4]
             //new_point_indices: [7, 5, 4, 2, 0, 1, 3, 6]
-            //expected: [0, 3, 5, 6, 7, 8]
-            const num_threads = 8
+            //expected:          [0, 3, 5, 6, 7]
+            const num_threads = 16
             const decomposed_scalars = decompose_scalars(scalars, num_words, word_size)
 
             for (let scalar_chunk_idx = decomposed_scalars.length - 1; scalar_chunk_idx < decomposed_scalars.length; scalar_chunk_idx ++) {
