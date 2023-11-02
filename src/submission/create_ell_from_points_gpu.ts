@@ -19,7 +19,6 @@ export async function create_ell_sparse_matrices_from_points_gpu_benchmark(
     return { x: BigInt(0), y: BigInt(1) }
 }
 
-import { spawn, Thread, Worker } from 'threads'
 const fieldMath = new FieldMath()
 
 export async function create_ell_sparse_matrices_from_points_gpu(

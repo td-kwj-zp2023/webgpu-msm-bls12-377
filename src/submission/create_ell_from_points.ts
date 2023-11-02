@@ -3,10 +3,114 @@ import { BigIntPoint } from "../reference/types"
 import { ELLSparseMatrix } from './matrices/matrices'; 
 import { FieldMath } from "../reference/utils/FieldMath";
 import { decompose_scalars, bigIntPointToExtPointType } from './utils'
-import { create_ell } from './create_ell'
+import { create_ell, prep_for_sort_method, prep_for_cluster_method } from './create_ell'
 
-import { ExtPointType } from "@noble/curves/abstract/edwards";
 import assert from 'assert'
+import { spawn, Thread, Worker } from 'threads'
+import { ExtPointType } from "@noble/curves/abstract/edwards";
+
+const fieldMath = new FieldMath()
+
+export async function prep_for_cluster_method_webworkers_benchmark(
+    baseAffinePoints: BigIntPoint[],
+    scalars: bigint[],
+): Promise<{x: bigint, y: bigint}> {
+    const num_threads = 16
+
+    const num_words = 20
+    const word_size = 13
+
+    // Decompose scalars
+    const decomposed_scalars = decompose_scalars(scalars, num_words, word_size)
+
+    const web_worker = async (
+        scalar_chunks: number[],
+        scalar_chunk_idx: number,
+        thread_idx: number,
+    ) => {
+        const worker = await spawn(new Worker('./prepForClusterMethodWorker.js'))
+        const result = await worker(
+            scalar_chunks,
+            scalar_chunk_idx,
+            thread_idx,
+        )
+        await Thread.terminate(worker)
+        return result
+    }
+    const promises = []
+
+    for (let scalar_chunk_idx = decomposed_scalars.length - 1; scalar_chunk_idx < decomposed_scalars.length; scalar_chunk_idx ++) {
+        const scalar_chunks = decomposed_scalars[scalar_chunk_idx]
+        for (let thread_idx = 0; thread_idx < num_threads; thread_idx ++) {
+            // Serial method:
+            /*
+            const { new_point_indices, cluster_start_indices }  = prep_for_cluster_method(
+                scalar_chunks,
+                scalar_chunk_idx,
+                thread_idx,
+            )
+            */
+            // WW method:
+            promises.push(
+                promises.push(web_worker(scalar_chunks, scalar_chunk_idx, thread_idx))
+            )
+        }
+    }
+    const results = await Promise.all(promises)
+
+    return { x: BigInt(0), y: BigInt(1) }
+}
+
+export async function prep_for_sort_method_webworkers_benchmark(
+    baseAffinePoints: BigIntPoint[],
+    scalars: bigint[],
+): Promise<{x: bigint, y: bigint}> {
+    const num_threads = 16
+
+    const num_words = 20
+    const word_size = 13
+
+    // Decompose scalars
+    const decomposed_scalars = decompose_scalars(scalars, num_words, word_size)
+
+    const web_worker = async (
+        scalar_chunks: number[],
+        scalar_chunk_idx: number,
+        thread_idx: number,
+    ) => {
+        const worker = await spawn(new Worker('./prepForSortMethodWorker.js'))
+        const result = await worker(
+            scalar_chunks,
+            scalar_chunk_idx,
+            thread_idx,
+        )
+        await Thread.terminate(worker)
+        return result
+    }
+
+    const promises = []
+
+    for (let scalar_chunk_idx = decomposed_scalars.length - 1; scalar_chunk_idx < decomposed_scalars.length; scalar_chunk_idx ++) {
+        const scalar_chunks = decomposed_scalars[scalar_chunk_idx]
+        for (let thread_idx = 0; thread_idx < num_threads; thread_idx ++) {
+            // Serial method:
+            const { new_point_indices, cluster_start_indices }  = prep_for_sort_method(
+                scalar_chunks,
+                scalar_chunk_idx,
+                thread_idx,
+            )
+            /*
+            // WW method:
+            promises.push(
+                promises.push(web_worker(scalar_chunks, scalar_chunk_idx, thread_idx))
+            )
+            */
+        }
+    }
+    //const results = await Promise.all(promises)
+
+    return { x: BigInt(0), y: BigInt(1) }
+}
 
 export async function create_ell_sparse_matrices_from_points_benchmark(
     baseAffinePoints: BigIntPoint[],
@@ -18,9 +122,6 @@ export async function create_ell_sparse_matrices_from_points_benchmark(
     //console.log(ell_sms)
     return { x: BigInt(0), y: BigInt(1) }
 }
-
-import { spawn, Thread, Worker } from 'threads'
-const fieldMath = new FieldMath()
 
 export async function create_ell_sparse_matrices_from_points(
     points: ExtPointType[],
