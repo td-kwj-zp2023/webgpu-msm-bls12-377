@@ -188,4 +188,3 @@ export async function create_ell_sparse_matrices_from_points(
     }
     return ell_sms
 }
-
