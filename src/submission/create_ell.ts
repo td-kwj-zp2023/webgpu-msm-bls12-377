@@ -4,35 +4,52 @@ import { ELLSparseMatrix } from './matrices/matrices';
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import assert from 'assert'
 
+/*
+ * @param: points All the input points of the MSM.
+ * @param: new_point_indices The output of a prep function, such as prep_for_cluster_method
+ * @param: cluster_start_indices The output of a prep function, such as prep_for_cluster_method
+ */
 export const pre_aggregate_cpu = (
     points: ExtPointType[],
     new_point_indices: number[],
     cluster_start_indices: number[],
 ) => {
+    // Not the point at infinity!
     const ZERO_POINT = fieldMath.createPoint(
         BigInt(0),
         BigInt(0),
         BigInt(0),
         BigInt(0),
     )
-    const new_points = points.map((x) => x)
+
+    // Copy the points into a new array as we don't want to overwrite the
+    // original
+    //const new_points = points.map((x) => x)
+    const new_points: ExtPointType[] = []
 
     for (let i = 0; i < cluster_start_indices.length; i ++) {
+        // Example: [0, 1, 4, 7]
+        // Case 0: 0, 1
+        // Case 1: 1, 4
+        // Case 2: 4, 7
+        // Case 3: 7, end
+        
         const start_idx = cluster_start_indices[i]
-        const end_idx = i < cluster_start_indices.length - 1 ?
-            cluster_start_indices[i + 1]
-            :
-            cluster_start_indices[cluster_start_indices.length - 1]
+        let end_idx
+        if (i === cluster_start_indices.length - 1) {
+            // Case 3: we've reached the end of the array
+            end_idx = cluster_start_indices.length
+        } else {
+            // Cases 1, 2: end_idx is the next index
+            end_idx = cluster_start_indices[i + 1]
+        }
 
         let acc = points[new_point_indices[start_idx]]
-        if (start_idx + 1 === end_idx || start_idx === end_idx) {
-            new_points[start_idx] = acc
-        } else {
-            for (let j = start_idx + 1; j < end_idx; j ++) {
-                acc = acc.add(points[new_point_indices[j]])
-                new_points[j] = acc
-                new_points[j - 1] = ZERO_POINT
-            }
+        new_points.push(acc)
+        for (let j = start_idx + 1; j < end_idx; j ++) {
+            acc = acc.add(points[new_point_indices[j]])
+            new_points.push(acc)
+            new_points[j - 1] = ZERO_POINT
         }
     }
     return new_points
