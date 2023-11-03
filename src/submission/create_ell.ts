@@ -4,14 +4,50 @@ import { ELLSparseMatrix } from './matrices/matrices';
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import assert from 'assert'
 
+export const pre_aggregate_cpu = (
+    points: ExtPointType[],
+    new_point_indices: number[],
+    cluster_start_indices: number[],
+) => {
+    const ZERO_POINT = fieldMath.createPoint(
+        BigInt(0),
+        BigInt(0),
+        BigInt(0),
+        BigInt(0),
+    )
+    const new_points = points.map((x) => x)
+
+    for (let i = 0; i < cluster_start_indices.length; i ++) {
+        const start_idx = cluster_start_indices[i]
+        const end_idx = i < cluster_start_indices.length - 1 ?
+            cluster_start_indices[i + 1]
+            :
+            cluster_start_indices[cluster_start_indices.length - 1]
+
+        let acc = points[new_point_indices[start_idx]]
+        if (start_idx + 1 === end_idx || start_idx === end_idx) {
+            new_points[start_idx] = acc
+        } else {
+            for (let j = start_idx + 1; j < end_idx; j ++) {
+                acc = acc.add(points[new_point_indices[j]])
+                new_points[j] = acc
+                new_points[j - 1] = ZERO_POINT
+            }
+        }
+    }
+    return new_points
+}
+
 export const prep_for_sort_method = (
     scalar_chunks: number[],
-    scalar_chunk_idx: number,
     thread_idx: number,
+    num_threads: number,
 ) => {
+    assert(num_threads > 0)
     const pt_and_chunks = []
-    for (let i = 0; i < scalar_chunks.length; i ++) {
-        const pt_idx = thread_idx * scalar_chunks.length + i
+    const c = scalar_chunks.length / num_threads
+    for (let i = 0; i < c; i ++) {
+        const pt_idx = thread_idx * c + i
         pt_and_chunks.push([pt_idx, scalar_chunks[i]])
     }
 
@@ -36,22 +72,24 @@ export const prep_for_sort_method = (
 
 export const prep_for_cluster_method = (
     scalar_chunks: number[],
-    scalar_chunk_idx: number,
     thread_idx: number,
+    num_threads: number,
 ) => {
+    assert(num_threads > 0)
     const new_point_indices: number[] = []
     const cluster_start_indices: number[] = [0]
-
     const clusters = new Map()
-    for (let i = 0; i < scalar_chunks.length; i ++) {
-        const pt_idx = thread_idx * scalar_chunks.length + i
-        const c = scalar_chunks[i]
-        const g = clusters.get(c)
+
+    const c = scalar_chunks.length / num_threads
+    for (let i = 0; i < c; i ++) {
+        const pt_idx = thread_idx * c + i
+        const chunk = scalar_chunks[i]
+        const g = clusters.get(chunk)
         if (g == undefined) {
-            clusters.set(c, [pt_idx])
+            clusters.set(chunk, [pt_idx])
         } else {
             g.push(pt_idx)
-            clusters.set(c, g)
+            clusters.set(chunk, g)
         }
     }
 
