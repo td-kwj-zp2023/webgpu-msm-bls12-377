@@ -105,7 +105,7 @@ export async function create_ell_sparse_matrices_from_points_benchmark(
 ): Promise<{x: bigint, y: bigint}> {
     const points = baseAffinePoints.map((x) => bigIntPointToExtPointType(x, fieldMath))
     const ell_sms = await create_ell_sparse_matrices_from_points(points, scalars, num_threads)
-    //console.log(ell_sms)
+    console.log(ell_sms)
     return { x: BigInt(0), y: BigInt(1) }
 }
 
@@ -125,7 +125,8 @@ export async function create_ell_sparse_matrices_from_points(
     // Decompose scalars
     const decomposed_scalars = decompose_scalars(scalars, num_words, word_size)
 
-    const ell_sms: ELLSparseMatrix[] = []
+    const ell_sms_serial: ELLSparseMatrix[] = []
+    let ell_sms_webworkers: ELLSparseMatrix[] = []
 
     const web_worker = async (
         points: ExtPointType[],
@@ -144,31 +145,18 @@ export async function create_ell_sparse_matrices_from_points(
 
     if (true) {
         const start_webworkers = Date.now()
-        const h = navigator.hardwareConcurrency
-        const total_runs = decomposed_scalars.length
-        const num_parallel_runs = Math.ceil(total_runs / h)
-        for (let i = 0; i < num_parallel_runs; i ++) {
-            const promises = []
-            for (let j = 0; j < h; j ++) {
-                const run_idx = i * h + j
-                if (run_idx === total_runs) {
-                    break
-                }
-                promises.push(web_worker(points, decomposed_scalars[run_idx], num_threads))
-            }
-            const results = await Promise.all(promises)
-            for (const r of results) {
-                ell_sms.push(new ELLSparseMatrix(r.data, r.col_idx, r.row_length))
-            }
+        const promises = []
+        for (let i = 0; i < decomposed_scalars.length; i ++) {
+            promises.push(web_worker(points, decomposed_scalars[i], num_threads))
         }
+        ell_sms_webworkers = await Promise.all(promises)
+
         const elapsed_webworkers = Date.now() - start_webworkers
         console.log(`Webworkers took ${elapsed_webworkers}ms`)
-        console.log('from webworkers:', ell_sms)
     }
 
     if (true) {
-        const start_cpu = Date.now()
-        const ell_sms_cpu: ELLSparseMatrix[] = []
+        const start_serial = Date.now()
 
         // For each set of decomposed scalars (e.g. the 0th chunks of each scalar,
         // the 1th chunks, etc, generate an ELL sparse matrix
@@ -178,13 +166,28 @@ export async function create_ell_sparse_matrices_from_points(
                 scalar_chunks,
                 num_threads,
             )
-            ell_sms_cpu.push(ell_sm)
+            ell_sms_serial.push(ell_sm)
         }
-        const elapsed_cpu = Date.now() - start_cpu
-        console.log(`CPU took ${elapsed_cpu}ms`)
-
-        console.log('serial:', ell_sms_cpu)
-        return ell_sms_cpu
+        const elapsed_serial = Date.now() - start_serial
+        console.log(`serial took ${elapsed_serial}ms`)
     }
-    return ell_sms
+
+    // Sanity check
+    assert(ell_sms_serial.length === ell_sms_webworkers.length)
+    for (let i = 0; i < ell_sms_serial.length; i ++) {
+        for (let j = 0; j < ell_sms_serial[i].data.length; j ++) {
+            assert(ell_sms_serial[i].data[j].length === ell_sms_serial[i].row_length[j])
+            assert(ell_sms_serial[i].col_idx[j].length === ell_sms_serial[i].row_length[j])
+            assert(ell_sms_serial[i].row_length[j] === ell_sms_webworkers[i].row_length[j])
+            for (let k = 0; k < ell_sms_serial[i].data[j].length; k ++) {
+                assert(ell_sms_serial[i].data[j][k].ex === ell_sms_webworkers[i].data[j][k].ex)
+                assert(ell_sms_serial[i].data[j][k].ey === ell_sms_webworkers[i].data[j][k].ey)
+                assert(ell_sms_serial[i].data[j][k].et === ell_sms_webworkers[i].data[j][k].et)
+                assert(ell_sms_serial[i].data[j][k].ez === ell_sms_webworkers[i].data[j][k].ez)
+                assert(ell_sms_serial[i].col_idx[j][k] === ell_sms_webworkers[i].col_idx[j][k])
+            }
+        }
+    }
+
+    return ell_sms_serial
 }

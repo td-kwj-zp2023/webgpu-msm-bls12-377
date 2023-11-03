@@ -11,11 +11,12 @@ import assert from 'assert'
  */
 export const pre_aggregate_cpu = (
     points: ExtPointType[],
+    scalar_chunks: number[],
     new_point_indices: number[],
     cluster_start_indices: number[],
 ) => {
     // Not the point at infinity!
-    const ZERO_POINT = fieldMath.createPoint(
+    const NULL_POINT = fieldMath.createPoint(
         BigInt(0),
         BigInt(0),
         BigInt(0),
@@ -26,6 +27,7 @@ export const pre_aggregate_cpu = (
     // original
     //const new_points = points.map((x) => x)
     const new_points: ExtPointType[] = []
+    const new_scalar_chunks: number[] = []
 
     for (let i = 0; i < cluster_start_indices.length; i ++) {
         // Example: [0, 1, 4, 7]
@@ -38,24 +40,30 @@ export const pre_aggregate_cpu = (
         let end_idx
         if (i === cluster_start_indices.length - 1) {
             // Case 3: we've reached the end of the array
-            end_idx = cluster_start_indices.length
+            end_idx = new_point_indices.length
         } else {
             // Cases 1, 2: end_idx is the next index
             end_idx = cluster_start_indices[i + 1]
         }
 
-        let acc = points[new_point_indices[start_idx]]
+        const p = points[new_point_indices[start_idx]]
+        let acc = fieldMath.createPoint(p.ex, p.ey, p.et, p.ez)
         new_points.push(acc)
+        new_scalar_chunks.push(scalar_chunks[new_point_indices[start_idx]])
 
         // This for loop won't execute for Case 1 because 0 + 1 is not smaller
         // than 1
         for (let j = start_idx + 1; j < end_idx; j ++) {
-            acc = acc.add(points[new_point_indices[j]])
+            const p = points[new_point_indices[j]]
+            const pt = fieldMath.createPoint(p.ex, p.ey, p.et, p.ez)
+            acc = acc.add(pt)
             new_points.push(acc)
-            new_points[j - 1] = ZERO_POINT
+            new_points[j - 1] = NULL_POINT
+            new_scalar_chunks.push(scalar_chunks[new_point_indices[j]])
+            new_scalar_chunks[j - 1] = 0
         }
     }
-    return new_points
+    return { new_points, new_scalar_chunks }
 }
 
 /*
@@ -156,74 +164,7 @@ export const prep_for_cluster_method = (
     return { new_point_indices, cluster_start_indices }
 }
 
-// Compute a "plan" which helps the parent algo pre-aggregate the points which
-// share the same scalar chunk.
-export const gen_add_to = (
-    chunks: number[]
-): { add_to: number[], new_chunks: number[] } => {
-    const new_chunks = chunks.map((x) => x)
-    const occ = new Map()
-    const track = new Map()
-    for (let i = 0; i < chunks.length; i ++) {
-        const chunk = chunks[i]
-        if (occ.get(chunk) != undefined) {
-            occ.get(chunk).push(i)
-        } else {
-            occ.set(chunk, [i])
-        }
-
-        track.set(chunk, 0)
-    }
-
-    const add_to = Array.from(new Uint8Array(chunks.length))
-    for (let i = 0; i < chunks.length; i ++) {
-        const chunk = chunks[i]
-        const t = track.get(chunk)
-        if (t === occ.get(chunk).length - 1 || chunk === 0) {
-            continue
-        }
-
-        add_to[i] = occ.get(chunk)[t + 1]
-        track.set(chunk, t + 1)
-        new_chunks[i] = 0
-    }
-
-    // Sanity check
-    assert(add_to.length === chunks.length)
-    assert(add_to.length === new_chunks.length)
-
-    return { add_to, new_chunks }
-}
-
-export function merge_points(
-    points: ExtPointType[],
-    add_to: number[],
-    zero_point: ExtPointType,
-) {
-    // merged_points will contain points that have been accumulated based on common scalar chunks.
-    // e.g. if points == [P1, P2, P3, P4] and scalar_chunks = [1, 1, 2, 3],
-    // merged_points will equal [0, P1 + P2, P3, P4]
-    const merged_points = points.map((x) => fieldMath.createPoint(x.ex, x.ey, x.et, x.ez))
-
-    // Next, add up the points whose scalar chunks match
-    for (let i = 0; i < add_to.length; i ++) {
-        if (add_to[i] != 0) {
-            const cur = merged_points[i]
-            merged_points[add_to[i]] = merged_points[add_to[i]].add(cur)
-            merged_points[i] = zero_point
-        }
-    }
-
-    return merged_points
-}
-
 const fieldMath = new FieldMath()
-const ZERO_POINT = fieldMath.createPoint(
-    BigInt(0),
-    BigInt(1),
-    BigInt(0),
-    BigInt(1),
-)
 
 export function create_ell(
     points: ExtPointType[],
@@ -235,71 +176,34 @@ export function create_ell(
     const col_idx: number[][] = []
     const row_length: number[] = []
 
-    for (let i = 0; i < num_threads; i ++) {
-        // Take each num_thread-th chunk only (each row)
-        const chunks: number[] = []
-        for (let j = 0; j < num_cols; j ++) {
-            const idx = i * num_cols + j
-            const c = scalar_chunks[idx]
-            chunks.push(c)
-        }
-
-        // Pre-aggregate points per row
-        const { add_to, new_chunks } = gen_add_to(chunks)
-        const merged_points = merge_points(
-            points,
-            add_to,
-            ZERO_POINT,
+    for (let thread_idx = 0; thread_idx < num_threads; thread_idx ++) {
+        const { new_point_indices, cluster_start_indices } = prep_for_sort_method(
+            scalar_chunks,
+            thread_idx,
+            num_threads,
+        )
+        const { new_points, new_scalar_chunks } = pre_aggregate_cpu(
+            points, 
+            scalar_chunks,
+            new_point_indices,
+            cluster_start_indices,
         )
 
         const pt_row: ExtPointType[] = []
         const idx_row: number[] = []
+
         for (let j = 0; j < num_cols; j ++) {
-            const point_idx = num_cols * i + j
-            const pt = merged_points[point_idx]
-            if (new_chunks[point_idx] !== 0) {
-                pt_row.push(pt)
-                idx_row.push(new_chunks[point_idx])
+            // Only insert the non-zero elements
+            if (new_scalar_chunks[j] !== 0) {
+                pt_row.push(new_points[j])
+                idx_row.push(new_scalar_chunks[j])
             }
         }
+
         data.push(pt_row)
         col_idx.push(idx_row)
         row_length.push(pt_row.length)
     }
-    const ell_sm = new ELLSparseMatrix(data, col_idx, row_length)
-    return ell_sm
 
-    /*
-    // Precompute the indices for the points to merge
-    const { add_to, new_chunks } = gen_add_to(scalar_chunks)
-    const merged_points = merge_points(
-        points,
-        add_to,
-        ZERO_POINT,
-    )
-
-    // Create an ELL sparse matrix using merged_points and new_chunks
-    const num_cols = points.length / num_threads
-    const data: ExtPointType[][] = []
-    const col_idx: number[][] = []
-    const row_length: number[] = []
-    
-    for (let i = 0; i < num_threads; i ++) {
-        const pt_row: ExtPointType[] = []
-        const idx_row: number[] = []
-        for (let j = 0; j < num_cols; j ++) {
-            const point_idx = num_cols * i + j
-            const pt = merged_points[point_idx]
-            if (new_chunks[point_idx] !== 0) {
-                pt_row.push(pt)
-                idx_row.push(new_chunks[point_idx])
-            }
-        }
-        data.push(pt_row)
-        col_idx.push(idx_row)
-        row_length.push(pt_row.length)
-    }
-    const ell_sm = new ELLSparseMatrix(data, col_idx, row_length)
-    return ell_sm
-    */
+    return new ELLSparseMatrix(data, col_idx, row_length)
 }
