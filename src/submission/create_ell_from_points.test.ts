@@ -35,41 +35,6 @@ const create_test_scalars = (num_inputs: number) => {
     return scalars
 }
 
-// The performance of this algorithm is not great
-const naive_gen_add_to = (chunks: number[]): { add_to: number[], new_chunks: number[] } => {
-    const add_to: number[] = []
-    const new_chunks: number[] = []
-
-    for (let i = 0; i < chunks.length; i ++) {
-        let val = 0
-        if (chunks[i] > 0) {
-            for (let j = i + 1; j < chunks.length; j ++) {
-                if (chunks[i] === chunks[j]) {
-                    val = j
-                    break
-                }
-            }
-        }
-        add_to.push(val)
-
-        if (chunks.slice(i + 1).includes(chunks[i])) {
-            new_chunks.push(0)
-        } else {
-            new_chunks.push(chunks[i])
-        }
-    }
-    return { add_to, new_chunks }
-}
-
-const gen_random_test_case = (num_scalar_chunks: number, max: number) => {
-    const scalar_chunks: number[] = []
-    for (let i = 0; i < num_scalar_chunks; i ++) {
-        const r = Math.floor(Math.random() * max)
-        scalar_chunks.push(r)
-    }
-    return scalar_chunks
-}
-
 // Sanity-check the output of the prep functions
 const check_new_point_indices = (
     scalar_chunks: number[],
@@ -156,6 +121,17 @@ describe('Create an ELL sparse matrix from the MSM input points and scalars', ()
                 r.new_point_indices,
             )
 
+            const expected_new_scalar_chunks = [
+                test_scalar_chunks[3],
+                test_scalar_chunks[1],
+                0,
+                test_scalar_chunks[0],
+                0,
+                0,
+                test_scalar_chunks[4],
+                test_scalar_chunks[6],
+            ]
+
             const expected_new_points = [
                 test_points[3],
                 test_points[1],
@@ -167,15 +143,17 @@ describe('Create an ELL sparse matrix from the MSM input points and scalars', ()
                 test_points[6],
             ]
 
-            debugger
-            const new_points = pre_aggregate_cpu(
+            const { new_points, new_scalar_chunks } = pre_aggregate_cpu(
                 test_points, 
+                test_scalar_chunks,
                 r.new_point_indices,
                 r.cluster_start_indices,
             )
             expect(new_points.length).toEqual(expected_new_points.length)
+            expect(new_scalar_chunks.length).toEqual(expected_new_scalar_chunks.length)
             for (let i = 0; i < expected_new_points.length; i ++) {
                 expect(new_points[i]).toEqual(expected_new_points[i])
+                expect(new_scalar_chunks[i]).toEqual(expected_new_scalar_chunks[i])
             }
         })
 
@@ -238,8 +216,9 @@ describe('Create an ELL sparse matrix from the MSM input points and scalars', ()
                         )
                     }
 
-                    const new_points = pre_aggregate_cpu(
+                    const { new_points, new_scalar_chunks } = pre_aggregate_cpu(
                         points, 
+                        scalar_chunks,
                         new_point_indices,
                         cluster_start_indices,
                     )
@@ -331,8 +310,9 @@ describe('Create an ELL sparse matrix from the MSM input points and scalars', ()
                         )
                     }
 
-                    const new_points = pre_aggregate_cpu(
+                    const { new_points, new_scalar_chunks } = pre_aggregate_cpu(
                         points, 
+                        scalar_chunks,
                         new_point_indices,
                         cluster_start_indices,
                     )
@@ -340,121 +320,4 @@ describe('Create an ELL sparse matrix from the MSM input points and scalars', ()
             }
         })
     })
-
-    // create_ell_sparse_matrices_from_points only works in the browser because
-    // it uses navigator.hardwareConcurrency and web workers
-    /*
-    describe('generate ELL sparse matrices from MSM inputs', () => {
-        it('static example test case', async () => {
-            // TODO: we need to refactor matrices.ts
-            const num_inputs = 8
-            const ext_points = create_test_points(num_inputs)
-            const points = ext_points.map(extPointTypeToBigIntPoint)
-            const scalars = [4, 0, 7, 3, 0, 3, 4, 3].map((x) => BigInt(x))
-            const num_threads = 4
-            const ell_sms = await create_ell_sparse_matrices_from_points(points, scalars, num_threads)
-            const ell_sm = ell_sms[0]
-            // (P_0 + P_6) * 4 +
-            // (P_2) * 7 +
-            // (P_3 + P_5 + P_7) * 3
-            ell_sm.data = ell_sm.data.map((x) => x.map(extPointTypeToBigIntPoint))
-            const csr_sm = await (new CSRSparseMatrix([], [], [])).ell_to_csr_sparse_matrix(ell_sm)
-            const vp = await csr_sm.smtvp([1, 1, 1, 1].map((x) => BigInt(x)))
-
-            const pt_3 = ext_points[3].add(ext_points[5]).add(ext_points[7])
-            const pt_4 = ext_points[0].add(ext_points[6])
-            const pt_7 = ext_points[0].add(ext_points[6])
-
-            expect(vp[3] === pt_3)
-            expect(vp[4] === pt_4)
-            expect(vp[7] === pt_7)
-        })
-
-        it('random test cases', () => {
-            const num_inputs = 65536
-            const points = create_test_points(num_inputs)
-            const scalars: bigint[] = []
-            for (let i = 0; i < num_inputs; i ++) {
-                scalars.push(genRandomFieldElement(p))
-            }
-            const bigintAffinePoints = []
-            for (const point of points) {
-                const p = point.toAffine()
-
-                bigintAffinePoints.push({
-                    x: p.x,
-                    y: p.y,
-                    t: fieldMath.Fp.mul(p.x, p.y),
-                    z: BigInt(1),
-                })
-            }
-
-            const num_threads = 16
-            const ell_sms = create_ell_sparse_matrices_from_points(bigintAffinePoints, scalars, num_threads)
-            //TODO: add checks here
-        })
-    })
-
-    describe('generate the add_to array', () => {
-        it('static example test case', () => {
-            const points = create_test_points(20)
-            const scalar_chunks = [
-                3, 2, 3, 1, 4,
-                4, 5, 4, 7, 9,
-                1, 0, 1, 0, 1,
-                2, 5, 9, 9, 3,
-            ]
-
-            const { add_to, new_chunks } = gen_add_to(scalar_chunks)
-
-            const expected_add_to = [
-                2, 15, 19, 10, 5,
-                7, 16, 0, 0, 17,
-                12, 0, 14, 0, 0,
-                0, 0, 18, 0, 0
-            ]
-
-            const expected_new_chunks = [
-                0, 0, 0, 0, 0,
-                0, 0, 4, 7, 0,
-                0, 0, 0, 0, 1,
-                2, 5, 0, 9, 3
-            ]
-
-            const e = naive_gen_add_to(scalar_chunks)
-
-            expect(e.add_to).toEqual(add_to)
-            expect(e.add_to).toEqual(expected_add_to)
-            expect(e.new_chunks).toEqual(new_chunks)
-            expect(e.new_chunks).toEqual(expected_new_chunks)
-
-            const ZERO_POINT = fieldMath.createPoint(
-                BigInt(0),
-                BigInt(1),
-                BigInt(0),
-                BigInt(1),
-            )
-            const merged_points = merge_points(points, add_to, ZERO_POINT)
-            for (let i = 0; i < merged_points.length; i ++) {
-                if (new_chunks[i] === 0) {
-                    // Ignore this case because we'll ignore points whose
-                    // corresponding scalar chunk equals 0 anyway
-                } else {
-                    expect(merged_points[i]).not.toEqual(ZERO_POINT)
-                }
-            }
-        })
-
-        it('random test cases', () => {
-            const num_tests = 1000
-            for (let i = 0; i < num_tests; i ++) {
-                const scalar_chunks = gen_random_test_case(num_words, 10)
-                const e = naive_gen_add_to(scalar_chunks)
-                const { add_to, new_chunks } = gen_add_to(scalar_chunks)
-                expect(add_to).toEqual(e.add_to)
-                expect(new_chunks).toEqual(e.new_chunks)
-            }
-        })
-    })
-    */
 })
