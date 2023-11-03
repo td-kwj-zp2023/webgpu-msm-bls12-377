@@ -4,7 +4,13 @@ import { bigIntToU32Array, generateRandomFields } from '../reference/webgpu/util
 import { BigIntPoint, U32ArrayPoint } from '../reference/types';
 import { webgpu_compute_msm, wasm_compute_msm, webgpu_pippenger_msm, webgpu_best_msm, wasm_compute_msm_parallel } from '../reference/reference';
 import { add_points_benchmarks } from '../submission/add_points_benchmarks';
-import { prep_for_cluster_method_webworkers_benchmark, prep_for_sort_method_webworkers_benchmark, create_ell_sparse_matrices_from_points_benchmark } from '../submission/create_ell_from_points';
+import { 
+    prep_for_sort_method_serial_benchmark,
+    prep_for_sort_method_webworkers_benchmark,
+    prep_for_cluster_method_serial_benchmark, 
+    prep_for_cluster_method_webworkers_benchmark, 
+    create_ell_sparse_matrices_from_points_benchmark
+} from '../submission/create_ell_from_points';
 import { create_ell_sparse_matrices_from_points_gpu_benchmark } from '../submission/create_ell_from_points_gpu';
 import { cuzk_typescript_serial, cuzk_typescript_web_workers, transpose_wgsl, smtvp_wgsl } from '../submission/submission';
 import CSVExportButton from './CSVExportButton';
@@ -244,12 +250,32 @@ export const AllBenchmarks: React.FC = () => {
         bold={true}
       />
       <Benchmark
+        name={'Prep for sort method (serial)'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={prep_for_sort_method_serial_benchmark}
+        postResult={postResult}
+        bold={true}
+      />
+      <Benchmark
         name={'Prep for sort method (Web Workers)'}
         disabled={disabledBenchmark}
         baseAffinePoints={baseAffineBigIntPoints}
         scalars={bigIntScalars}
         expectedResult={expectedResult}
         msmFunc={prep_for_sort_method_webworkers_benchmark}
+        postResult={postResult}
+        bold={true}
+      />
+      <Benchmark
+        name={'Prep for cluster method (serial)'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={prep_for_cluster_method_serial_benchmark}
         postResult={postResult}
         bold={true}
       />
