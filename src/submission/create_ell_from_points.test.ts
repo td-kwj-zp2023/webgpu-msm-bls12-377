@@ -265,6 +265,8 @@ describe('Create an ELL sparse matrix from the MSM input points and scalars', ()
         })
 
         // Serial performance in Node:
+        //   65536 inputs, 1024 threads: 408ms
+        //   65536 inputs, 256 threads: 400ms
         //   65536 inputs, 16 threads: 509ms
         //   65536 inputs, 8 threads: 719ms
         //   65536 inputs, 1 thread: 6567ms

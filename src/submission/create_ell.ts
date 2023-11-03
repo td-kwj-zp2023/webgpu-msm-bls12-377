@@ -46,6 +46,9 @@ export const pre_aggregate_cpu = (
 
         let acc = points[new_point_indices[start_idx]]
         new_points.push(acc)
+
+        // This for loop won't execute for Case 1 because 0 + 1 is not smaller
+        // than 1
         for (let j = start_idx + 1; j < end_idx; j ++) {
             acc = acc.add(points[new_point_indices[j]])
             new_points.push(acc)
@@ -55,6 +58,14 @@ export const pre_aggregate_cpu = (
     return new_points
 }
 
+/*
+ * This "prep" method is meant to prepare inputs to assist the pre-aggregation
+ * step. It sorts the scalar chunks, then calculates the cluster start indices.
+ * e.g. if the scalar chunks are [3, 1, 3],
+ * the sorted scalar chunks are [1, 3, 3], and
+ * cluster_start_indices will be [0, 1, 2]
+ * new_point_indices will be [1, 0, 2] 
+ */
 export const prep_for_sort_method = (
     scalar_chunks: number[],
     thread_idx: number,
@@ -87,6 +98,20 @@ export const prep_for_sort_method = (
     return { new_point_indices, cluster_start_indices }
 }
 
+/*
+ * This "prep" method is meant to prepare inputs to assist the pre-aggregation
+ * step. Instead of sorting the entire array, it just tallies the indices of
+ * unique scalar chunks, then calculates the cluster start indices.
+ * e.g. if the scalar chunks are [3, 1, 3],
+ * the clustered scalar chunks are { 1: [1], 3: [0, 1]}
+ * The clustered scalar chunks are then flattened, with clusters with more than
+ * 1 element placed at the start of the array: [2, 0, 1]
+ * cluster_start_indices will be [0, 1, 2]
+ * new_point_indices will be [2, 0, 1] 
+ *
+ * This method is more efficient than prep_for_sort_method because the order of
+ * the clusters does not matter. What does matter is that they are clustered.
+ */
 export const prep_for_cluster_method = (
     scalar_chunks: number[],
     thread_idx: number,
