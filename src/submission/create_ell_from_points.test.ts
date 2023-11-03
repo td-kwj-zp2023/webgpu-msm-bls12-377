@@ -104,8 +104,12 @@ const check_new_point_indices = (
     }
 }
 
+import * as fs from 'fs'
+import * as path from 'path'
+
 describe('Create an ELL sparse matrix from the MSM input points and scalars', () => {
     const num_inputs = 65536
+    //const points: ExtPointType[] = []
     let points: ExtPointType[]
     let scalars: bigint[]
     const do_check = false
@@ -113,6 +117,25 @@ describe('Create an ELL sparse matrix from the MSM input points and scalars', ()
     beforeAll(() => {
         points = create_test_points(num_inputs)
         scalars = create_test_scalars(num_inputs)
+
+        /*
+        const pts_file = fs.readFileSync(
+            path.join(
+                __dirname,
+                '../../public/test-data/points/16-power-points.txt',
+            ),
+        ).toString()
+        for (const line of pts_file.split('\n')) {
+            const data = JSON.parse(line)
+            const pt = fieldMath.createPoint(
+                BigInt(data.x),
+                BigInt(data.y),
+                BigInt(data.t),
+                BigInt(data.z),
+            )
+            points.push(pt)
+        }
+        */
     })
 
     describe('pre-aggregation using the sort method', () => {
@@ -144,16 +167,16 @@ describe('Create an ELL sparse matrix from the MSM input points and scalars', ()
                 test_points[6],
             ]
 
+            debugger
             const new_points = pre_aggregate_cpu(
                 test_points, 
                 r.new_point_indices,
                 r.cluster_start_indices,
             )
-
+            expect(new_points.length).toEqual(expected_new_points.length)
             for (let i = 0; i < expected_new_points.length; i ++) {
                 expect(new_points[i]).toEqual(expected_new_points[i])
             }
-            expect(new_points.length).toEqual(expected_new_points.length)
         })
 
         // Serial performance in Node:
@@ -168,7 +191,7 @@ describe('Create an ELL sparse matrix from the MSM input points and scalars', ()
         //   65536 inputs, 16 threads: 915ms
         //   65536 inputs, 8 threads: 1019ms
         //   65536 inputs, 1 thread: 1197ms
-        it('run serially', () => {
+        it('prep_for_sort_method benchmark', () => {
             // Input: 
             //   - point indices (0 to len(points) - 1)
             //   - scalars
@@ -191,6 +214,22 @@ describe('Create an ELL sparse matrix from the MSM input points and scalars', ()
                         thread_idx,
                         num_threads
                     )
+                }
+            }
+        })
+
+        it('prep and then pre-aggregate benchmark', () => {
+            const num_threads = 16
+            const decomposed_scalars = decompose_scalars(scalars, num_words, word_size)
+
+            for (let scalar_chunk_idx = 0; scalar_chunk_idx < decomposed_scalars.length; scalar_chunk_idx ++) {
+                const scalar_chunks = decomposed_scalars[scalar_chunk_idx]
+                for (let thread_idx = 0; thread_idx < num_threads; thread_idx ++) {
+                    const { new_point_indices, cluster_start_indices }  = prep_for_sort_method(
+                        scalar_chunks,
+                        thread_idx,
+                        num_threads
+                    )
                     if (do_check) {
                         check_new_point_indices(
                             scalar_chunks,
@@ -198,14 +237,12 @@ describe('Create an ELL sparse matrix from the MSM input points and scalars', ()
                             new_point_indices,
                         )
                     }
-                    //const start = Date.now()
-                    //const new_points = pre_aggregate_cpu(
-                        //points, 
-                        //new_point_indices,
-                        //cluster_start_indices,
-                    //)
-                    //const elapsed = Date.now() - start
-                    //console.log(`CPU took ${elapsed}ms`)
+
+                    const new_points = pre_aggregate_cpu(
+                        points, 
+                        new_point_indices,
+                        cluster_start_indices,
+                    )
                 }
             }
         })
@@ -239,7 +276,7 @@ describe('Create an ELL sparse matrix from the MSM input points and scalars', ()
         //   65536 inputs, 16 threads: 259ms
         //   65536 inputs, 8 threads: 342ms
         //   65536 inputs, 1 thread: 2907
-        it('run serially', () => {
+        it('prep_for_cluster_method benchmark', () => {
             // Input: 
             //   - point indices (0 to len(points) - 1)
             //   - scalars
@@ -268,6 +305,35 @@ describe('Create an ELL sparse matrix from the MSM input points and scalars', ()
                             new_point_indices,
                         )
                     }
+                }
+            }
+        })
+
+        it('prep and then pre-aggregate benchmark', () => {
+            const num_threads = 16
+            const decomposed_scalars = decompose_scalars(scalars, num_words, word_size)
+
+            for (let scalar_chunk_idx = 0; scalar_chunk_idx < decomposed_scalars.length; scalar_chunk_idx ++) {
+                const scalar_chunks = decomposed_scalars[scalar_chunk_idx]
+                for (let thread_idx = 0; thread_idx < num_threads; thread_idx ++) {
+                    const { new_point_indices, cluster_start_indices }  = prep_for_cluster_method(
+                        scalar_chunks,
+                        thread_idx,
+                        num_threads
+                    )
+                    if (do_check) {
+                        check_new_point_indices(
+                            scalar_chunks,
+                            cluster_start_indices,
+                            new_point_indices,
+                        )
+                    }
+
+                    const new_points = pre_aggregate_cpu(
+                        points, 
+                        new_point_indices,
+                        cluster_start_indices,
+                    )
                 }
             }
         })

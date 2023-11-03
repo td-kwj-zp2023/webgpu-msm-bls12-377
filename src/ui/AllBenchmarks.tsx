@@ -270,6 +270,16 @@ export const AllBenchmarks: React.FC = () => {
         bold={true}
       />
       <Benchmark
+        name={'Prep (cluster method) and then pre-aggregate (CPU)'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={prep_for_sort_method_serial_benchmark}
+        postResult={postResult}
+        bold={true}
+      />
+      <Benchmark
         name={'Prep for cluster method (serial)'}
         disabled={disabledBenchmark}
         baseAffinePoints={baseAffineBigIntPoints}
