@@ -14,6 +14,7 @@ import field_functions from '../submission/wgsl/field/field.template.wgsl'
 import mont_pro_optimised_shader from '../submission/wgsl/montgomery/mont_pro_optimized.template.wgsl'
 import mont_pro_modified_shader from '../submission/wgsl/montgomery/mont_pro_modified.template.wgsl'
 import mont_pro_cios_shader from '../submission/wgsl/montgomery/mont_pro_cios.template.wgsl'
+import montgomery_product_funcs from '../submission/wgsl/montgomery/mont_pro_product.template.wgsl'
 
 //import { our_msm } from '../submission/entries/entry'
 import React, { useEffect } from 'react';
@@ -84,8 +85,10 @@ export const MontProOptimised: React.FC = () => {
                             curve_functions,
                             curve_parameters,
                             field_functions,
+                            montgomery_product_funcs,
                         }
                     )
+                    //console.log(shaderCode)
                 }  else if (word_size > 13 && word_size < 16) {
                     console.log(`Performing ${num_inputs} (a ^ ${cost} * b * r) (using MontProModified) with ${word_size}-bit limbs over ${num_runs} runs on ${num_x_workgroups} workgroups`)
                     shaderCode = mustache.render(
