@@ -39,7 +39,7 @@ export async function create_ell_sparse_matrices_from_points_gpu(
 
     const ell_sms_serial: ELLSparseMatrix[] = []
     for (const scalar_chunks of decomposed_scalars) {
-        const ell_sm = create_ell_gpu(
+        const ell_sm = await create_ell_gpu(
             points,
             scalar_chunks,
             num_threads,

@@ -5,6 +5,7 @@ import {
     gen_p_limbs,
     bigints_to_u8_for_gpu,
 } from '../submission/utils'
+import { get_device } from '../submission/gpu'
 import structs from '../submission/wgsl/struct/structs.template.wgsl'
 import bigint_functions from '../submission/wgsl/bigint/bigint.template.wgsl'
 import curve_functions from '../submission/wgsl/curve/ec.template.wgsl'
@@ -144,16 +145,7 @@ export const MontProOptimised: React.FC = () => {
 
                     const input_bytes = bigints_to_u8_for_gpu(inputs, num_words, word_size)
 
-                    const gpuErrMsg = "Please use a browser that has WebGPU enabled.";
-                    const adapter = await navigator.gpu.requestAdapter({
-                        powerPreference: 'high-performance',
-                    });
-                    if (!adapter) {
-                        console.log(gpuErrMsg)
-                        throw Error('Couldn\'t request WebGPU adapter.')
-                    }
-
-                    const device = await adapter.requestDevice()
+                    const device = await get_device()
 
                     // 2: Create a shader module from the shader template literal
                     const shaderModule = device.createShaderModule({
