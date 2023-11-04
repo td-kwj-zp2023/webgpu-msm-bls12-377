@@ -19,7 +19,7 @@ import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
 
 export const AllBenchmarks: React.FC = () => {
   //const initialDefaultInputSize = 1_000;
-  const initialDefaultInputSize = 65536;
+  const initialDefaultInputSize = 65536
   const [inputSize, setInputSize] = useState(initialDefaultInputSize);
   const [power, setPower] = useState<string>('2^0');
   const [inputSizeDisabled, setInputSizeDisabled] = useState(false);

@@ -12,7 +12,7 @@ export async function get_device() {
     return device
 }
 
-export const create_bind_group = (device: GPUDevice,layout: GPUBindGroupLayout, buffers: GPUBuffer[]) => {
+export const create_bind_group = (device: GPUDevice, layout: GPUBindGroupLayout, buffers: GPUBuffer[]) => {
     const entries: any[] = []
     for (let i = 0; i < buffers.length; i ++) {
         entries.push({

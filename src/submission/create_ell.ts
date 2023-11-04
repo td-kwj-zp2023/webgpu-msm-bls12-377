@@ -1,11 +1,20 @@
 import { FieldMath } from "../reference/utils/FieldMath";
 import { ELLSparseMatrix } from './matrices/matrices'; 
+import { get_device, create_bind_group } from '../submission/gpu'
+import { BigIntPoint } from "../reference/types"
+import {
+    gen_p_limbs,
+    u8s_to_points,
+    compute_misc_params,
+    points_to_u8s_for_gpu,
+    numbers_to_u8s_for_gpu,
+} from './utils'
+import create_ell_shader from '../submission/wgsl/create_ell.template.wgsl'
 
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import assert from 'assert'
+import mustache from 'mustache'
 
-// Only compute new_scalar_chunks; this should be used by the GPU
-// implementation but not done in the GPU
 export const compute_new_scalar_chunks = (
     scalar_chunks: number[],
     new_point_indices: number[],
@@ -170,16 +179,6 @@ export const prep_for_cluster_method = (
         prev_chunk = scalar_chunks[new_point_indices[i]]
     }
 
-    /*
-    let prev_chunk = scalar_chunks[new_point_indices[0]]
-    for (let i = 1; i < new_point_indices.length; i ++) {
-        if (prev_chunk !== scalar_chunks[new_point_indices[i]]) {
-            cluster_start_indices.push(i)
-        }
-        prev_chunk = scalar_chunks[new_point_indices[i]]
-    }
-    */
-
     return { new_point_indices, cluster_start_indices }
 }
 
@@ -228,7 +227,7 @@ export function create_ell(
 
 // Create an ELL sparse matrix from all the points of the MSM and a set of
 // scalar chunks
-export function create_ell_gpu(
+export async function create_ell_gpu(
     points: ExtPointType[],
     scalar_chunks: number[],
     num_rows: number,
@@ -236,48 +235,252 @@ export function create_ell_gpu(
     const data: ExtPointType[][] = []
     const col_idx: number[][] = []
     const row_length: number[] = []
+    const num_x_workgroups = 256
 
+    // This shader should compute a row of the sparse matrix.
+    // new_point_indices and cluster_start_indices should be computed in the CPU
+    //
+    // Input buffers:
+    //   - points
+    //   - scalar_chunks
+    //   - new_point_indices
+    //   - cluster_start_indices, up to stop_at
+    //
+    //   r = num_rows
+    //   j = n / r
+    //   s = stop_at
+    //   s <= j
+    //
+    //   points: [P0, ..., Pn]
+    //   scalar_chunks: [C0, ..., Cn]
+    //   new_point_indices: [
+    //                        N0_0, ..., N0_j,
+    //                        ...,
+    //                        Nr_0, ..., Nr_j
+    //                      ]
+    //   cluster_start_indices: [
+    //                            S0_0, ..., S0_s,
+    //                            ...,
+    //                            Sr_0, ..., Sr_s,
+    //                          ]
+    //
+    // Output buffers:
+    //   - new_points
+    //   - new_scalar_chunks
+    //
+    //   new_points: [
+    //                 newP0_0, ..., newP0_j, 
+    //                 ...,
+    //                 newPr_0, ..., newPr_j, 
+    //               ]
+    //
+    // Shader logic:
+    //   gidx = global_id.x
+    //   gidy = global_id.y
+    //
+    //   start_idx = cluster_start_indices[gidx * 2u]
+    //   end_idx = cluster_start_indices[gidx * 2u] + 1
+    //
+    //   pt = points[gidy + new_point_indices[start_idx]]
+    //
+    //   for (i in range(start_idx + 1u, end_idx):
+    //      pt = add_points(pt, points[gidy + new_point_indices[i]])
+    //
+    //   new_points[gidx] = pt
+    //   new_scalar_chunks[gidx] = scalar_chunks[gidy + new_point_indices[start_idx]]
+
+    const all_new_point_indices = []
+    const all_cluster_start_indices = []
     for (let row_idx = 0; row_idx < num_rows; row_idx ++) {
         const { new_point_indices, cluster_start_indices } = prep_for_cluster_method(
             scalar_chunks,
             row_idx,
             num_rows,
         )
-        let i = cluster_start_indices.length - 1
-        let prev = cluster_start_indices[i]
-        let num_singles = 0
-        for (i = cluster_start_indices.length - 2; i >= 0; i --) {
-            if (prev - cluster_start_indices[i] === 1) {
-                num_singles ++
-            } else {
-                break
-            }
-            prev = cluster_start_indices[i]
-        }
-
-        const stop_at = i + 1
-
         // Append the final end_idx
         cluster_start_indices.push(points.length / num_rows)
 
-        // This shader should compute a row of the sparse matrix.
-        // new_point_indices and cluster_start_indices should be computed in the CPU
-        // Input buffers:
-        //   - points
-        //   - scalar_chunks
-        //   - new_point_indices
-        //   - cluster_start_indices, up to stop_at
-        // Output buffers:
-        //   - new_points
-        //   - new_scalar_chunks
-        // Shader logic:
-        //   start_idx = cluster_start_indices[global_id.x]
-        //   end_idx = cluster_start_indices[global_id.x] + 1 TODO: check for the end
-        //   pt = points[global_id.y + new_point_indices[start_idx]]
-        //   for (i in range(start_idx + 1, end_idx):
-        //      pt = add_points(pt, points[global_id.y + new_point_indices[i]])
-        //   new_points[global_id.x] = pt
+        for (const a of new_point_indices) {
+            all_new_point_indices.push(a)
+        }
+        for (const a of cluster_start_indices) {
+            all_cluster_start_indices.push(a)
+        }
     }
+
+    const word_size = 13
+    const p = BigInt('0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001')
+
+    const params = compute_misc_params(p, word_size)
+    const num_words = params.num_words
+    const r = params.r
+    //const n0 = params.n0
+    //const rinv = params.rinv
+
+    // Convert points to Montgomery coordinates
+    // In the actual impl, this should be done inside the shader
+    const points_with_mont_coords: BigIntPoint[] = []
+    for (const pt of points) {
+        points_with_mont_coords.push(
+            {
+                x: fieldMath.Fp.mul(pt.ex, r),
+                y: fieldMath.Fp.mul(pt.ey, r),
+                t: fieldMath.Fp.mul(pt.et, r),
+                z: fieldMath.Fp.mul(pt.ez, r),
+            }
+        )
+    }
+
+    // Convert inputs to bytes
+    const points_bytes = points_to_u8s_for_gpu(points_with_mont_coords, num_words, word_size)
+    const scalar_chunks_bytes = numbers_to_u8s_for_gpu(scalar_chunks)
+    const all_new_point_indices_bytes = numbers_to_u8s_for_gpu(all_new_point_indices)
+    const all_cluster_start_indices_bytes = numbers_to_u8s_for_gpu(all_cluster_start_indices)
+
+    const device = await get_device()
+    const points_storage_buffer = device.createBuffer({
+        size: points_bytes.length,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC // read-only
+    });
+    const scalar_chunks_storage_buffer = device.createBuffer({
+        size: scalar_chunks_bytes.length,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC // read-only
+    });
+    const all_new_point_indices_storage_buffer = device.createBuffer({
+        size: all_new_point_indices_bytes.length,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC // read-only
+    });
+    const all_cluster_start_indices_storage_buffer = device.createBuffer({
+        size: all_cluster_start_indices_bytes.length,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC // read-only
+    });
+
+    device.queue.writeBuffer(points_storage_buffer, 0, points_bytes);
+    device.queue.writeBuffer(scalar_chunks_storage_buffer, 0, scalar_chunks_bytes);
+    device.queue.writeBuffer(all_new_point_indices_storage_buffer, 0, all_new_point_indices_bytes);
+    device.queue.writeBuffer(all_cluster_start_indices_storage_buffer, 0, all_cluster_start_indices_bytes);
+
+    // Output buffers
+    const new_points_storage_buffer = device.createBuffer({
+        size: points_bytes.length,
+        usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST
+    });
+
+    const new_scalar_chunks_storage_buffer = device.createBuffer({
+        size: scalar_chunks_bytes.length,
+        usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST
+    });
+
+    const bindGroupLayout = device.createBindGroupLayout({
+        entries: [
+            { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } },
+            { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } },
+            { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } },
+            { binding: 3, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } },
+            { binding: 4, visibility: GPUShaderStage.COMPUTE, buffer: { type: "storage" } },
+            { binding: 5, visibility: GPUShaderStage.COMPUTE, buffer: { type: "storage" } },
+        ]
+    });
+
+    const bindGroup = create_bind_group(
+        device, 
+        bindGroupLayout,
+        [
+            points_storage_buffer,
+            scalar_chunks_storage_buffer,
+            all_new_point_indices_storage_buffer,
+            all_cluster_start_indices_storage_buffer,
+            new_points_storage_buffer,
+            new_scalar_chunks_storage_buffer,
+        ],
+    )
+
+    const shaderCode = mustache.render(
+        create_ell_shader,
+        {
+            //num_words,
+            //word_size,
+            //n0,
+            //mask,
+            //two_pow_word_size,
+            //cost,
+            //p_limbs,
+        },
+        {
+            //structs,
+            //bigint_functions,
+            //curve_functions,
+            //curve_parameters,
+            //field_functions,
+        }
+    )
+
+    const shaderModule = device.createShaderModule({
+        code: shaderCode
+    })
+
+    const computePipeline = device.createComputePipeline({
+        layout: device.createPipelineLayout({
+            bindGroupLayouts: [bindGroupLayout]
+        }),
+        compute: {
+            module: shaderModule,
+            entryPoint: 'main'
+        }
+    });
+
+    const commandEncoder = device.createCommandEncoder()
+    const passEncoder = commandEncoder.beginComputePass()
+    passEncoder.setPipeline(computePipeline)
+    passEncoder.setBindGroup(0, bindGroup)
+    passEncoder.dispatchWorkgroups(num_x_workgroups)
+    passEncoder.end()
+
+    const new_points_staging_buffer = device.createBuffer({
+        size: points_bytes.length,
+        usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST
+    });
+    const new_scalar_chunks_staging_buffer = device.createBuffer({
+        size: scalar_chunks_bytes.length,
+        usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST
+    });
+
+    commandEncoder.copyBufferToBuffer(
+        new_points_storage_buffer,
+        0,
+        new_points_staging_buffer,
+        0,
+        new_points_storage_buffer.size
+    );
+    commandEncoder.copyBufferToBuffer(
+        new_scalar_chunks_storage_buffer,
+        0,
+        new_scalar_chunks_staging_buffer,
+        0,
+        new_scalar_chunks_storage_buffer.size
+    );
+
+    device.queue.submit([commandEncoder.finish()]);
+
+    // map staging buffers to read results back to JS
+    await new_points_staging_buffer.mapAsync(
+        GPUMapMode.READ,
+        0,
+        new_points_storage_buffer.size
+    );
+    await new_scalar_chunks_staging_buffer.mapAsync(
+        GPUMapMode.READ,
+        0,
+        new_scalar_chunks_storage_buffer.size
+    );
+
+    const np = new_points_staging_buffer.getMappedRange(0, new_points_storage_buffer.size)
+    const new_points_data = np.slice(0)
+    new_points_staging_buffer.unmap()
+
+    const ns = new_points_staging_buffer.getMappedRange(0, new_points_storage_buffer.size)
+    const new_scalar_chunks_data = ns.slice(0)
+    new_points_staging_buffer.unmap()
 
     return new ELLSparseMatrix(data, col_idx, row_length)
 }
