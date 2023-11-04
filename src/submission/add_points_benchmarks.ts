@@ -9,7 +9,6 @@ import add_points_any_a_shader from '../submission/wgsl/add_points_any_a.templat
 import add_points_a_minus_one_shader from '../submission/wgsl/add_points_a_minus_one.template.wgsl'
 import structs from '../submission/wgsl/struct/structs.template.wgsl'
 import bigint_funcs from '../submission/wgsl/bigint/bigint.template.wgsl'
-import { get_device, create_bind_group } from './gpu'
 import { add_points_any_a, add_points_a_minus_one } from './add_points'
 import { GPUExecution, IEntryInfo, IGPUInput, IGPUResult, IShaderCode, multipassEntryCreator } from "./entries/multipassEntryCreator";
 

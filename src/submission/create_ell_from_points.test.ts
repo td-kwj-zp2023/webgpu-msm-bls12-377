@@ -124,10 +124,7 @@ describe('Create an ELL sparse matrix from the MSM input points and scalars', ()
             const expected_new_scalar_chunks = [
                 test_scalar_chunks[3],
                 test_scalar_chunks[1],
-                0,
                 test_scalar_chunks[0],
-                0,
-                0,
                 test_scalar_chunks[4],
                 test_scalar_chunks[6],
             ]
@@ -135,10 +132,7 @@ describe('Create an ELL sparse matrix from the MSM input points and scalars', ()
             const expected_new_points = [
                 test_points[3],
                 test_points[1],
-                fieldMath.createPoint(BigInt(0), BigInt(0), BigInt(0), BigInt(0)),
                 test_points[0].add(test_points[2]),
-                fieldMath.createPoint(BigInt(0), BigInt(0), BigInt(0), BigInt(0)),
-                fieldMath.createPoint(BigInt(0), BigInt(0), BigInt(0), BigInt(0)),
                 test_points[4].add(test_points[5]).add(test_points[7]),
                 test_points[6],
             ]
