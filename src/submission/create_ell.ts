@@ -4,10 +4,31 @@ import { ELLSparseMatrix } from './matrices/matrices';
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import assert from 'assert'
 
+// Only compute new_scalar_chunks; this should be used by the GPU
+// implementation but not done in the GPU
+export const compute_new_scalar_chunks = (
+    scalar_chunks: number[],
+    new_point_indices: number[],
+    cluster_start_indices: number[],
+) => {
+    const new_scalar_chunks: number[] = []
+
+    for (let i = 0; i < cluster_start_indices.length; i ++) {
+        const start_idx = cluster_start_indices[i]
+        if (scalar_chunks[new_point_indices[start_idx]] !== 0) {
+            new_scalar_chunks.push(scalar_chunks[new_point_indices[start_idx]])
+        }
+    }
+    return new_scalar_chunks
+}
+
 /*
  * @param: points All the input points of the MSM.
  * @param: new_point_indices The output of a prep function, such as prep_for_cluster_method
  * @param: cluster_start_indices The output of a prep function, such as prep_for_cluster_method
+ * @return { new_points, new_scalar_chunks }: an array of points and associated scalar chunks
+ * This function constructs a row of an ELL sparse matrix by pre-aggregating
+ * points with the same scalar chunk.
  */
 export const pre_aggregate_cpu = (
     points: ExtPointType[],
@@ -15,17 +36,6 @@ export const pre_aggregate_cpu = (
     new_point_indices: number[],
     cluster_start_indices: number[],
 ) => {
-    // Not the point at infinity!
-    const NULL_POINT = fieldMath.createPoint(
-        BigInt(0),
-        BigInt(0),
-        BigInt(0),
-        BigInt(0),
-    )
-
-    // Copy the points into a new array as we don't want to overwrite the
-    // original
-    //const new_points = points.map((x) => x)
     const new_points: ExtPointType[] = []
     const new_scalar_chunks: number[] = []
 
@@ -37,6 +47,10 @@ export const pre_aggregate_cpu = (
         // Case 3: 7, end
         
         const start_idx = cluster_start_indices[i]
+        if (scalar_chunks[new_point_indices[start_idx]] === 0) {
+            continue
+        }
+
         let end_idx
         if (i === cluster_start_indices.length - 1) {
             // Case 3: we've reached the end of the array
@@ -48,20 +62,13 @@ export const pre_aggregate_cpu = (
 
         const p = points[new_point_indices[start_idx]]
         let acc = fieldMath.createPoint(p.ex, p.ey, p.et, p.ez)
-        new_points.push(acc)
-        new_scalar_chunks.push(scalar_chunks[new_point_indices[start_idx]])
-
-        // This for loop won't execute for Case 1 because 0 + 1 is not smaller
-        // than 1
         for (let j = start_idx + 1; j < end_idx; j ++) {
             const p = points[new_point_indices[j]]
             const pt = fieldMath.createPoint(p.ex, p.ey, p.et, p.ez)
             acc = acc.add(pt)
-            new_points.push(acc)
-            new_points[j - 1] = NULL_POINT
-            new_scalar_chunks.push(scalar_chunks[new_point_indices[j]])
-            new_scalar_chunks[j - 1] = 0
         }
+        new_points.push(acc)
+        new_scalar_chunks.push(scalar_chunks[new_point_indices[start_idx]])
     }
     return { new_points, new_scalar_chunks }
 }
@@ -133,7 +140,7 @@ export const prep_for_cluster_method = (
     const c = scalar_chunks.length / num_threads
     for (let i = 0; i < c; i ++) {
         const pt_idx = thread_idx * c + i
-        const chunk = scalar_chunks[i]
+        const chunk = scalar_chunks[pt_idx]
         const g = clusters.get(chunk)
         if (g == undefined) {
             clusters.set(chunk, [pt_idx])
@@ -154,6 +161,7 @@ export const prep_for_cluster_method = (
         }
     }
 
+    // Build cluster_start_indices
     let prev_chunk = scalar_chunks[new_point_indices[0]]
     for (let i = 1; i < new_point_indices.length; i ++) {
         if (prev_chunk !== scalar_chunks[new_point_indices[i]]) {
@@ -161,6 +169,17 @@ export const prep_for_cluster_method = (
         }
         prev_chunk = scalar_chunks[new_point_indices[i]]
     }
+
+    /*
+    let prev_chunk = scalar_chunks[new_point_indices[0]]
+    for (let i = 1; i < new_point_indices.length; i ++) {
+        if (prev_chunk !== scalar_chunks[new_point_indices[i]]) {
+            cluster_start_indices.push(i)
+        }
+        prev_chunk = scalar_chunks[new_point_indices[i]]
+    }
+    */
+
     return { new_point_indices, cluster_start_indices }
 }
 
@@ -177,7 +196,7 @@ export function create_ell(
     const row_length: number[] = []
 
     for (let thread_idx = 0; thread_idx < num_threads; thread_idx ++) {
-        const { new_point_indices, cluster_start_indices } = prep_for_sort_method(
+        const { new_point_indices, cluster_start_indices } = prep_for_cluster_method(
             scalar_chunks,
             thread_idx,
             num_threads,
@@ -192,17 +211,72 @@ export function create_ell(
         const pt_row: ExtPointType[] = []
         const idx_row: number[] = []
 
-        for (let j = 0; j < num_cols; j ++) {
-            // Only insert the non-zero elements
-            if (new_scalar_chunks[j] !== 0) {
-                pt_row.push(new_points[j])
-                idx_row.push(new_scalar_chunks[j])
-            }
+        assert(new_points.length === new_scalar_chunks.length)
+        for (let j = 0; j < new_points.length; j ++) {
+            assert(new_scalar_chunks[j] !== 0)
+            pt_row.push(new_points[j])
+            idx_row.push(new_scalar_chunks[j])
         }
 
         data.push(pt_row)
         col_idx.push(idx_row)
         row_length.push(pt_row.length)
+    }
+
+    return new ELLSparseMatrix(data, col_idx, row_length)
+}
+
+// Create an ELL sparse matrix from all the points of the MSM and a set of
+// scalar chunks
+export function create_ell_gpu(
+    points: ExtPointType[],
+    scalar_chunks: number[],
+    num_rows: number,
+) {
+    const data: ExtPointType[][] = []
+    const col_idx: number[][] = []
+    const row_length: number[] = []
+
+    for (let row_idx = 0; row_idx < num_rows; row_idx ++) {
+        const { new_point_indices, cluster_start_indices } = prep_for_cluster_method(
+            scalar_chunks,
+            row_idx,
+            num_rows,
+        )
+        let i = cluster_start_indices.length - 1
+        let prev = cluster_start_indices[i]
+        let num_singles = 0
+        for (i = cluster_start_indices.length - 2; i >= 0; i --) {
+            if (prev - cluster_start_indices[i] === 1) {
+                num_singles ++
+            } else {
+                break
+            }
+            prev = cluster_start_indices[i]
+        }
+
+        const stop_at = i + 1
+
+        // Append the final end_idx
+        cluster_start_indices.push(points.length / num_rows)
+
+        // This shader should compute a row of the sparse matrix.
+        // new_point_indices and cluster_start_indices should be computed in the CPU
+        // Input buffers:
+        //   - points
+        //   - scalar_chunks
+        //   - new_point_indices
+        //   - cluster_start_indices, up to stop_at
+        // Output buffers:
+        //   - new_points
+        //   - new_scalar_chunks
+        // Shader logic:
+        //   start_idx = cluster_start_indices[global_id.x]
+        //   end_idx = cluster_start_indices[global_id.x] + 1 TODO: check for the end
+        //   pt = points[global_id.y + new_point_indices[start_idx]]
+        //   for (i in range(start_idx + 1, end_idx):
+        //      pt = add_points(pt, points[global_id.y + new_point_indices[i]])
+        //   new_points[global_id.x] = pt
     }
 
     return new ELLSparseMatrix(data, col_idx, row_length)
