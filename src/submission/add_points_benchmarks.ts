@@ -5,12 +5,16 @@ import { ExtPointType } from "@noble/curves/abstract/edwards";
 import { FieldMath } from "../reference/utils/FieldMath";
 import { genRandomFieldElement } from './utils'
 import { compute_misc_params, u8s_to_points, points_to_u8s_for_gpu, gen_p_limbs } from './utils'
-import add_points_any_a_shader from '../submission/wgsl/add_points_any_a.template.wgsl'
-import add_points_a_minus_one_shader from '../submission/wgsl/add_points_a_minus_one.template.wgsl'
-import structs from '../submission/wgsl/struct/structs.template.wgsl'
-import bigint_funcs from '../submission/wgsl/bigint/bigint.template.wgsl'
 import { add_points_any_a, add_points_a_minus_one } from './add_points'
 import { GPUExecution, IEntryInfo, IGPUInput, IGPUResult, IShaderCode, multipassEntryCreator } from "./entries/multipassEntryCreator";
+
+import structs from './wgsl/struct/structs.template.wgsl'
+import bigint_funcs from './wgsl/bigint/bigint.template.wgsl'
+import field_funcs from './wgsl/field/field.template.wgsl'
+import ec_funcs from './wgsl/curve/ec.template.wgsl'
+import add_points_any_a_shader from './wgsl/add_points_any_a.template.wgsl'
+import add_points_a_minus_one_shader from './wgsl/add_points_a_minus_one.template.wgsl'
+import montgomery_product_funcs from './wgsl/montgomery/mont_pro_product.template.wgsl'
 
 const setup_shader_code = (
     shader: string,
@@ -35,6 +39,9 @@ const setup_shader_code = (
         {
             structs,
             bigint_funcs,
+            field_funcs,
+            ec_funcs,
+            montgomery_product_funcs,
         },
     )
     //console.log(shaderCode)
@@ -84,7 +91,7 @@ export const add_points_benchmarks = async(
     const num_x_workgroups = 1;
     const word_size = 13
 
-    const num_runs = 17
+    const num_runs = 1
 
     console.log('Cost:', cost)
     const print_avg_timings = (timings: any[]) => {

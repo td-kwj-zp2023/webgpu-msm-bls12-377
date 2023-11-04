@@ -1,63 +1,7 @@
 {{> structs }}
-
-const NUM_WORDS = {{ num_words }}u;
-const WORD_SIZE = {{ word_size }}u;
-const MASK = {{ mask }}u;
-const TWO_POW_WORD_SIZE = {{ two_pow_word_size }}u;
-const N0 = {{ n0 }}u;
-
 {{> bigint_funcs }}
-
-fn get_p() -> BigInt {
-    var p: BigInt;
-{{{ p_limbs }}}
-    return p;
-}
-
-fn montgomery_product(x: ptr<function, BigInt>, y: ptr<function, BigInt>) -> BigInt {
-    var s: BigInt;
-    var p = get_p();
-
-    for (var i = 0u; i < NUM_WORDS; i ++) {
-        var t = s.limbs[0] + (*x).limbs[i] * (*y).limbs[0];
-
-        var tprime = t & MASK;
-
-        var qi = (N0 * tprime) & MASK;
-
-        var c = (t + qi * p.limbs[0]) >> WORD_SIZE;
-
-        s.limbs[0] = s.limbs[1] + (*x).limbs[i] * (*y).limbs[1] + qi * p.limbs[1] + c;
-
-        for (var j = 2u; j < NUM_WORDS; j ++) {
-            s.limbs[j - 1u] = s.limbs[j] + (*x).limbs[i] * (*y).limbs[j] + qi * p.limbs[j];
-        }
-
-        s.limbs[NUM_WORDS - 2u] = (*x).limbs[i] * (*y).limbs[NUM_WORDS - 1u] + qi * p.limbs[NUM_WORDS - 1u];
-    }
-
-    var c = 0u;
-    for (var i = 0u; i < NUM_WORDS; i ++) {
-        var v = s.limbs[i] + c;
-        c = v >> WORD_SIZE;
-        s.limbs[i] = v & MASK;
-    }
-
-    return conditional_reduce(&s, &p);
-}
-
-fn conditional_reduce(x: ptr<function, BigInt>, y: ptr<function, BigInt>) -> BigInt {
-    // Determine if x > y
-    var x_gt_y = bigint_gt(x, y);
-
-    if (x_gt_y == 1u) {
-        var res: BigInt;
-        bigint_sub(x, y, &res);
-        return res;
-    }
-
-    return *x;
-}
+{{> field_funcs }}
+{{> montgomery_product_funcs }}
 
 @group(0) @binding(0)
 var<storage, read_write> points: array<Point>;
@@ -136,42 +80,6 @@ fn add_points(p1: Point, p2: Point) -> Point {
     var added_z = montgomery_product(&f, &g);
 
     return Point(added_x, added_y, added_t, added_z);
-}
-
-fn fr_add(a: ptr<function, BigInt>, b: ptr<function, BigInt>) -> BigInt { 
-    var res: BigInt;
-    bigint_add(a, b, &res);
-    return fr_reduce(&res);
-}
-
-fn fr_reduce(a: ptr<function, BigInt>) -> BigInt {
-    var res: BigInt;
-    var p: BigInt = get_p();
-    var underflow = bigint_sub(a, &p, &res);
-    if (underflow == 1u) {
-        return *a;
-    }
-
-    return res;
-}
-
-fn fr_sub(a: ptr<function, BigInt>, b: ptr<function, BigInt>) -> BigInt { 
-    var res: BigInt;
-
-    // if a > b: return a - b 
-    // else:     return p - (b - a)
-
-    var c = bigint_gt(a, b);
-    if (c == 0u) { // a < b
-        var r: BigInt;
-        bigint_sub(b, a, &r);
-        var p = get_p();
-        bigint_sub(&p, &r, &res);
-        return res;
-    } else { // a > b
-        bigint_sub(a, b, &res);
-        return res;
-    }
 }
 
 @compute
