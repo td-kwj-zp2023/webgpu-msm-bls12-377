@@ -3,11 +3,12 @@ import { Benchmark } from './Benchmark';
 import { bigIntToU32Array, generateRandomFields } from '../reference/webgpu/utils';
 import { BigIntPoint, U32ArrayPoint } from '../reference/types';
 import { webgpu_compute_msm, wasm_compute_msm, webgpu_pippenger_msm, webgpu_best_msm, wasm_compute_msm_parallel } from '../reference/reference';
-import { cuzk_typescript_serial, cuzk_typescript_web_workers, transpose_wgsl, smtvp_wgsl } from '../submission/submission';
+import { cuzk_typescript_serial, cuzk_typescript_web_workers, transpose_wgsl, smtvp_wgsl, smvp_wgsl } from '../submission/submission';
 import { smtvp } from '../submission/cuzk/smtvp_wgsl';
 import CSVExportButton from './CSVExportButton';
 import { TestCaseDropDown } from './TestCaseDropDown';
 import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
+import { smvp } from '../submission/cuzk/smvp_wgsl';
 
 export const AllBenchmarks: React.FC = () => {
   const initialDefaultInputSize = 1_000;
@@ -197,6 +198,16 @@ export const AllBenchmarks: React.FC = () => {
         scalars={bigIntScalars}
         expectedResult={expectedResult}
         msmFunc={transpose_wgsl}
+        postResult={postResult}
+        bold={true}
+      />
+      <Benchmark
+        name={'SMVP (WGSL)'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={smvp_wgsl}
         postResult={postResult}
         bold={true}
       />
