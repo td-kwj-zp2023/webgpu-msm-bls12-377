@@ -3,6 +3,7 @@ import { Benchmark } from './Benchmark';
 import { bigIntToU32Array, generateRandomFields } from '../reference/webgpu/utils';
 import { BigIntPoint, U32ArrayPoint } from '../reference/types';
 import { webgpu_compute_msm, wasm_compute_msm, webgpu_pippenger_msm, webgpu_best_msm, wasm_compute_msm_parallel } from '../reference/reference';
+import { mont_mul_benchmarks } from '../submission/mont_mul_benchmarks';
 import { add_points_benchmarks } from '../submission/add_points_benchmarks';
 import { 
     prep_for_sort_method_serial_benchmark,
@@ -19,7 +20,7 @@ import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
 
 export const AllBenchmarks: React.FC = () => {
   //const initialDefaultInputSize = 1_000;
-  const initialDefaultInputSize = 65536
+    const initialDefaultInputSize = 2 ** 16 //65536
   const [inputSize, setInputSize] = useState(initialDefaultInputSize);
   const [power, setPower] = useState<string>('2^0');
   const [inputSizeDisabled, setInputSizeDisabled] = useState(false);
@@ -176,6 +177,16 @@ export const AllBenchmarks: React.FC = () => {
         scalars={bigIntScalars}
         expectedResult={expectedResult}
         msmFunc={webgpu_best_msm}
+        postResult={postResult}
+        bold={true}
+      />
+      <Benchmark
+        name={'Montgomery multiplication benchmarks'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={mont_mul_benchmarks}
         postResult={postResult}
         bold={true}
       />
