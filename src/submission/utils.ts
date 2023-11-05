@@ -135,7 +135,6 @@ export const gen_p_limbs = (
     let r = ''
     for (let i = 0; i < p_limbs.length; i ++) {
         r += `    p.limbs[${i}]` + ' \= ' + p_limbs[i].toString() + 'u;\n'
-        //r += `    p.limbs[${i}]=${p_limbs[i].toString()}u;\n`
     }
     return r
 }
