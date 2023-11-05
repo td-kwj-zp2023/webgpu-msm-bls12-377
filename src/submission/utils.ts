@@ -81,10 +81,11 @@ export const u8s_to_points = (
   assert(bytes.length % num_u8s_per_point === 0)
   const result: BigIntPoint[] = []
   for (let i = 0; i < bytes.length / num_u8s_per_point; i ++) {
-      const x_i = i * num_u8s_per_point
-      const y_i = i * num_u8s_per_point + num_u8s_per_coord
-      const t_i = i * num_u8s_per_point + num_u8s_per_coord * 2
-      const z_i = i * num_u8s_per_point + num_u8s_per_coord * 3
+      const p = i * num_u8s_per_point
+      const x_i = p
+      const y_i = p + num_u8s_per_coord
+      const t_i = p + num_u8s_per_coord * 2
+      const z_i = p + num_u8s_per_coord * 3
 
       const x_u8s = bytes.slice(x_i, x_i + num_u8s_per_coord)
       const y_u8s = bytes.slice(y_i, y_i + num_u8s_per_coord)
@@ -103,15 +104,13 @@ export const u8s_to_points = (
 }
 
 export const u8s_to_bigint = (u8s: Uint8Array, num_words: number, word_size: number): bigint => {
-  const a = new Uint16Array(u8s.buffer)
-  const limbs: number[] = []
-  for (let i = 0; i < a.length; i ++) {
-      if (i % 2 === 0) {
-          limbs.push(a[i])
-      }
-  }
+    const a = new Uint16Array(u8s.buffer)
+    const limbs: number[] = []
+    for (let i = 0; i < a.length; i += 2) {
+        limbs.push(a[i])
+    }
 
-  return from_words_le(new Uint16Array(limbs), num_words, word_size)
+    return from_words_le(new Uint16Array(limbs), num_words, word_size)
 }
 
 export const numbers_to_u8s_for_gpu = (
@@ -124,6 +123,19 @@ export const numbers_to_u8s_for_gpu = (
     }
     const b = new Uint32Array(vals)
     return new Uint8Array(b.buffer)
+}
+
+export const u8s_to_numbers = (
+    u8s: Uint8Array,
+): number[] => {
+    const result: number[] = []
+    assert(u8s.length % 4 === 0)
+    for (let i = 0; i < u8s.length / 4; i ++) {
+        const n0 = u8s[i * 4]
+        const n1 = u8s[i * 4 + 1]
+        result.push(n1 * 256 + n0)
+    }
+    return result
 }
 
 export const bigints_to_u8_for_gpu = (
