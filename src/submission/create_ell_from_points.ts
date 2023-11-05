@@ -1,4 +1,3 @@
-import { to_words_le } from './utils'
 import { BigIntPoint } from "../reference/types"
 import { ELLSparseMatrix } from './matrices/matrices'; 
 import { FieldMath } from "../reference/utils/FieldMath";
@@ -26,7 +25,8 @@ export async function prep_serial_benchmark(
     for (let scalar_chunk_idx = 0; scalar_chunk_idx < decomposed_scalars.length; scalar_chunk_idx ++) {
         const scalar_chunks = decomposed_scalars[scalar_chunk_idx]
         for (let thread_idx = 0; thread_idx < num_threads; thread_idx ++) {
-            const { new_point_indices, cluster_start_indices }  = func(
+            //const { new_point_indices, cluster_start_indices }  = func(
+            func(
                 scalar_chunks,
                 thread_idx,
                 num_threads,
@@ -179,6 +179,7 @@ export async function create_ell_sparse_matrices_from_points(
             assert(ell_sms_serial[i].data[j].length === ell_sms_serial[i].row_length[j])
             assert(ell_sms_serial[i].col_idx[j].length === ell_sms_serial[i].row_length[j])
             assert(ell_sms_serial[i].row_length[j] === ell_sms_webworkers[i].row_length[j])
+
             for (let k = 0; k < ell_sms_serial[i].data[j].length; k ++) {
                 assert(ell_sms_serial[i].data[j][k].ex === ell_sms_webworkers[i].data[j][k].ex)
                 assert(ell_sms_serial[i].data[j][k].ey === ell_sms_webworkers[i].data[j][k].ey)

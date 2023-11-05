@@ -210,10 +210,7 @@ export async function create_ell_gpu(
     const max_threads = workgroup_size * 256
     const num_new_points = all_cluster_start_indices.length
 
-    let num_invocations = Math.floor(num_new_points / max_threads)
-    if (num_new_points % max_threads > 0) {
-        num_invocations += 1
-    }
+    const num_invocations = Math.ceil(num_new_points / max_threads)
 
     const scalar_chunks_storage_buffer = device.createBuffer({
         size: scalar_chunks_bytes.length,
@@ -364,12 +361,10 @@ export async function create_ell_gpu(
         const new_scalar_chunks_data = ns.slice(0)
         new_scalar_chunks_staging_buffer.unmap()
 
-        const new_scalar_chunks = u8s_to_numbers(new Uint8Array(new_scalar_chunks_data))
-        const new_points = u8s_to_points(new Uint8Array(new_points_data), num_words, word_size)
-
         const elapsed = Date.now() - start
         console.log(`GPU took ${elapsed}ms`)
-        console.log('Note that converting bytes to BigInts and ExtPointTypes is inefficient')
+        const new_scalar_chunks = u8s_to_numbers(new Uint8Array(new_scalar_chunks_data))
+        const new_points = u8s_to_points(new Uint8Array(new_points_data), num_words, word_size)
 
         // Convert out of Mont form
         const new_points_non_mont: ExtPointType[] = []
@@ -418,6 +413,8 @@ export async function create_ell_gpu(
                 invocation_cluster_start_indices_bytes,
             )
     }
+
+    console.log('Note that converting bytes to BigInts and ExtPointTypes is inefficient')
 
     return new ELLSparseMatrix(data, col_idx, row_length)
 }
