@@ -53,8 +53,7 @@ export async function smvp(
     // WGSL Shader invocations
     for (let i = 0; i < csr_sparse_matrices.length; i ++) {
         // Perform Sparse-Matrix Tranpose and SMVP
-        await smvp_gpu(device, csr_sparse_matrices[i + 1], num_words, word_size, p, n0, params.r, params.rinv)
-        break
+        await smvp_gpu(device, csr_sparse_matrices[i], num_words, word_size, p, n0, params.r, params.rinv)
     }
 }
 
@@ -65,7 +64,6 @@ export async function gen_csr_sparse_matrices(
     s: number, 
     threads: number, 
 ): Promise<any> {  
-    // console.log("scalars is: ", scalars)
     // Number of rows and columns (ie. row-space)
     const num_rows = threads
     const num_columns = Math.pow(2, s) - 1
@@ -132,25 +130,20 @@ export async function smvp_gpu(
     r: bigint,
     rinv: bigint,
 ) {
-
     const csr_sparse_matrix_transposed = await csr_sm.transpose()
-    console.log("csr_sparse_matrix_transposed is: ", csr_sparse_matrix_transposed)
 
+    const start_1 = Date.now()
+    
     const vector_smvp: bigint[] = Array(csr_sparse_matrix_transposed.row_ptr.length - 1).fill(BigInt(1));
     const buckets_svmp: ExtPointType[] = await csr_sparse_matrix_transposed.smvp(vector_smvp)
-
-    console.log("buckets_svmp (CPU) is: ", buckets_svmp)
     
-    const start_1 = Date.now()
-    const output_points_non_mont_and_affine_cpu = buckets_svmp.map((x) => x.toAffine())
-    console.log("output_points_non_mont_and_affine_cpu is: ", output_points_non_mont_and_affine_cpu)
     const elapsed_1 = Date.now() - start_1
+    const output_points_non_mont_and_affine_cpu = buckets_svmp.map((x) => x.toAffine())
     console.log(`CPU took ${elapsed_1}ms`)
 
-    console.log("csr_sm is: ", csr_sm)
     // Convert BigIntPoint to montgomery form
     const points_with_mont_coords: BigIntPoint[] = []
-    for (const pt of csr_sm.data) {
+    for (const pt of csr_sparse_matrix_transposed.data) {
         points_with_mont_coords.push(
             {
                 x: fieldMath.Fp.mul(pt.x, r),
@@ -161,18 +154,9 @@ export async function smvp_gpu(
         )
     }
 
-    console.log("data length is: ", csr_sparse_matrix_transposed.data.length)
-    console.log("row_ptr length is: ", csr_sparse_matrix_transposed.row_ptr.length)
-
-    console.log("!!!!!!!!!!!!!!!!!!!!!!!!")
-    console.log("data is: ", csr_sparse_matrix_transposed.data)
-    console.log("row_ptr is: ", csr_sparse_matrix_transposed.row_ptr)
-
     const row_ptr_bytes = numbers_to_u8s_for_gpu(csr_sparse_matrix_transposed.row_ptr)
-    console.log("row_ptr_bytes is: ", row_ptr_bytes)
 
     const NUM_ROWS = csr_sparse_matrix_transposed.row_ptr.length - 1
-    console.log("NUM_ROWS is: ", NUM_ROWS)
 
     let NUM_ROWS_GPU = 0
     let numBlocks = 1
@@ -188,10 +172,6 @@ export async function smvp_gpu(
 
     // Define number of workgroups
     const num_x_workgroups = numBlocks; 
-    // const num_x_workgroups = 1;
-    console.log("num_x_workgroups is: ", num_x_workgroups)
-
-    console.log("NUM_ROWS_GPU is: ", NUM_ROWS_GPU)
 
     const points_bytes = points_to_u8s_for_gpu(points_with_mont_coords, num_words, word_size)
 
@@ -223,144 +203,84 @@ export async function smvp_gpu(
 
     const commandEncoder = device.createCommandEncoder();
 
-    let previous_output_storage_buffer: GPUBuffer|null = null
-
     // 2: Create buffered memory accessible by the GPU memory space
     const output_buffer_length = NUM_ROWS * num_words * 4 * 4
-    // const output_buffer_length = csr_sparse_matrix_transposed.data.length * num_words * 4 * 4
-    console.log("output buffer_length is: ", output_buffer_length);
-
-    console.log(" csr_sparse_matrix_transposed.row_ptr.length is: ",  csr_sparse_matrix_transposed.row_ptr.length)
 
     const start = Date.now()
-    for (let i = 0; i < 2; i ++) {
-        console.log("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-        const w = to_words_le(BigInt(i), 8, 8)
-        const loop_index_bytes = new Uint8Array(w)
-
-        const output_storage_buffer = device.createBuffer({
-            size: output_buffer_length,
-            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST
-        });
-
-        const row_ptr_storage_buffer = device.createBuffer({
-            size: row_ptr_bytes.length,
-            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
-        });
-        device.queue.writeBuffer(row_ptr_storage_buffer, 0, row_ptr_bytes);
-
-        const points_storage_buffer = device.createBuffer({
-            size: points_bytes.length,
-            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
-        });
-        device.queue.writeBuffer(points_storage_buffer, 0, points_bytes);
-
-        const stagingBuffer = device.createBuffer({
-            size: points_bytes.length,
-            usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST
-        });
-
-        const loop_index_storage_buffer = device.createBuffer({
-            size: loop_index_bytes.length,
-            usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST
-        });
-        device.queue.writeBuffer(loop_index_storage_buffer, 0, loop_index_bytes);
-
-
-        // 3: Define bind group layouts and bind groups 
-        // Bind Group Layout defines the input/output interface expected by the shader 
-        const bindGroupLayout = device.createBindGroupLayout({
-            entries: [
-                { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: "storage" } },
-                { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } },
-                { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } },
-                { binding: 3, visibility: GPUShaderStage.COMPUTE, buffer: { type: "storage" } },
-            ]
-        });
-
-        // Bind Group represents the actual input/output data for the shader, and associate with GPU buffers 
-        // const bindGroup = device.createBindGroup({
-        //     layout: bindGroupLayout,
-        //     entries: [
-        //         { binding: 0, resource: { buffer: output_storage_buffer } },
-        //         { binding: 1, resource: { buffer: col_idx_storage_buffer } },
-        //         { binding: 2, resource: { buffer: row_ptr_storage_buffer } },
-        //         { binding: 3, resource: { buffer: points_storage_buffer } },
-        //     ]
-        // });
-
-        const bindGroup = create_bind_group(
-            device, 
-            bindGroupLayout,
-            [
-                output_storage_buffer,
-                row_ptr_storage_buffer,
-                points_storage_buffer,
-                loop_index_storage_buffer,
-            ],
-        )
-
-        // 4: Setup Compute Pipeline 
-        // Creates pipeline with bind group layout and compute stage as arguments
-        const computePipeline = device.createComputePipeline({
-            layout: device.createPipelineLayout({
-                bindGroupLayouts: [bindGroupLayout]
-            }),
-            compute : {
-                module: shaderModule,   
-                entryPoint: "main"     
-            }
-        });
-
-        // 5: Create GPUCommandEncoder to issue commands to the GPU
-        // Returns a Javascript object that encodes a batch of "buffered" GPU commands 
-        // const commandEncoder = device.createCommandEncoder();
-
-        // Start timer
-        // const start = Date.now()
-
-        // 6: Encode pipeline commands 
-        const passEncoder = commandEncoder.beginComputePass();
-        passEncoder.setPipeline(computePipeline);
-
-        // Set bind group at index 0 (corresponding with group(0) in WGSL) 
-        passEncoder.setBindGroup(0, bindGroup);
-
-        // Set the number of workgroups dispatched for the execution of a kernel function 
-        passEncoder.dispatchWorkgroups(num_x_workgroups)
-
-        // End the render pass
-        passEncoder.end();
-
-        // Copy previous result buffer to input buffer
-        if (previous_output_storage_buffer) {
-            commandEncoder.copyBufferToBuffer(
-                previous_output_storage_buffer, // source
-                0, // sourceOffset
-                output_storage_buffer, // destination
-                0, // destinationOffset
-                output_buffer_length // size
-            );
-        }
-        
-        previous_output_storage_buffer = output_storage_buffer
-    }
-
-    // Create buffer to read result
-    const stagingBuffer = device.createBuffer({
+    const output_storage_buffer = device.createBuffer({
         size: output_buffer_length,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST
+    });
+
+    const row_ptr_storage_buffer = device.createBuffer({
+        size: row_ptr_bytes.length,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+    });
+    device.queue.writeBuffer(row_ptr_storage_buffer, 0, row_ptr_bytes);
+
+    const points_storage_buffer = device.createBuffer({
+        size: points_bytes.length,
+        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
+    });
+    device.queue.writeBuffer(points_storage_buffer, 0, points_bytes);
+
+    const stagingBuffer = device.createBuffer({
+        size: points_bytes.length,
         usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST
     });
 
-    if (previous_output_storage_buffer != null) {
-        commandEncoder.copyBufferToBuffer(
-            previous_output_storage_buffer, // source
-            0, // sourceOffset
-            stagingBuffer, // destination
-            0, // destinationOffset
-            output_buffer_length,
-        );
-    }
+    // 3: Define bind group layouts and bind groups 
+    // Bind Group Layout defines the input/output interface expected by the shader 
+    const bindGroupLayout = device.createBindGroupLayout({
+        entries: [
+            { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: "storage" } },
+            { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } },
+            { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } },
+        ]
+    });
+
+    const bindGroup = create_bind_group(
+        device, 
+        bindGroupLayout,
+        [
+            output_storage_buffer,
+            row_ptr_storage_buffer,
+            points_storage_buffer,
+        ],
+    )
+
+    // 4: Setup Compute Pipeline 
+    // Creates pipeline with bind group layout and compute stage as arguments
+    const computePipeline = device.createComputePipeline({
+        layout: device.createPipelineLayout({
+            bindGroupLayouts: [bindGroupLayout]
+        }),
+        compute : {
+            module: shaderModule,   
+            entryPoint: "main"     
+        }
+    });
+
+    // 6: Encode pipeline commands 
+    const passEncoder = commandEncoder.beginComputePass();
+    passEncoder.setPipeline(computePipeline);
+
+    // Set bind group at index 0 (corresponding with group(0) in WGSL) 
+    passEncoder.setBindGroup(0, bindGroup);
+
+    // Set the number of workgroups dispatched for the execution of a kernel function 
+    passEncoder.dispatchWorkgroups(num_x_workgroups)
+
+    // End the render pass
+    passEncoder.end();
+
+    commandEncoder.copyBufferToBuffer(
+        output_storage_buffer, // source
+        0, // sourceOffset
+        stagingBuffer, // destination
+        0, // destinationOffset
+        output_buffer_length,
+    );
 
     // 8: Finish encoding commands and submit to GPU device command queue
     const gpuCommands = commandEncoder.finish();
@@ -384,17 +304,13 @@ export async function smvp_gpu(
 
     // Transform results 
     const data_as_uint8s = new Uint8Array(data)
-    console.log("data_as_uint8s is: ", data_as_uint8s)
-
     const output_points = u8s_to_points(data_as_uint8s, num_words, word_size)
-
-    console.log("output_points is: ", output_points)
 
     const bigIntPointToExtPointType = (bip: BigIntPoint): ExtPointType => {
         return fieldMath.createPoint(bip.x, bip.y, bip.t, bip.z)
     }
 
-    // convert output_points out of Montgomery coords
+    // Convert output_points out of Montgomery coords
     const output_points_non_mont: ExtPointType[] = []
     for (const pt of output_points) {
         const non = {
@@ -406,18 +322,10 @@ export async function smvp_gpu(
         output_points_non_mont.push(bigIntPointToExtPointType(non))
     }
 
-    console.log("output_points_non_mont is: ", output_points_non_mont)
-
-    // convert output_points_non_mont into affine
+    // Convert output_points_non_mont into affine
     const output_points_non_mont_and_affine_gpu = output_points_non_mont.map((x) => x.toAffine())
-    console.log("output_points_non_mont_and_affine is: ", output_points_non_mont_and_affine_gpu)
 
-    console.log("output_points_non_mont_and_affine_gpu length is: ", output_points_non_mont_and_affine_gpu.length)
     for (let i = 0; i < output_points_non_mont_and_affine_gpu.length; i ++) {
-        console.log("i is: ", i)
-        // console.log("output_points_non_mont_and_affine_gpu[i].x is: ", output_points_non_mont_and_affine_gpu[i].x)
-        // console.log("output_points_non_mont_and_affine_cpu[i].x is: ", output_points_non_mont_and_affine_cpu[i].x)
-
         assert(output_points_non_mont_and_affine_gpu[i].x === output_points_non_mont_and_affine_cpu[i].x)
         assert(output_points_non_mont_and_affine_gpu[i].y === output_points_non_mont_and_affine_cpu[i].y)
     }
