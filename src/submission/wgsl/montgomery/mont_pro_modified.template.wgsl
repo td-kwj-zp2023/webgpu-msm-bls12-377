@@ -1,6 +1,9 @@
-struct BigInt {
-    limbs: array<u32, {{ num_words }}>
-}
+{{> structs }}
+{{> montgomery_product_funcs }}
+{{> field_functions }}
+{{> bigint_functions }}
+{{> curve_parameters }}
+{{> curve_functions }}
 
 @group(0)
 @binding(0)

@@ -3,10 +3,12 @@ import { Benchmark } from './Benchmark';
 import { bigIntToU32Array, generateRandomFields } from '../reference/webgpu/utils';
 import { BigIntPoint, U32ArrayPoint } from '../reference/types';
 import { webgpu_compute_msm, wasm_compute_msm, webgpu_pippenger_msm, webgpu_best_msm, wasm_compute_msm_parallel } from '../reference/reference';
-import { compute_msm } from '../submission/submission';
+import { cuzk_typescript_serial, cuzk_typescript_web_workers, transpose_wgsl, smtvp_wgsl, smvp_wgsl } from '../submission/submission';
+import { smtvp } from '../submission/cuzk/smtvp_wgsl';
 import CSVExportButton from './CSVExportButton';
 import { TestCaseDropDown } from './TestCaseDropDown';
 import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
+import { smvp } from '../submission/cuzk/smvp_wgsl';
 
 export const AllBenchmarks: React.FC = () => {
   const initialDefaultInputSize = 1_000;
@@ -87,6 +89,17 @@ export const AllBenchmarks: React.FC = () => {
       setU32Points(newU32Points);
 
       const newScalars = generateRandomFields(inputSize);
+    
+    /*
+      // Use constants instead of random field elements just for testing
+      const newScalars: bigint[] = []
+      for (let i = 0; i < inputSize; i ++) {
+          const p = BigInt('0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001')
+          const x = BigInt('1111111111111111111111111111111111111111111111111111111111111111111111111111')
+          newScalars.push((x * BigInt(i) % p))
+      }
+     */
+        
       setBigIntScalars(newScalars);
       const newU32Scalars = newScalars.map((scalar) => bigIntToU32Array(scalar));
       setU32Scalars(newU32Scalars);
@@ -159,12 +172,52 @@ export const AllBenchmarks: React.FC = () => {
         bold={true}
       />
       <Benchmark
-        name={'Your MSM'}
+        name={'cuzk Serial (Typescript)'}
         disabled={disabledBenchmark}
         baseAffinePoints={baseAffineBigIntPoints}
         scalars={bigIntScalars}
         expectedResult={expectedResult}
-        msmFunc={compute_msm}
+        msmFunc={cuzk_typescript_serial}
+        postResult={postResult}
+        bold={true}
+      />
+      <Benchmark
+        name={'cuzk Parallel (Web Workers)'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={cuzk_typescript_web_workers}
+        postResult={postResult}
+        bold={true}
+      />
+      <Benchmark
+        name={'Transpose (WGSL)'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={transpose_wgsl}
+        postResult={postResult}
+        bold={true}
+      />
+      <Benchmark
+        name={'SMVP (WGSL)'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={smvp_wgsl}
+        postResult={postResult}
+        bold={true}
+      />
+      <Benchmark
+        name={'SMTVP (WGSL)'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={smtvp_wgsl}
         postResult={postResult}
         bold={true}
       />
