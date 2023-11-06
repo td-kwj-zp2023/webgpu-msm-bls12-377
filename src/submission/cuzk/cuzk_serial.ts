@@ -6,7 +6,6 @@ import { bigIntToU32Array, generateRandomFields } from '../../reference/webgpu/u
 import { Field } from "@noble/curves/abstract/modular";
 
 export async function init(
-  inputSize: number,
   baseAffinePoints: BigIntPoint[],
   scalars: bigint[]
 ): Promise<CSRSparseMatrix[]> {  
@@ -112,12 +111,11 @@ export async function smtvp(csr_sparse_matrix: CSRSparseMatrix): Promise<ExtPoin
 }
 
 export async function execute_cuzk(
-    inputSize: number,
     baseAffinePoints: BigIntPoint[],
     scalars: bigint[]
 ): Promise<ExtPointType> {    
   // Initialize instance 
-  const csr_sparse_matrix_array = await init(inputSize, baseAffinePoints, scalars)
+  const csr_sparse_matrix_array = await init(baseAffinePoints, scalars)
 
   // Perform Transpose and SPMV 
   const G: ExtPointType[] = []
