@@ -36,11 +36,16 @@ const config = {
         exclude: /node_modules/,
         use: ['style-loader', 'css-loader', 'postcss-loader'],
       },
+      {
+        test: /\.wgsl/i,
+        type: 'asset/source',
+      },
     ],
   },
   resolve: {
     extensions: [".tsx", ".ts", ".js"],
     fallback: {
+      "assert": require.resolve("assert"),
       "crypto": require.resolve("crypto-browserify"),
       "stream": require.resolve("stream-browserify"),
       "buffer": require.resolve("buffer/"),
@@ -66,9 +71,16 @@ const config = {
         }
       ]
     }),
+    new webpack.DefinePlugin({
+      'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
+      'process.env.NODE_DEBUG': JSON.stringify(process.env.NODE_DEBUG),
+      'process.type': JSON.stringify(process.type),
+      'process.version': JSON.stringify(process.version),
+    })
   ],
   devtool: "inline-source-map",
   devServer: {
+    // watchContentBase: true,
     headers: {
       "Cross-Origin-Embedder-Policy": "require-corp",
       "Cross-Origin-Opener-Policy": "same-origin",
@@ -99,9 +111,11 @@ const workerConfig = {
     syncWebAssembly: true,
     topLevelAwait: true
   },
-  target: 'webworker',
+  target: 'web',
   entry: {
     wasmMSM: './src/workers/wasmMSM.ts',
+    webworkers: './src/submission/cuzk/workers/csrSparseMatrixWorker.ts',
+
   },
   output: {
     pathinfo: false,

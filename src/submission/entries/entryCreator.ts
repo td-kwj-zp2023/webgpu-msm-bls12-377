@@ -1,4 +1,4 @@
-import { gpuU32Inputs } from "../utils";
+import { gpuU32Inputs } from '../utils'
 
 export const entry = async(
   inputData: gpuU32Inputs[],
@@ -21,7 +21,8 @@ export const entry = async(
   const resultBufferSize = Uint32Array.BYTES_PER_ELEMENT * numInputs * u32SizePerOutput;
   const resultBuffer = device.createBuffer({
     size: resultBufferSize,
-    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC
+    //usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
   });
 
   // Bind group layout and bind group
@@ -109,7 +110,8 @@ const createU32ArrayInputBuffer = (device: GPUDevice, uint32s: Uint32Array) => {
   const gpuBufferU32Inputs = device.createBuffer({
     mappedAtCreation: true,
     size: uint32s.byteLength,
-    usage: GPUBufferUsage.STORAGE
+    //usage: GPUBufferUsage.STORAGE
+    usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
   });
   const arrayBufferInput = gpuBufferU32Inputs.getMappedRange();
   new Uint32Array(arrayBufferInput).set(uint32s);
