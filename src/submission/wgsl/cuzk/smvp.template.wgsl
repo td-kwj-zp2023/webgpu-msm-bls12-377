@@ -22,24 +22,17 @@ const N = {{ NUM_ROWS_GPU }}u;
 @compute
 @workgroup_size(N)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {    
-    if (loop_index == 0u) {
-        for (var i = 0u; i < arrayLength(&output); i++) {
-            var y: BigInt = get_r();
-            var z: BigInt = get_r();
-
-            var inf: Point;
-            inf.y = y;
-            inf.z = z;
-            output[global_id.x + i] = inf;
-        }
-    }
+    var r: BigInt = get_r();
+    var inf: Point;
+    inf.y = r;
+    inf.z = r;
 
     if (global_id.x < arrayLength(&output)) {
         let row_begin = row_ptr[global_id.x];
-        let row_end = row_ptr[global_id.x + 1];
-        var sum = output[global_id.x];
+        let row_end = row_ptr[global_id.x + 1u];
+        var sum = inf;
         for (var j = row_begin; j < row_end; j++) {
-            sum = add_points(points[j], sum);
+            sum = add_points(sum, points[j]);
         }
         output[global_id.x] = sum;
     }
