@@ -29,16 +29,10 @@ export const convert_inputs_into_mont_benchmark = async(
 
     const start = Date.now()
 
-    const converted_scalar = []
     const converted_x = []
     const converted_y = []
     const converted_t = []
     const converted_z = []
-
-    for (const scalar of scalars) {
-        const a = (scalar * r) % p
-        converted_scalar.push(a)
-    }
 
     for (const pt of baseAffinePoints) {
         const xr = (pt.x * r) % p
@@ -51,7 +45,7 @@ export const convert_inputs_into_mont_benchmark = async(
     }
 
     const elapsed = Date.now() - start
-    console.log(`CPU (serial) took ${elapsed}ms to convert ${scalars.length} scalars and points`)
+    console.log(`CPU (serial) took ${elapsed}ms to convert ${baseAffinePoints.length} points`)
 
     const p_limbs = gen_p_limbs(p, num_words, word_size)
     const shaderCode = mustache.render(

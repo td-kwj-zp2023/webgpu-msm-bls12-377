@@ -223,10 +223,12 @@ describe('Create an ELL sparse matrix from the MSM input points and scalars', ()
 
     describe('pre-aggregation using the cluster method', () => {
         it('small test', () => {
-            //scalar_chunks:     [3, 2, 3, 1, 4, 4, 5, 4]
-            //new_point_indices: [7, 5, 4, 2, 0, 1, 3, 6]
-            //expected:          [0, 3, 5, 6, 7]
+            //scalar_chunks:         [3, 2, 3, 1, 4, 4, 5, 4]
+            //new_point_indices:     [7, 5, 4, 2, 0, 1, 3, 6]
+            //cluster_start_indices: [0, 3, 5, 6, 7]
             const test_scalar_chunks = [3, 2, 3, 1, 4, 4, 5, 4]
+            const test_points = create_test_points(test_scalar_chunks.length, true)
+
             const r = prep_for_cluster_method(test_scalar_chunks, 0, 1)
             check_new_point_indices(
                 test_scalar_chunks,
@@ -235,6 +237,30 @@ describe('Create an ELL sparse matrix from the MSM input points and scalars', ()
             )
             expect(r.new_point_indices.toString()).toEqual([7, 5, 4, 2, 0, 1, 3, 6].toString())
             expect(r.cluster_start_indices.toString()).toEqual([0, 3, 5, 6, 7].toString())
+
+            const { new_points, new_scalar_chunks } = pre_aggregate_cpu(
+                test_points, 
+                test_scalar_chunks,
+                r.new_point_indices,
+                r.cluster_start_indices,
+            )
+
+            expect(new_scalar_chunks.toString()).toEqual([4, 3, 2, 1, 5].toString())
+            expect(new_points[0].toAffine()).toEqual(
+                test_points[r.new_point_indices[0]].add(
+                    test_points[r.new_point_indices[1]]
+                ).add(
+                    test_points[r.new_point_indices[2]]
+                ).toAffine()
+            )
+            expect(new_points[1].toAffine()).toEqual(
+                test_points[r.new_point_indices[3]].add(
+                    test_points[r.new_point_indices[4]]
+                ).toAffine()
+            )
+            expect(new_points[2].toAffine()).toEqual(test_points[r.new_point_indices[5]].toAffine())
+            expect(new_points[3].toAffine()).toEqual(test_points[r.new_point_indices[6]].toAffine())
+            expect(new_points[4].toAffine()).toEqual(test_points[r.new_point_indices[7]].toAffine())
         })
 
         // Serial performance in Node:

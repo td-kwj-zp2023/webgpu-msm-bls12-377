@@ -14,6 +14,7 @@ import {
     prep_for_cluster_method_webworkers_benchmark, 
     create_ell_sparse_matrices_from_points_benchmark
 } from '../submission/create_ell_from_points';
+import { create_csr_sparse_matrices_from_points_benchmark } from '../submission/cuzk/create_csr'
 import { create_ell_sparse_matrices_from_points_gpu_benchmark } from '../submission/create_ell_from_points_gpu';
 import { cuzk_typescript_serial, cuzk_typescript_web_workers, transpose_wgsl, smtvp_wgsl } from '../submission/submission';
 import CSVExportButton from './CSVExportButton';
@@ -21,8 +22,8 @@ import { TestCaseDropDown } from './TestCaseDropDown';
 import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
 
 export const AllBenchmarks: React.FC = () => {
-  //const initialDefaultInputSize = 1_000;
-  const initialDefaultInputSize = 2 ** 16 //65536
+  const initialDefaultInputSize = 65536;
+  //const initialDefaultInputSize = 2 ** 16 //65536
   const [inputSize, setInputSize] = useState(initialDefaultInputSize);
   const [power, setPower] = useState<string>('2^0');
   const [inputSizeDisabled, setInputSizeDisabled] = useState(false);
@@ -193,7 +194,7 @@ export const AllBenchmarks: React.FC = () => {
         bold={true}
       />
       <Benchmark
-        name={'Scalar field element and point coordinates to Mont form benchmarks'}
+        name={'Convert point coordinates to Mont form benchmarks'}
         disabled={disabledBenchmark}
         baseAffinePoints={baseAffineBigIntPoints}
         scalars={bigIntScalars}
@@ -283,6 +284,16 @@ export const AllBenchmarks: React.FC = () => {
         bold={true}
       />
       <Benchmark
+        name={'Create CSR sparse matrices (GPU)'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={create_csr_sparse_matrices_from_points_benchmark}
+        postResult={postResult}
+        bold={true}
+      />
+      <Benchmark
         name={'Prep for sort method (serial)'}
         disabled={disabledBenchmark}
         baseAffinePoints={baseAffineBigIntPoints}
@@ -308,7 +319,7 @@ export const AllBenchmarks: React.FC = () => {
         baseAffinePoints={baseAffineBigIntPoints}
         scalars={bigIntScalars}
         expectedResult={expectedResult}
-        msmFunc={prep_for_sort_method_serial_benchmark}
+        msmFunc={create_ell_sparse_matrices_from_points_benchmark}
         postResult={postResult}
         bold={true}
       />

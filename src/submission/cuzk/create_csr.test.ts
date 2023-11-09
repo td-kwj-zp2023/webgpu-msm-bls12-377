@@ -1,4 +1,4 @@
-import { create_csr } from './create_csr'
+import { create_csr_cpu } from './create_csr'
 
 describe('Create an CSR sparse matrix from the MSM input points and scalars', () => {
     describe('pre-aggregation using the cluster method', () => {
@@ -40,7 +40,7 @@ describe('Create an CSR sparse matrix from the MSM input points and scalars', ()
 
                 for (let i = 0; i < decomposed_scalars.length; i ++) {
                     const scalar_chunks = decomposed_scalars[i]
-                    const csr_sm = create_csr(points, scalar_chunks, num_rows)
+                    const csr_sm = create_csr_cpu(points, scalar_chunks, num_rows)
                     expect(csr_sm.data.toString()).toEqual(expected_data[i].toString())
                     expect(csr_sm.col_idx.toString()).toEqual(expected_col_idxs[i].toString())
                     expect(csr_sm.row_ptr.toString()).toEqual(expected_row_ptrs[i].toString())

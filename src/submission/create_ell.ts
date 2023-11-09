@@ -45,14 +45,15 @@ export const pre_aggregate_cpu = (
         // Case 3: 7, end
         
         const start_idx = cluster_start_indices[i]
-        if (scalar_chunks[new_point_indices[start_idx]] === 0) {
-            continue
-        }
+        //if (scalar_chunks[new_point_indices[start_idx]] === 0) {
+            //continue
+        //}
 
         let end_idx
         if (i === cluster_start_indices.length - 1) {
             // Case 3: we've reached the end of the array
             end_idx = new_point_indices.length
+            debugger
         } else {
             // Cases 1, 2: end_idx is the next index
             end_idx = cluster_start_indices[i + 1]
@@ -159,6 +160,8 @@ export const prep_for_cluster_method = (
         }
     }
 
+    let row_last_end_idx = 1
+
     // Build cluster_start_indices
     let prev_chunk = scalar_chunks[new_point_indices[0]]
     for (let i = 1; i < new_point_indices.length; i ++) {
@@ -166,9 +169,10 @@ export const prep_for_cluster_method = (
             cluster_start_indices.push(i)
         }
         prev_chunk = scalar_chunks[new_point_indices[i]]
+        row_last_end_idx ++
     }
 
-    return { new_point_indices, cluster_start_indices }
+    return { new_point_indices, cluster_start_indices, row_last_end_idx }
 }
 
 const fieldMath = new FieldMath()
@@ -200,7 +204,7 @@ export function create_ell(
 
         assert(new_points.length === new_scalar_chunks.length)
         for (let j = 0; j < new_points.length; j ++) {
-            assert(new_scalar_chunks[j] !== 0)
+            //assert(new_scalar_chunks[j] !== 0)
             pt_row.push(new_points[j])
             idx_row.push(new_scalar_chunks[j])
         }
