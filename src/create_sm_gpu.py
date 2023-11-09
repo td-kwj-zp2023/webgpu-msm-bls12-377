@@ -8,28 +8,33 @@ def prep_with_cluster_method(
     num_cols = int(len(scalar_chunks) / num_rows)
     clusters = dict()
 
-    num_ignored = 0
+    # keep track of each cluster
     for i in range(0, num_cols):
         pt_idx = row_idx * num_cols + i
         s = scalar_chunks[pt_idx]
+
+        # skip 0s
         if s == 0:
-            num_ignored += 1
             continue
+
         if s in clusters:
             clusters[s].append(pt_idx)
         else:
             clusters[s] = [pt_idx]
 
-    new_point_indices = list()
     cluster_start_indices = [0]
     cluster_end_indices = []
+    new_point_indices = []
 
     for s, point_indices in clusters.items():
+        # append single-item clusters
         if len(point_indices) == 1:
             new_point_indices.append(point_indices[0])
         else:
+        # prepend single-item clusters
             new_point_indices = clusters[s] + new_point_indices
 
+    # populate cluster_start_indices and cluster_end_indices
     prev_chunk = scalar_chunks[new_point_indices[0]]
     for i in range(1, len(new_point_indices)):
         s = scalar_chunks[new_point_indices[i]]
@@ -38,7 +43,9 @@ def prep_with_cluster_method(
             cluster_start_indices.append(i)
         prev_chunk = s
 
+    # the final cluster_end_index
     cluster_end_indices.append(len(new_point_indices))
+
     return new_point_indices, cluster_start_indices, cluster_end_indices
 
 
