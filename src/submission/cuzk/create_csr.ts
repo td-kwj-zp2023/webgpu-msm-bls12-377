@@ -374,7 +374,7 @@ export const create_csr_gpu = async (
     new_scalar_chunks_staging_buffer.unmap()
 
     const elapsed = Date.now() - start
-    console.log(`GPU took ${elapsed}ms`)
+    console.log(`GPU took ${elapsed}ms (including data transfer)`)
 
     const new_scalar_chunks = u8s_to_numbers(new Uint8Array(new_scalar_chunks_data))
     const new_points = u8s_to_points(new Uint8Array(new_points_data), num_words, word_size)
@@ -429,6 +429,7 @@ export async function create_csr_sparse_matrices_from_points(
     const decomposed_scalars = decompose_scalars(scalars, num_words, word_size)
 
     // Compute CSR sparse matrices in CPU
+    const start = Date.now()
     const expected_csr_sms: CSRSparseMatrix[] = []
     for (const scalar_chunks of decomposed_scalars) {
         const csr_sm = create_csr_cpu(
@@ -438,6 +439,8 @@ export async function create_csr_sparse_matrices_from_points(
         )
         expected_csr_sms.push(csr_sm)
     }
+    const elapsed = Date.now() - start
+    console.log(`CPU took ${elapsed}ms`)
 
     const fieldMath = new FieldMath()
     const p = BigInt('0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001')
