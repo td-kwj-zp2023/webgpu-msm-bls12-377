@@ -7,15 +7,7 @@ import { convert_inputs_into_mont_benchmark } from '../submission/convert_inputs
 import { convert_bigints_to_bytes_benchmark } from '../submission/convert_bigints_to_bytes_benchmark'
 import { mont_mul_benchmarks } from '../submission/mont_mul_benchmarks';
 import { add_points_benchmarks } from '../submission/add_points_benchmarks';
-import { 
-    prep_for_sort_method_serial_benchmark,
-    prep_for_sort_method_webworkers_benchmark,
-    prep_for_cluster_method_serial_benchmark, 
-    prep_for_cluster_method_webworkers_benchmark, 
-    create_ell_sparse_matrices_from_points_benchmark
-} from '../submission/create_ell_from_points';
 import { create_csr_sparse_matrices_from_points_benchmark } from '../submission/cuzk/create_csr'
-import { create_ell_sparse_matrices_from_points_gpu_benchmark } from '../submission/create_ell_from_points_gpu';
 import { cuzk_typescript_serial, cuzk_typescript_web_workers, transpose_wgsl, smtvp_wgsl } from '../submission/submission';
 import CSVExportButton from './CSVExportButton';
 import { TestCaseDropDown } from './TestCaseDropDown';
@@ -264,82 +256,12 @@ export const AllBenchmarks: React.FC = () => {
         bold={true}
       />
       <Benchmark
-        name={'Create ELL sparse matrices (CPU)'}
-        disabled={disabledBenchmark}
-        baseAffinePoints={baseAffineBigIntPoints}
-        scalars={bigIntScalars}
-        expectedResult={expectedResult}
-        msmFunc={create_ell_sparse_matrices_from_points_benchmark}
-        postResult={postResult}
-        bold={true}
-      />
-      <Benchmark
-        name={'Create ELL sparse matrices (GPU)'}
-        disabled={disabledBenchmark}
-        baseAffinePoints={baseAffineBigIntPoints}
-        scalars={bigIntScalars}
-        expectedResult={expectedResult}
-        msmFunc={create_ell_sparse_matrices_from_points_gpu_benchmark}
-        postResult={postResult}
-        bold={true}
-      />
-      <Benchmark
         name={'Create CSR sparse matrices (GPU)'}
         disabled={disabledBenchmark}
         baseAffinePoints={baseAffineBigIntPoints}
         scalars={bigIntScalars}
         expectedResult={expectedResult}
         msmFunc={create_csr_sparse_matrices_from_points_benchmark}
-        postResult={postResult}
-        bold={true}
-      />
-      <Benchmark
-        name={'Prep for sort method (serial)'}
-        disabled={disabledBenchmark}
-        baseAffinePoints={baseAffineBigIntPoints}
-        scalars={bigIntScalars}
-        expectedResult={expectedResult}
-        msmFunc={prep_for_sort_method_serial_benchmark}
-        postResult={postResult}
-        bold={true}
-      />
-      <Benchmark
-        name={'Prep for sort method (Web Workers)'}
-        disabled={disabledBenchmark}
-        baseAffinePoints={baseAffineBigIntPoints}
-        scalars={bigIntScalars}
-        expectedResult={expectedResult}
-        msmFunc={prep_for_sort_method_webworkers_benchmark}
-        postResult={postResult}
-        bold={true}
-      />
-      <Benchmark
-        name={'Prep (cluster method) and then pre-aggregate (CPU)'}
-        disabled={disabledBenchmark}
-        baseAffinePoints={baseAffineBigIntPoints}
-        scalars={bigIntScalars}
-        expectedResult={expectedResult}
-        msmFunc={create_ell_sparse_matrices_from_points_benchmark}
-        postResult={postResult}
-        bold={true}
-      />
-      <Benchmark
-        name={'Prep for cluster method (serial)'}
-        disabled={disabledBenchmark}
-        baseAffinePoints={baseAffineBigIntPoints}
-        scalars={bigIntScalars}
-        expectedResult={expectedResult}
-        msmFunc={prep_for_cluster_method_serial_benchmark}
-        postResult={postResult}
-        bold={true}
-      />
-      <Benchmark
-        name={'Prep for cluster method (Web Workers)'}
-        disabled={disabledBenchmark}
-        baseAffinePoints={baseAffineBigIntPoints}
-        scalars={bigIntScalars}
-        expectedResult={expectedResult}
-        msmFunc={prep_for_cluster_method_webworkers_benchmark}
         postResult={postResult}
         bold={true}
       />
