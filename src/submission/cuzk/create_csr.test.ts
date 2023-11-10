@@ -24,7 +24,7 @@ describe('Create an CSR sparse matrix from the MSM input points and scalars', ()
                 ]
 
                 const expected_data = [
-                    ['P2P1P0', 'P3', 'P6P5P4'],
+                    ['P2P1P0', 'P6P5P4', 'P3'],
                     ['P2P1', 'P3P0', 'P4', 'P5', 'P7'],
                 ]
 
@@ -34,13 +34,18 @@ describe('Create an CSR sparse matrix from the MSM input points and scalars', ()
                 ]
 
                 const expected_row_ptrs = [
-                    [0, 3, 4, 7],
-                    [0, 2, 4, 5, 6, 7],
+                    [0, 2, 3],
+                    [0, 2, 5],
                 ]
 
                 for (let i = 0; i < decomposed_scalars.length; i ++) {
                     const scalar_chunks = decomposed_scalars[i]
-                    const csr_sm = create_csr_cpu(points, scalar_chunks, num_rows)
+                    const csr_sm = create_csr_cpu(
+                        points,
+                        scalar_chunks,
+                        num_rows,
+                        (a: string, b: string) => a + b
+                    )
                     expect(csr_sm.data.toString()).toEqual(expected_data[i].toString())
                     expect(csr_sm.col_idx.toString()).toEqual(expected_col_idxs[i].toString())
                     expect(csr_sm.row_ptr.toString()).toEqual(expected_row_ptrs[i].toString())
