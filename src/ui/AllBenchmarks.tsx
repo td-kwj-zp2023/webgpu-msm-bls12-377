@@ -7,7 +7,7 @@ import { convert_inputs_into_mont_benchmark } from '../submission/convert_inputs
 import { convert_bigints_to_bytes_benchmark } from '../submission/convert_bigints_to_bytes_benchmark'
 import { mont_mul_benchmarks } from '../submission/mont_mul_benchmarks';
 import { add_points_benchmarks } from '../submission/add_points_benchmarks';
-import { create_csr_sparse_matrices_from_points_benchmark } from '../submission/cuzk/create_csr'
+import { create_csr_sparse_matrices_from_points_benchmark } from '../submission/cuzk/create_csr_gpu'
 import { cuzk_typescript_serial, cuzk_typescript_web_workers, transpose_wgsl, smtvp_wgsl } from '../submission/submission';
 import CSVExportButton from './CSVExportButton';
 import { TestCaseDropDown } from './TestCaseDropDown';
