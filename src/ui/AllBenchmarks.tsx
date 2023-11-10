@@ -7,7 +7,10 @@ import { convert_inputs_into_mont_benchmark } from '../submission/convert_inputs
 import { convert_bigints_to_bytes_benchmark } from '../submission/convert_bigints_to_bytes_benchmark'
 import { mont_mul_benchmarks } from '../submission/mont_mul_benchmarks';
 import { add_points_benchmarks } from '../submission/add_points_benchmarks';
-import { create_csr_sparse_matrices_from_points_benchmark } from '../submission/cuzk/create_csr_gpu'
+import {
+    create_csr_precomputation_benchmark,
+    create_csr_sparse_matrices_from_points_benchmark,
+} from '../submission/cuzk/create_csr_gpu'
 import { cuzk_typescript_serial, cuzk_typescript_web_workers, transpose_wgsl, smtvp_wgsl } from '../submission/submission';
 import CSVExportButton from './CSVExportButton';
 import { TestCaseDropDown } from './TestCaseDropDown';
@@ -252,6 +255,16 @@ export const AllBenchmarks: React.FC = () => {
         scalars={bigIntScalars}
         expectedResult={expectedResult}
         msmFunc={smtvp_wgsl}
+        postResult={postResult}
+        bold={true}
+      />
+      <Benchmark
+        name={'Create CSR sparse matrices (precomputation only)'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={create_csr_precomputation_benchmark}
         postResult={postResult}
         bold={true}
       />
