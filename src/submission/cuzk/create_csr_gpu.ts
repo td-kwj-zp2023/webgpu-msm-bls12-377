@@ -269,6 +269,32 @@ export const create_csr_gpu = async (
     //return new CSRSparseMatrix(data, col_idx, row_ptr)
 }
 
+export async function create_csr_precomputation_benchmark(
+    baseAffinePoints: BigIntPoint[],
+    scalars: bigint[],
+): Promise<{x: bigint, y: bigint}> {
+    const num_rows = 16
+    const word_size = 13
+    const num_words = 20
+    const points = baseAffinePoints.map((x) => bigIntPointToExtPointType(x, fieldMath))
+    const decomposed_scalars = decompose_scalars(scalars, num_words, word_size)
+
+    const start = Date.now()
+    for (const scalar_chunks of decomposed_scalars) {
+        const {
+            all_new_point_indices,
+            all_cluster_start_indices,
+            all_cluster_end_indices,
+            all_single_points,
+            all_single_scalar_chunks,
+            row_ptr,
+        } = all_precomputation(points, scalar_chunks, num_rows)
+    }
+    const elapsed = Date.now() - start
+    console.log(`CPU took ${elapsed}ms`)
+    return { x: BigInt(0), y: BigInt(1) }
+}
+
 export async function create_csr_sparse_matrices_from_points_benchmark(
     baseAffinePoints: BigIntPoint[],
     scalars: bigint[],
