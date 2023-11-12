@@ -198,6 +198,41 @@ export const gen_p_limbs = (
     return r
 }
 
+export const gen_r_limbs = (
+    r: bigint,
+    num_words: number,
+    word_size: number,
+): string => {
+    const r_limbs = to_words_le(r, num_words, word_size)
+    let res = ''
+    for (let i = 0; i < r_limbs.length; i ++) {
+        res += `    r.limbs[${i}]` + ' \= ' + r_limbs[i].toString() + 'u;\n'
+    }
+    return res
+}
+
+export const gen_mu_limbs = (
+    p: bigint,
+    num_words: number,
+    word_size: number,
+): string => {
+    // precompute mu
+    // choose x such that x is the smallest 2 ** x > s
+    // https://www.nayuki.io/page/barrett-reduction-algorithm
+    let x = BigInt(1)
+    while (BigInt(2) ** x < p) {
+        x += BigInt(1)
+    }
+
+    const mu = (BigInt(4) ** x) / p
+    const mu_limbs = to_words_le(mu, num_words, word_size)
+    let r = ''
+    for (let i = 0; i < mu_limbs.length; i ++) {
+        r += `    mu.limbs[${i}]` + ' \= ' + mu_limbs[i].toString() + 'u;\n'
+    }
+    return r
+}
+
 export const to_words_le = (val: bigint, num_words: number, word_size: number): Uint16Array => {
     const words = new Uint16Array(num_words)
 
