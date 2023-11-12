@@ -4,10 +4,12 @@
 
 extern crate wasm_bindgen_test;
 use wasm_bindgen_test::*;
+use csr_precompute::precompute_with_cluster_method;
 
 wasm_bindgen_test_configure!(run_in_browser);
 
 #[wasm_bindgen_test]
 fn pass() {
+    precompute_with_cluster_method();
     assert_eq!(1 + 1, 2);
 }
