@@ -6,6 +6,7 @@ import { webgpu_compute_msm, wasm_compute_msm, webgpu_pippenger_msm, webgpu_best
 import { convert_inputs_into_mont_benchmark } from '../submission/convert_inputs_into_mont_benchmarks';
 import { convert_bigints_to_bytes_benchmark } from '../submission/convert_bigints_to_bytes_benchmark'
 import { mont_mul_benchmarks } from '../submission/mont_mul_benchmarks';
+import { barrett_mul_benchmarks } from '../submission/barrett_mul_benchmarks';
 import { add_points_benchmarks } from '../submission/add_points_benchmarks';
 import {
     create_csr_precomputation_benchmark,
@@ -189,6 +190,16 @@ export const AllBenchmarks: React.FC = () => {
         scalars={bigIntScalars}
         expectedResult={expectedResult}
         msmFunc={mont_mul_benchmarks}
+        postResult={postResult}
+        bold={true}
+      />
+      <Benchmark
+        name={'Barrett reduction benchmarks'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={barrett_mul_benchmarks}
         postResult={postResult}
         bold={true}
       />
