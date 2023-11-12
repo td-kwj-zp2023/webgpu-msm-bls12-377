@@ -8,12 +8,12 @@ import {
     u8s_to_points,
     compute_misc_params,
     points_to_u8s_for_gpu,
-    bigints_to_u8_for_gpu,
 } from './utils'
 import { get_device, create_bind_group } from './gpu'
 import structs from './wgsl/struct/structs.template.wgsl'
 import bigint_funcs from './wgsl/bigint/bigint.template.wgsl'
 import field_funcs from './wgsl/field/field.template.wgsl'
+import barrett_funcs from './wgsl/barrett.template.wgsl'
 import convert_inputs_shader from './wgsl/convert_inputs.template.wgsl'
 import montgomery_product_funcs from './wgsl/montgomery/mont_pro_product.template.wgsl'
 
@@ -22,7 +22,7 @@ export const convert_inputs_into_mont_benchmark = async(
     scalars: bigint[]
 ): Promise<{x: bigint, y: bigint}> => {
     const num_x_workgroups = 256
-    const num_y_workgroups = 8
+    const num_y_workgroups = 4
     const p = BigInt('0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001')
     const word_size = 13
     const params = compute_misc_params(p, word_size)
@@ -75,6 +75,7 @@ export const convert_inputs_into_mont_benchmark = async(
             structs,
             bigint_funcs,
             field_funcs,
+            barrett_funcs,
             montgomery_product_funcs,
         },
     )
