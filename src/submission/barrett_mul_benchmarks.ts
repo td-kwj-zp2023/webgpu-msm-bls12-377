@@ -22,9 +22,9 @@ export const barrett_mul_benchmarks = async(
     scalars: bigint[]
 ): Promise<{x: bigint, y: bigint}> => {
     // Define and generate params
-    const num_inputs = 1
+    const num_inputs = 64
     const num_x_workgroups = 1
-    const cost = 4096
+    const cost = 8192
 
     const p = BigInt('0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001')
 
@@ -151,6 +151,7 @@ export const barrett_mul_benchmarks = async(
     const commandEncoder = device.createCommandEncoder();
 
     const start = Date.now()
+
     // 6: Initiate render pass
     const passEncoder = commandEncoder.beginComputePass();
 
@@ -184,9 +185,10 @@ export const barrett_mul_benchmarks = async(
     const data = copyArrayBuffer.slice(0);
     stagingBuffer.unmap();
 
-    const dataBuf = new Uint32Array(data);
     const elapsed = Date.now() - start
     console.log(`GPU took ${elapsed}ms`)
+
+    const dataBuf = new Uint32Array(data);
 
     const results: bigint[] = []
     for (let i = 0; i < num_inputs; i ++) {

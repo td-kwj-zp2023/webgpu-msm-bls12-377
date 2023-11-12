@@ -11,7 +11,7 @@ var<storage, read_write> buf: array<BigInt>;
 const COST = {{ cost }}u;
 
 @compute
-@workgroup_size(1)
+@workgroup_size(64)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let gidx = global_id.x; 
     var a: BigInt = buf[gidx * 2u];

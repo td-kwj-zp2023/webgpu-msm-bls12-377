@@ -147,19 +147,14 @@ export const convert_inputs_into_mont_benchmark = async(
     // 8: End frame by passing array of command buffers to command queue for execution
     device.queue.submit([commandEncoder.finish()]);
 
-    const elapsed_gpu = Date.now() - start_gpu
-    console.log(`GPU took ${elapsed_gpu}ms (excluding points_staging_buffer.mapAsync())`)
-
-    const start_map_async = Date.now()
-
     await points_staging_buffer.mapAsync(GPUMapMode.READ, 0, points_bytes.length)
-
-    const elapsed_map_async = Date.now() - start_map_async
-    console.log(`points_staging_buffer.mapAsync() took ${elapsed_map_async}ms`)
 
     const points_array_buffer = points_staging_buffer.getMappedRange(0, points_bytes.length)
     const points_data = points_array_buffer.slice(0)
     points_staging_buffer.unmap()
+
+    const elapsed_gpu = Date.now() - start_gpu
+    console.log(`GPU took ${elapsed_gpu}ms`)
 
     const points_from_gpu = u8s_to_points(new Uint8Array(points_data), num_words, word_size)
     for (let i = 0; i < points_from_gpu.length; i ++) {
