@@ -11,13 +11,17 @@ import {
     create_csr_precomputation_benchmark,
     create_csr_sparse_matrices_from_points_benchmark,
 } from '../submission/cuzk/create_csr_gpu'
+import {
+    create_csr_wasm_precomputation_benchmark,
+} from '../submission/cuzk/create_csr_wasm'
 import { cuzk_typescript_serial, cuzk_typescript_web_workers, transpose_wgsl, smtvp_wgsl } from '../submission/submission';
 import CSVExportButton from './CSVExportButton';
 import { TestCaseDropDown } from './TestCaseDropDown';
 import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
 
 export const AllBenchmarks: React.FC = () => {
-  const initialDefaultInputSize = 65536;
+  const initialDefaultInputSize = 2 ** 17
+  //const initialDefaultInputSize = 65536;
   //const initialDefaultInputSize = 2 ** 16 //65536
   const [inputSize, setInputSize] = useState(initialDefaultInputSize);
   const [power, setPower] = useState<string>('2^0');
@@ -259,12 +263,22 @@ export const AllBenchmarks: React.FC = () => {
         bold={true}
       />
       <Benchmark
-        name={'Create CSR sparse matrices (precomputation only)'}
+        name={'Create CSR sparse matrices (precomputation only in TS)'}
         disabled={disabledBenchmark}
         baseAffinePoints={baseAffineBigIntPoints}
         scalars={bigIntScalars}
         expectedResult={expectedResult}
         msmFunc={create_csr_precomputation_benchmark}
+        postResult={postResult}
+        bold={true}
+      />
+      <Benchmark
+        name={'Create CSR sparse matrices (precomputation only in WASM)'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={create_csr_wasm_precomputation_benchmark}
         postResult={postResult}
         bold={true}
       />
