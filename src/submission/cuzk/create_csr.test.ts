@@ -1,36 +1,37 @@
-import { create_csr_cpu } from './create_csr'
+import { create_csr_cpu, all_precomputation } from './create_csr'
 
 describe('Create an CSR sparse matrix from the MSM input points and scalars', () => {
     describe('pre-aggregation using the cluster method', () => {
         describe('small tests', () => {
             const num_points = 8
             const num_rows = 2
-            it('small test #1', () => {
 
+            it('small test #0', () => {
+                //const scalar_chunk = [4, 4, 4, 3, 3, 3, 3, 0]
+                const scalar_chunk = [3, 3, 2, 1, 2, 1, 4, 4]
+                const r = all_precomputation(scalar_chunk, num_rows)
+                console.log(r)
+            })
+
+            it('small test #1', () => {
                 const points = []
                 for (let i = 0; i < num_points; i ++) {
                     points.push(`P${i}`)
                 }
 
                 const decomposed_scalars = [
-                    [
-                        4, 4, 4, 3,
-                        3, 3, 3, 0,
-                    ],
-                    [
-                        3, 4, 4, 3,
-                        4, 1, 0, 2,
-                    ],
+                    [4, 4, 4, 3, 3, 3, 3, 0],
+                    [3, 4, 4, 3, 4, 1, 0, 2],
                 ]
 
                 const expected_data = [
-                    ['P2P1P0', 'P6P5P4', 'P3'],
-                    ['P2P1', 'P3P0', 'P4', 'P5', 'P7'],
+                    ['P0P1P2', 'P4P5P6', 'P3'],
+                    ['P0P3', 'P1P2', 'P4', 'P5', 'P7'],
                 ]
 
                 const expected_col_idxs = [
                     [4, 3, 3],
-                    [4, 3, 4, 1, 2],
+                    [3, 4, 4, 1, 2],
                 ]
 
                 const expected_row_ptrs = [

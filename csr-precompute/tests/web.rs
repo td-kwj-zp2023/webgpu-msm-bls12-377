@@ -14,13 +14,7 @@ wasm_bindgen_test_configure!(run_in_browser);
 #[wasm_bindgen_test]
 fn pass() {
     let num_rows = 2;
-    let scalar_chunks = vec![4, 4, 4, 3, 3, 3, 3, 0];
-    let result: AllPrecomputeResult = serde_wasm_bindgen::from_value(all_precomputation(scalar_chunks.as_slice(), num_rows)).unwrap();
-    println!("{}", result.all_new_point_indices.len());
-    println!("{:?}", result.all_new_point_indices);
-    println!("{:?}", result.all_cluster_start_indices);
-    println!("{:?}", result.all_cluster_end_indices);
-    println!("{:?}", result.all_single_point_indices);
-    println!("{:?}", result.all_single_scalar_chunks);
-    println!("{:?}", result.row_ptr);
+    let scalar_chunk = vec![4, 4, 4, 3, 3, 3, 3, 0];
+    //let scalar_chunk = vec![3, 3, 2, 1, 2, 1, 4, 4];
+    let result: AllPrecomputeResult = serde_wasm_bindgen::from_value(all_precomputation(scalar_chunk.as_slice(), num_rows)).unwrap();
 }
