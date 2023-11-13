@@ -42,7 +42,6 @@ pub fn all_precomputation(
             singles_start_idx,
             num_non_zero,
         ) = precompute_with_cluster_method(scalar_chunks, row_idx, num_rows);
-        //log(serde_json::to_string(&precompute_with_cluster_method(scalar_chunks, row_idx, num_rows)).unwrap().as_str());
 
         row_ptr.push(row_ptr[row_ptr.len() - 1] + num_non_zero);
 
@@ -154,6 +153,8 @@ pub fn precompute_with_cluster_method(
 
     cluster_start_indices.truncate(i);
     cluster_end_indices.truncate(i);
+
+    //log(serde_json::to_string(&new_point_indices).unwrap().as_str());
 
     return (
         new_point_indices,

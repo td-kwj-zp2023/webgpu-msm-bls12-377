@@ -22,6 +22,7 @@ import ec_funcs from '../wgsl/curve/ec.template.wgsl'
 import montgomery_product_funcs from '../wgsl/montgomery/mont_pro_product.template.wgsl'
 import create_csr_shader from '../wgsl/create_csr.template.wgsl'
 import { all_precomputation, create_csr_cpu } from './create_csr'
+import * as wasm from 'csr-precompute'
 
 const fieldMath = new FieldMath()
 
@@ -96,10 +97,14 @@ export const create_csr_gpu = async (
         all_new_point_indices,
         all_cluster_start_indices,
         all_cluster_end_indices,
-        all_single_points,
+        all_single_point_indices,
         all_single_scalar_chunks,
         row_ptr,
-    } = all_precomputation(points, scalar_chunks, num_rows)
+    //} = all_precomputation(scalar_chunks, num_rows)
+    } = wasm.all_precomputation(
+        new Uint32Array(scalar_chunks),
+        num_rows,
+    )
     const num_x_workgroups = 256
 
     const scalar_chunks_bytes = numbers_to_u8s_for_gpu(scalar_chunks)
@@ -258,7 +263,7 @@ export const create_csr_gpu = async (
     // appropriate offsets.
 
     return new CSRSparseMatrix(
-        new_points_non_mont.concat(all_single_points),
+        new_points_non_mont.concat(all_single_point_indices.map((x: number) => points[x])),
         new_scalar_chunks.concat(all_single_scalar_chunks),
         row_ptr,
     )
@@ -274,21 +279,17 @@ export async function create_csr_precomputation_benchmark(
     scalars: bigint[],
 ): Promise<{x: bigint, y: bigint}> {
     const num_rows = 16
-    const word_size = 13
     const num_words = 20
-    const points = baseAffinePoints.map((x) => bigIntPointToExtPointType(x, fieldMath))
+    const word_size = 13
+
+    const start_decomposed = Date.now()
     const decomposed_scalars = decompose_scalars(scalars, num_words, word_size)
+    const elapsed_decomposed = Date.now() - start_decomposed
+    console.log(`CPU took ${elapsed_decomposed}ms to decompose scalars`)
 
     const start = Date.now()
     for (const scalar_chunks of decomposed_scalars) {
-        const {
-            all_new_point_indices,
-            all_cluster_start_indices,
-            all_cluster_end_indices,
-            all_single_points,
-            all_single_scalar_chunks,
-            row_ptr,
-        } = all_precomputation(points, scalar_chunks, num_rows)
+        all_precomputation(scalar_chunks, num_rows)
     }
     const elapsed = Date.now() - start
     console.log(`CPU took ${elapsed}ms`)
