@@ -15,12 +15,13 @@ export async function create_csr_wasm_precomputation_benchmark(
     const num_rows = 16
 
     const decomposed_scalars = decompose_scalars(scalars, num_words, word_size)
+
+    const start = Date.now()
     for (const scalar_chunks of decomposed_scalars) {
         const wasm_result = wasm.all_precomputation(
             new Uint32Array(scalar_chunks),
             num_rows,
         )
-
         /*
         const ts_result = all_precomputation(scalar_chunks, num_rows)
 
@@ -79,5 +80,7 @@ export async function create_csr_wasm_precomputation_benchmark(
         assert(wasm_row_ptr.toString() === ts_row_ptr.toString())
         */
     }
+    const elapsed = Date.now() - start
+    console.log(`WASM took ${elapsed}ms (including overhead)`)
     return { x: BigInt(0), y: BigInt(0) }
 }
