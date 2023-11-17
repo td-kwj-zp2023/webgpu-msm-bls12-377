@@ -22,9 +22,8 @@ import { TestCaseDropDown } from './TestCaseDropDown';
 import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
 
 export const AllBenchmarks: React.FC = () => {
-  //const initialDefaultInputSize = 2 ** 17;
-  //const initialDefaultInputSize = 2;
-  const initialDefaultInputSize = 65536;
+  //const initialDefaultInputSize = 2 ** 16;
+  const initialDefaultInputSize = 2
   //const initialDefaultInputSize = 2 ** 16 //65536
   const [inputSize, setInputSize] = useState(initialDefaultInputSize);
   const [power, setPower] = useState<string>('2^0');
