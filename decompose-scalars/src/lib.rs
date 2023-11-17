@@ -38,6 +38,7 @@ pub fn extract_word_from_bytes_le(
     word_size: usize,
 ) -> u16 {
     let start_byte_idx = input.len() - 1 - ((word_idx * word_size + word_size) / 8);
+    //log(serde_json::to_string(&[input.len(), word_idx, word_size, start_byte_idx]).unwrap().as_str());
     let end_byte_idx = input.len() - 1 - ((word_idx * word_size) / 8);
     let start_byte_offset = (word_idx * word_size + word_size) % 8;
     let end_byte_offset = (word_idx * word_size) % 8;
