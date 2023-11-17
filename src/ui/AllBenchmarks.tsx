@@ -8,6 +8,7 @@ import { convert_bigints_to_bytes_benchmark } from '../submission/convert_bigint
 import { mont_mul_benchmarks } from '../submission/mont_mul_benchmarks';
 import { barrett_mul_benchmarks } from '../submission/barrett_mul_benchmarks';
 import { add_points_benchmarks } from '../submission/add_points_benchmarks';
+import { decompose_scalars_ts_benchmark } from '../submission/decompose_scalars_benchmark';
 import {
     create_csr_precomputation_benchmark,
     create_csr_sparse_matrices_from_points_benchmark,
@@ -22,6 +23,7 @@ import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
 
 export const AllBenchmarks: React.FC = () => {
   //const initialDefaultInputSize = 2 ** 17;
+  //const initialDefaultInputSize = 2;
   const initialDefaultInputSize = 65536;
   //const initialDefaultInputSize = 2 ** 16 //65536
   const [inputSize, setInputSize] = useState(initialDefaultInputSize);
@@ -180,6 +182,17 @@ export const AllBenchmarks: React.FC = () => {
         scalars={bigIntScalars}
         expectedResult={expectedResult}
         msmFunc={webgpu_best_msm}
+        postResult={postResult}
+        bold={true}
+      />
+
+      <Benchmark
+        name={'Decompose scalars benchmarks'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={decompose_scalars_ts_benchmark}
         postResult={postResult}
         bold={true}
       />
