@@ -7,40 +7,41 @@ const NUM_WORDS = {{ num_words }}u;
 const WORD_SIZE = {{ word_size }}u;
 
 fn extract_word_from_bytes_le(
-    bytes_start_idx: u32,
-    bytes_end_idx: u32,
+    input: array<u32, 16>,
     word_idx: u32
 ) -> u32 {
-    let input_len = 32u;
-    let start_byte_idx = input_len - 1u - ((word_idx * WORD_SIZE + WORD_SIZE) / 8);
-    let end_byte_idx = input_len - 1u - ((word_idx * WORD_SIZE) / 8u);
-    let start_byte_offset = (word_idx * WORD_SIZE + WORD_SIZE) % 8u;
-    let end_byte_offset = (word_idx * WORD_SIZE) % 8u;
+    var word = 0u;
+    let word_size = WORD_SIZE;
+    let start_byte_idx = 15u - ((word_idx * word_size + word_size) / 16u);
+    let end_byte_idx = 15u - ((word_idx * word_size) / 16u);
 
-    var sum = 0u;
-    for (var i = start_byte_idx; i < end_byte_idx + 1u; i ++) {
-        let input = scalars[bytes_start_idx + i];
-        if (i == start_byte_idx) {
-            let mask = (2u << (start_byte_offset - 1u)) - 1u;
-            sum += input & mask;
-        } else if (i == end_byte_idx) {
-            sum = sum << (8u - end_byte_offset);
-            sum += input >> end_byte_offset;
-        } else {
-            sum = sum << 8u;
-            sum += input;
-        }
+    let start_byte_offset = (word_idx * word_size + word_size) % 16u;
+    let end_byte_offset = (word_idx * word_size) % 16u;
+
+    var mask = 0u;
+    if (start_byte_offset > 0u) {
+        mask = (2u << (start_byte_offset - 1u)) - 1u;
     }
-    return sum;
+    if (start_byte_idx == end_byte_idx) {
+        word = (input[start_byte_idx] & mask) >> end_byte_offset;
+    } else {
+        word = (input[start_byte_idx] & mask) << (16u - end_byte_offset);
+        word += input[end_byte_idx] >> end_byte_offset;
+    }
+
+    return word;
 }
 
 @compute
-@workgroup_size(2)
+@workgroup_size(256)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
-    let bytes_start_idx = global_id.x * 32;
-    let bytes_end_idx = global_id.x * 32 + 32;
-
-    for (var i = 1u; i < NUM_WORDS; i ++) {
-        result[global_id.x + i] = extract_word_from_bytes_le(bytes_start_idx, bytes_end_idx, i);
+    var scalar_bytes: array<u32, 16>;
+    for (var i = 0u; i < 16; i ++) {
+        scalar_bytes[15 - i] = scalars[global_id.x * 16 + i];
     }
+
+    for (var i = 0u; i < NUM_WORDS - 1u; i ++) {
+        result[global_id.x * NUM_WORDS + i] = extract_word_from_bytes_le(scalar_bytes, i);
+    }
+    result[global_id.x * NUM_WORDS + NUM_WORDS - 1u] = scalar_bytes[0] >> 7;
 }
