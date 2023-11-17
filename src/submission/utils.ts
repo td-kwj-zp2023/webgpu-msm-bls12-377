@@ -236,9 +236,17 @@ export const gen_mu_limbs = (
 export const to_words_le = (val: bigint, num_words: number, word_size: number): Uint16Array => {
     const words = new Uint16Array(num_words)
 
+    const mask = BigInt((2 ** word_size) - 1)
+    for (let i = 0; i < num_words; i ++) {
+        const idx = num_words - 1 - i
+        const shift = BigInt(idx * word_size)
+        const w = (val >> shift) & mask
+        words[idx] = Number(w)
+    }
+
+    /*
     // max value per limb (exclusive)
     const max_limb_size = BigInt(2 ** word_size)
-
     let v = val
     let i = 0
     while (v > 0) {
@@ -247,6 +255,7 @@ export const to_words_le = (val: bigint, num_words: number, word_size: number): 
         v = v / max_limb_size
         i ++
     }
+    */
 
     return words
 }
