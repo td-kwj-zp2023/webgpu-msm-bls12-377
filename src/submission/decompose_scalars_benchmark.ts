@@ -1,7 +1,6 @@
 import assert from 'assert'
 import mustache from 'mustache'
 import * as wasm from 'decompose-scalars'
-import {toBufferBE, toBufferLE} from 'bigint-buffer'
 import { BigIntPoint } from "../reference/types"
 import {
     to_words_le,

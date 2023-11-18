@@ -111,7 +111,6 @@ export async function gen_csr_sparse_matrices(
       
       // Divide EC points into t parts
       for (let thread_idx = 0; thread_idx < num_rows; thread_idx++) {
-        const z = 0
         for (let j = 0; j < num_columns; j++) {
             const point_i = thread_idx + j * threads
             data[thread_idx][j] = baseAffinePoints[point_i]
@@ -311,7 +310,6 @@ export async function transpose_gpu(
     const expected_1 = add_points(points_with_mont_coords[0], points_with_mont_coords[1], p, rinv, r)
     const expected_1_affine = expected_1.toAffine()
 
-    const ZERO_POINT = fieldMath.customEdwards.ExtendedPoint.ZERO;
     const test_point = fieldMath.createPoint(csr_sm.data[0].x, csr_sm.data[0].y, csr_sm.data[0].t, csr_sm.data[0].z)
     const result = test_point.add(test_point)
     const expected_affine_2 = result.toAffine()

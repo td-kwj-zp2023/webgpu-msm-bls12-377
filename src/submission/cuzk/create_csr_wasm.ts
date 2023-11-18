@@ -1,6 +1,5 @@
 import assert from 'assert'
 import { BigIntPoint } from "../../reference/types"
-import { all_precomputation } from './create_csr'
 import * as wasm from 'csr-precompute'
 import {
     decompose_scalars
