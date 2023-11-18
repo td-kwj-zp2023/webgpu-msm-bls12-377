@@ -3402,7 +3402,7 @@ crypto-browserify@^3.12.0:
     randombytes "^2.0.0"
     randomfill "^1.0.3"
 
-csr-precompute@./csr-precompute/pkg:
+csr-precompute@./csr-precompute/pkg/:
   version "0.1.0"
 
 css-blank-pseudo@^5.0.2:
