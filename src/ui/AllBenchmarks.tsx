@@ -16,10 +16,12 @@ import {
 import {
     create_csr_wasm_precomputation_benchmark,
 } from '../submission/cuzk/create_csr_wasm'
-import { cuzk_typescript_serial, cuzk_typescript_web_workers, transpose_wgsl, smtvp_wgsl } from '../submission/submission';
+import { cuzk_typescript_serial, cuzk_typescript_web_workers, transpose_wgsl, smtvp_wgsl, smvp_wgsl } from '../submission/submission';
+import { smtvp } from '../submission/cuzk/smtvp_wgsl';
 import CSVExportButton from './CSVExportButton';
 import { TestCaseDropDown } from './TestCaseDropDown';
 import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
+import { smvp } from '../submission/cuzk/smvp_wgsl';
 
 export const AllBenchmarks: React.FC = () => {
   const initialDefaultInputSize = 2 ** 16;
@@ -271,6 +273,16 @@ export const AllBenchmarks: React.FC = () => {
         scalars={bigIntScalars}
         expectedResult={expectedResult}
         msmFunc={transpose_wgsl}
+        postResult={postResult}
+        bold={true}
+      />
+      <Benchmark
+        name={'SMVP (WGSL)'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={smvp_wgsl}
         postResult={postResult}
         bold={true}
       />
