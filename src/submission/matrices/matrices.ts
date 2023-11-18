@@ -181,17 +181,6 @@ export class CSRSparseMatrix implements Interface.CSRSparseMatrix {
 
     // Perform SMVP. See https://ieeexplore.ieee.org/document/7097920, Figure 2a. 
     async smvp(vec: bigint[]): Promise<ExtPointType[]> {
-        // Check if vector length equals the number of rows
-        assert(vec.length == this.row_ptr.length - 1)
-
-        // Determine maximum col_idx value
-        let max_col_idx = 0
-        for (const i of this.col_idx) {
-            if (i > max_col_idx) {
-                max_col_idx = i
-            }
-        }
-        
         const currentSum = fieldMath.customEdwards.ExtendedPoint.ZERO;
         
         // Convert points
@@ -248,6 +237,7 @@ export class CSRSparseMatrix implements Interface.CSRSparseMatrix {
             const row_begin = this.row_ptr[i]
             const row_end = this.row_ptr[i + 1]
             for (let j = row_begin; j < row_end; j++) {
+                // remove multiply
                 result[this.col_idx[j]] = result[this.col_idx[j]].add(s[j].multiply(vec[i]))
             }
         }
@@ -266,26 +256,26 @@ export class CSRSparseMatrix implements Interface.CSRSparseMatrix {
         // Number of rows, columns, non-zero elements
         const n = this.row_ptr.length - 1
 
-        let m = BigInt(0)
+        let m = 0
         for (const i of this.col_idx) {
             if (i > m) {
                 m = i
             }
         }
 
-        m += BigInt(1)
+        m += 1
         const nz = this.data.length
 
         // Initialize data for transposed sparse matrix
-        const sparse_matrix = Array(nz).fill(BigInt(0));
-        const col_idx = Array(nz).fill(BigInt(0));
-        const row_ptr = Array(Number(m) + 2).fill(BigInt(0));
+        const sparse_matrix = Array(nz).fill(0);
+        const col_idx = Array(nz).fill(0);
+        const row_ptr = Array(m + 2).fill(0);
 
         // Calculate count per columns
         for (let i = 0; i < nz; i++) {
-            row_ptr[Number(this.col_idx[i]) + 2] += BigInt(1)
+            row_ptr[Number(this.col_idx[i]) + 2] += 1
         }
-
+        
         // From count per columns generate new rowPtr (but shifted)
         for (let i = 2; i < row_ptr.length; i++) {
             // Calculate incremental sum
@@ -298,9 +288,9 @@ export class CSRSparseMatrix implements Interface.CSRSparseMatrix {
                 // Calculate index to transposed matrix at which we should place current element,
                 // and at the same time build final rowPtr
                 const new_index = row_ptr[Number(this.col_idx[j]) + 1]
-                row_ptr[Number(this.col_idx[j]) + 1] += BigInt(1)
+                row_ptr[Number(this.col_idx[j]) + 1] += 1
                 sparse_matrix[new_index] = this.data[j]
-                col_idx[new_index] = BigInt(i)
+                col_idx[new_index] = i
             }
         }
 
