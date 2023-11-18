@@ -1,32 +1,61 @@
 mod utils;
-use wasm_bindgen::JsValue;
 use std::collections::BTreeMap;
-use serde::{Serialize, Deserialize};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
 extern "C" {
     #[wasm_bindgen(js_namespace = console)]
     fn log(s: &str);
-    fn alert(s: &str);
 }
 
 
-#[derive(Serialize, Deserialize)]
+#[wasm_bindgen]
 pub struct AllPrecomputeResult {
-    pub all_new_point_indices: Vec<usize>,
-    pub all_cluster_start_indices: Vec<usize>,
-    pub all_cluster_end_indices: Vec<usize>,
-    pub all_single_point_indices: Vec<usize>,
-    pub all_single_scalar_chunks: Vec<usize>,
-    pub row_ptr: Vec<usize>,
+    all_new_point_indices: Vec<usize>,
+    all_cluster_start_indices: Vec<usize>,
+    all_cluster_end_indices: Vec<usize>,
+    all_single_point_indices: Vec<usize>,
+    all_single_scalar_chunks: Vec<usize>,
+    row_ptr: Vec<usize>,
 }
+
+#[wasm_bindgen]
+impl AllPrecomputeResult {
+    pub fn get_all_new_point_indices(&self) -> Vec<usize> {
+        self.all_new_point_indices.clone()
+    }
+
+    pub fn get_all_cluster_start_indices(&self) -> Vec<usize> {
+        self.all_cluster_start_indices.clone()
+    }
+
+
+    pub fn get_all_cluster_end_indices(&self) -> Vec<usize> {
+        self.all_cluster_end_indices.clone()
+    }
+
+
+    pub fn get_all_single_point_indices(&self) -> Vec<usize> {
+        self.all_single_point_indices.clone()
+    }
+
+
+    pub fn get_all_single_scalar_chunks(&self) -> Vec<usize> {
+        self.all_single_scalar_chunks.clone()
+    }
+
+
+    pub fn get_row_ptr(&self) -> Vec<usize> {
+        self.row_ptr.clone()
+    }
+}
+
 
 #[wasm_bindgen]
 pub fn all_precomputation(
     scalar_chunks: &[usize],
     num_rows: usize,
-) -> JsValue {
+) -> AllPrecomputeResult {
     let mut all_new_point_indices: Vec<usize> = vec![];
     let mut all_cluster_start_indices: Vec<usize> = vec![];
     let mut all_cluster_end_indices: Vec<usize> = vec![];
@@ -78,7 +107,8 @@ pub fn all_precomputation(
         row_ptr,
     };
 
-    return serde_wasm_bindgen::to_value(&result).unwrap();
+    //return serde_wasm_bindgen::to_value(&result).unwrap();
+    return result;
 }
 
 pub fn precompute_with_cluster_method(
