@@ -19,6 +19,7 @@ export const decompose_scalars_ts_benchmark = async (
 ): Promise<{x: bigint, y: bigint}> => {
     const p = BigInt('0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001')
     console.log('Decomposing', scalars.length, 'scalars')
+
     console.log('Typescript benchmarks:')
     //for (let word_size = 13; word_size < 14; word_size ++) {
     for (let word_size = 8; word_size < 17; word_size ++) {
@@ -43,6 +44,7 @@ export const decompose_scalars_ts_benchmark = async (
         const elapsed_wasm = Date.now() - start_wasm
         console.log(`WASM with ${word_size}-bit windows took ${elapsed_wasm}ms`)
     }
+    console.log()
 
     const num_words = 20
     const word_size = 13
@@ -51,6 +53,7 @@ export const decompose_scalars_ts_benchmark = async (
     assert(ts_r.toString() === wasm_r.toString())
     //console.log('ok')
 
+    console.log('GPU benchmarks:')
     for (let word_size = 8; word_size < 17; word_size ++) {
         const params = compute_misc_params(p, word_size)
         const num_words = params.num_words
