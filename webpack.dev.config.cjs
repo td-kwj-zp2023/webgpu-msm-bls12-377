@@ -88,7 +88,7 @@ const config = {
     static: path.join(__dirname, "build"),
     historyApiFallback: true,
     port: 4040,
-    open: true,
+    open: false,
     hot: true,
     client: {
       overlay: false
