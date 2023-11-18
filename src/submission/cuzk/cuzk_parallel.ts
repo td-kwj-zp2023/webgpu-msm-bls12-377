@@ -53,7 +53,6 @@ export async function init(
       
       // Divide EC points into t parts
       for (let thread_idx = 0; thread_idx < num_rows; thread_idx++) {
-        const z = 0
         for (let j = 0; j < num_columns; j++) {
             const point_i = thread_idx + j * threads
             data[thread_idx][j] = baseAffinePoints[point_i]
