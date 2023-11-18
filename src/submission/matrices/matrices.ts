@@ -111,10 +111,10 @@ export class ELLSparseMatrix implements Interface.ELLSparseMatrix {
         return new ELLSparseMatrix(sparse_matrix, col_idx, row_length);
     }
 
-    async sparse_to_dense_matrix(sparse_matrix: ELLSparseMatrix): Promise<DenseMatrix> {
-        console.log("Not Implemented Yet!")
-        return Promise.resolve(new DenseMatrix([]))
-    }
+    //async sparse_to_dense_matrix(sparse_matrix: ELLSparseMatrix): Promise<DenseMatrix> {
+        //console.log("Not Implemented Yet!")
+        //return Promise.resolve(new DenseMatrix([]))
+    //}
 }
 
 /**

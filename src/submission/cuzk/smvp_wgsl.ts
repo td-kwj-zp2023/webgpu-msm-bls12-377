@@ -9,13 +9,13 @@ import field_functions from '../wgsl/field/field.template.wgsl'
 import curve_functions from '../wgsl/curve/ec.template.wgsl'
 import curve_parameters from '../wgsl/curve/parameters.template.wgsl'
 import montgomery_product_funcs from '../wgsl/montgomery/mont_pro_product.template.wgsl'
-import { u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, compute_misc_params, to_words_le, gen_p_limbs } from '../utils'
+import { u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, compute_misc_params, gen_p_limbs } from '../utils'
 import assert from 'assert'
 
 export async function smvp(
     baseAffinePoints: BigIntPoint[],
     scalars: bigint[]
-): Promise<any> {    
+): Promise<{x: bigint, y: bigint}> {
     // Scalar finite field
     const p = BigInt('0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001')
 
@@ -55,6 +55,7 @@ export async function smvp(
         // Perform Sparse-Matrix Tranpose and SMVP
         await smvp_gpu(device, csr_sparse_matrices[i], num_words, word_size, p, n0, params.r, params.rinv)
     }
+    return { x: BigInt(1), y: BigInt(0) }
 }
 
 export async function gen_csr_sparse_matrices(
@@ -101,7 +102,6 @@ export async function gen_csr_sparse_matrices(
       
       // Divide EC points into t parts
       for (let thread_idx = 0; thread_idx < num_rows; thread_idx++) {
-        const z = 0
         for (let j = 0; j < num_columns; j++) {
             const point_i = thread_idx + j * threads
             data[thread_idx][j] = baseAffinePoints[point_i]
@@ -164,8 +164,8 @@ export async function smvp_gpu(
         NUM_ROWS_GPU = NUM_ROWS
     }
     else {
-        let blockSize = 256;
-        let totalThreads = NUM_ROWS
+        const blockSize = 256;
+        const totalThreads = NUM_ROWS
         numBlocks = Math.floor((totalThreads + blockSize - 1) / blockSize)
         NUM_ROWS_GPU = blockSize
     }

@@ -17,11 +17,9 @@ import {
     create_csr_wasm_precomputation_benchmark,
 } from '../submission/cuzk/create_csr_wasm'
 import { cuzk_typescript_serial, cuzk_typescript_web_workers, transpose_wgsl, smtvp_wgsl, smvp_wgsl } from '../submission/submission';
-import { smtvp } from '../submission/cuzk/smtvp_wgsl';
 import CSVExportButton from './CSVExportButton';
 import { TestCaseDropDown } from './TestCaseDropDown';
 import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
-import { smvp } from '../submission/cuzk/smvp_wgsl';
 
 export const AllBenchmarks: React.FC = () => {
   const initialDefaultInputSize = 2 ** 16;

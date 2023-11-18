@@ -73,10 +73,11 @@ export async function init(
   }
 
 export async function execute_cuzk_parallel(
-    inputSize: number,
     baseAffinePoints: BigIntPoint[],
     scalars: bigint[]
 ): Promise<ExtPointType> {    
+    const inputSize = baseAffinePoints.length
+
     // Initialize instance 
     const csr_sparse_matrices = await init(inputSize, baseAffinePoints, scalars)
 
