@@ -18,12 +18,10 @@ export const decompose_scalars_ts_benchmark = async (
     scalars: bigint[]
 ): Promise<{x: bigint, y: bigint}> => {
     const p = BigInt('0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001')
-    const num_words = 20
-    const word_size = 13
-
+    console.log('Decomposing', scalars.length, 'scalars')
     console.log('Typescript benchmarks:')
     //for (let word_size = 13; word_size < 14; word_size ++) {
-    for (let word_size = 8; word_size < 20; word_size ++) {
+    for (let word_size = 8; word_size < 17; word_size ++) {
         const params = compute_misc_params(p, word_size)
         const num_words = params.num_words
 
@@ -36,7 +34,7 @@ export const decompose_scalars_ts_benchmark = async (
 
     console.log('WASM benchmarks:')
     //for (let word_size = 13; word_size < 14; word_size ++) {
-    for (let word_size = 8; word_size < 20; word_size ++) {
+    for (let word_size = 8; word_size < 17; word_size ++) {
         const params = compute_misc_params(p, word_size)
         const num_words = params.num_words
 
@@ -46,13 +44,18 @@ export const decompose_scalars_ts_benchmark = async (
         console.log(`WASM with ${word_size}-bit windows took ${elapsed_wasm}ms`)
     }
 
+    const num_words = 20
+    const word_size = 13
     const ts_r = decompose_scalars(scalars, num_words, word_size).flat()
     const wasm_r = wasm.decompose_scalars(scalars, num_words, word_size).get_result()
     assert(ts_r.toString() === wasm_r.toString())
-    console.log('ok')
+    //console.log('ok')
 
-    console.log('GPU benchmarks (13-bit windows):')
-    await decompose_scalars_gpu(scalars, 20, 13)
+    for (let word_size = 8; word_size < 17; word_size ++) {
+        const params = compute_misc_params(p, word_size)
+        const num_words = params.num_words
+        await decompose_scalars_gpu(scalars, num_words, word_size)
+    }
 
     return { x: BigInt(0), y: BigInt(0) }
 }
@@ -63,7 +66,7 @@ const extract_word_from_bytes_le = (
     word_size: number,
 ): number => {
     /*
-     * 
+     * If word_size == 13:
      * ---- ---- ---- ---- .... .... .... ....
      * ++++ ++xx xxxx xxxx xxx+ ++++ ++++ ++++
      *
@@ -125,10 +128,7 @@ const to_words_le_modified = (
         words[i] = w
     }
     
-    //      ---- ---- ---- ---- last 16 bits
-    // .... .... .... .... .... last 20 bits
-    // xxxx xxxx xxxx x--- ---- last 13 bits
-    words[num_words - 1] = double_bytes[0] >> 7
+    words[num_words - 1] = double_bytes[0] >> (((num_words * word_size - 256) + 16) - word_size)
     return new Uint16Array(words)
 }
 
@@ -137,6 +137,16 @@ const decompose_scalars_gpu = async (
     num_words: number,
     word_size: number,
 ) => {
+    //const s = BigInt('3022020265662000066872693797409172494380849264934239755294609843647359700244')
+    //const m = Array.from(to_words_le_modified(s, num_words, word_size))
+    //const n = Array.from(to_words_le(s, num_words, word_size))
+    //console.log(bigint_to_words_32(s))
+    //console.log(m)
+    //console.log(n)
+    //console.log(m.toString() == n.toString())
+    //debugger
+    //return
+
     // Convert scalars to bytes
     const scalar_bytes = bigints_to_u8_for_gpu(scalars, 16, 16)
 
@@ -229,7 +239,7 @@ const decompose_scalars_gpu = async (
     )
 
     const elapsed = Date.now() - start
-    console.log(`GPU took ${elapsed}ms`)
+    console.log(`GPU with ${word_size}-bit windows took ${elapsed}ms`)
 
     const result_data = result_staging_buffer.getMappedRange(0, result_staging_buffer.size).slice(0)
     result_staging_buffer.unmap()
@@ -242,7 +252,7 @@ const decompose_scalars_gpu = async (
             const s = scalar_chunks[i * num_words + j]
             if (e !== s) {
                 console.log(i, j)
-                debugger
+                break
             }
             assert(e === s)
         }
