@@ -21,8 +21,9 @@ export const convert_inputs_into_mont_benchmark = async(
     baseAffinePoints: BigIntPoint[],
     scalars: bigint[]
 ): Promise<{x: bigint, y: bigint}> => {
+    const workgroup_size = 64
     const num_x_workgroups = 256
-    const num_y_workgroups = 4
+    const num_y_workgroups = scalars.length / workgroup_size / num_x_workgroups
     const p = BigInt('0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001')
     const word_size = 13
     const params = compute_misc_params(p, word_size)
@@ -58,6 +59,8 @@ export const convert_inputs_into_mont_benchmark = async(
     const shaderCode = mustache.render(
         convert_inputs_shader,
         {
+            num_y_workgroups,
+            workgroup_size,
             word_size,
             num_words,
             n0,
