@@ -21,7 +21,6 @@ export const decompose_scalars_ts_benchmark = async (
     console.log('Decomposing', scalars.length, 'scalars')
 
     console.log('Typescript benchmarks:')
-    //for (let word_size = 13; word_size < 14; word_size ++) {
     for (let word_size = 8; word_size < 17; word_size ++) {
         const params = compute_misc_params(p, word_size)
         const num_words = params.num_words
@@ -34,7 +33,6 @@ export const decompose_scalars_ts_benchmark = async (
     console.log()
 
     console.log('WASM benchmarks:')
-    //for (let word_size = 13; word_size < 14; word_size ++) {
     for (let word_size = 8; word_size < 17; word_size ++) {
         const params = compute_misc_params(p, word_size)
         const num_words = params.num_words
@@ -54,7 +52,7 @@ export const decompose_scalars_ts_benchmark = async (
     //console.log('ok')
 
     console.log('GPU benchmarks:')
-    for (let word_size = 8; word_size < 17; word_size ++) {
+   for (let word_size = 8; word_size < 17; word_size ++) {
         const params = compute_misc_params(p, word_size)
         const num_words = params.num_words
         await decompose_scalars_gpu(scalars, num_words, word_size)
@@ -140,16 +138,6 @@ const decompose_scalars_gpu = async (
     num_words: number,
     word_size: number,
 ) => {
-    //const s = BigInt('3022020265662000066872693797409172494380849264934239755294609843647359700244')
-    //const m = Array.from(to_words_le_modified(s, num_words, word_size))
-    //const n = Array.from(to_words_le(s, num_words, word_size))
-    //console.log(bigint_to_words_32(s))
-    //console.log(m)
-    //console.log(n)
-    //console.log(m.toString() == n.toString())
-    //debugger
-    //return
-
     // Convert scalars to bytes
     const scalar_bytes = bigints_to_u8_for_gpu(scalars, 16, 16)
 
@@ -163,7 +151,9 @@ const decompose_scalars_gpu = async (
     assert(expected.toString() === expected2.toString())
 
     const device = await get_device()
+    const workgroup_size = 64
     const num_x_workgroups = 256
+    const num_y_workgroups = scalars.length / workgroup_size / num_x_workgroups
 
     const scalars_storage_buffer = device.createBuffer({
         size: scalar_bytes.length,
@@ -193,6 +183,8 @@ const decompose_scalars_gpu = async (
     const shaderCode = mustache.render(
         decompose_scalars_shader,
         {
+            workgroup_size,
+            num_y_workgroups,
             num_words,
             word_size,
         },
@@ -218,7 +210,7 @@ const decompose_scalars_gpu = async (
     const passEncoder = commandEncoder.beginComputePass()
     passEncoder.setPipeline(computePipeline)
     passEncoder.setBindGroup(0, bindGroup)
-    passEncoder.dispatchWorkgroups(num_x_workgroups)
+    passEncoder.dispatchWorkgroups(num_x_workgroups, num_y_workgroups, 1)
     passEncoder.end()
 
     const result_staging_buffer = device.createBuffer({
@@ -255,7 +247,7 @@ const decompose_scalars_gpu = async (
             const s = scalar_chunks[i * num_words + j]
             if (e !== s) {
                 console.log(i, j)
-                break
+                debugger
             }
             assert(e === s)
         }
