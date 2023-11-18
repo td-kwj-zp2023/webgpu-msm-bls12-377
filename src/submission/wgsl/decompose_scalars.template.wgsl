@@ -43,5 +43,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     for (var i = 0u; i < NUM_WORDS - 1u; i ++) {
         result[global_id.x * NUM_WORDS + i] = extract_word_from_bytes_le(scalar_bytes, i);
     }
-    result[global_id.x * NUM_WORDS + NUM_WORDS - 1u] = scalar_bytes[0] >> 7;
+    /*result[global_id.x * NUM_WORDS + NUM_WORDS - 1u] = scalar_bytes[0] >> (NUM_WORDS - WORD_SIZE);*/
+    result[global_id.x * NUM_WORDS + NUM_WORDS - 1u] = scalar_bytes[0] >> (((NUM_WORDS * WORD_SIZE - 256) + 16) - WORD_SIZE);
 }
