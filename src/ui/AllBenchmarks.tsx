@@ -16,6 +16,7 @@ import {
 import {
     create_csr_wasm_precomputation_benchmark,
 } from '../submission/cuzk/create_csr_wasm'
+import { cuzk_gpu } from '../submission/cuzk/cuzk_gpu'
 import { cuzk_typescript_serial, cuzk_typescript_web_workers, transpose_wgsl, smtvp_wgsl, smvp_wgsl } from '../submission/submission';
 import CSVExportButton from './CSVExportButton';
 import { TestCaseDropDown } from './TestCaseDropDown';
@@ -134,6 +135,17 @@ export const AllBenchmarks: React.FC = () => {
         <TestCaseDropDown useRandomInputs={useRandomInputs} loadAndSetData={loadAndSetData}/>
         <CSVExportButton data={benchmarkResults} filename={'msm-benchmark'} />
       </div>
+
+      <Benchmark
+        name={'cuZK in WebGPU'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={cuzk_gpu}
+        postResult={postResult}
+        bold={true}
+      />
       
       <Benchmark
         name={'Pippenger WebGPU MSM'}
@@ -181,7 +193,7 @@ export const AllBenchmarks: React.FC = () => {
         expectedResult={expectedResult}
         msmFunc={webgpu_best_msm}
         postResult={postResult}
-        bold={true}
+        bold={false}
       />
 
       <Benchmark
