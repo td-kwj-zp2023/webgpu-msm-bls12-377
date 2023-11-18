@@ -93,16 +93,25 @@ export const create_csr_gpu = async (
     num_words: number,
     word_size: number,
 ): Promise<CSRSparseMatrix> => {
-    const wasm_result = wasm.all_precomputation(
-        new Uint32Array(scalar_chunks),
-        num_rows,
-    )
-    const all_new_point_indices = Array.from(wasm_result.get_all_new_point_indices())
-    const all_cluster_start_indices = Array.from(wasm_result.get_all_cluster_start_indices())
-    const all_cluster_end_indices = Array.from(wasm_result.get_all_cluster_end_indices())
-    const all_single_point_indices = Array.from(wasm_result.get_all_single_point_indices())
-    const all_single_scalar_chunks = Array.from(wasm_result.get_all_single_scalar_chunks())
-    const row_ptr = Array.from(wasm_result.get_row_ptr())
+    //const wasm_result = wasm.all_precomputation(
+        //new Uint32Array(scalar_chunks),
+        //num_rows,
+    //)
+    //const all_new_point_indices = Array.from(wasm_result.get_all_new_point_indices())
+    //const all_cluster_start_indices = Array.from(wasm_result.get_all_cluster_start_indices())
+    //const all_cluster_end_indices = Array.from(wasm_result.get_all_cluster_end_indices())
+    //const all_single_point_indices = Array.from(wasm_result.get_all_single_point_indices())
+    //const all_single_scalar_chunks = Array.from(wasm_result.get_all_single_scalar_chunks())
+    //const row_ptr = Array.from(wasm_result.get_row_ptr())
+    const {
+        all_new_point_indices,
+        all_cluster_start_indices,
+        all_cluster_end_indices,
+        all_single_point_indices,
+        all_single_scalar_chunks,
+        row_ptr,
+    } = all_precomputation(scalar_chunks, num_rows)
+
     const num_x_workgroups = 256
 
     const scalar_chunks_bytes = numbers_to_u8s_for_gpu(scalar_chunks)
