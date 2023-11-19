@@ -3,6 +3,8 @@
 {{> field_funcs }}
 {{> barrett_funcs }}
 {{> montgomery_product_funcs }}
+
+const CHUNK_SIZE = {{ word_size }}u;
 {{ > extract_word_from_bytes_le_funcs }}
 
 // Input buffers

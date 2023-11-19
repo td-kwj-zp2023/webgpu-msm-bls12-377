@@ -168,6 +168,21 @@ export const u8s_to_numbers = (
     return result
 }
 
+export const u8s_to_numbers_32 = (
+    u8s: Uint8Array,
+): number[] => {
+    const result: number[] = []
+    assert(u8s.length % 4 === 0)
+    for (let i = 0; i < u8s.length / 4; i ++) {
+        const n0 = u8s[i * 4]
+        const n1 = u8s[i * 4 + 1]
+        const n2 = u8s[i * 4 + 2]
+        const n3 = u8s[i * 4 + 3]
+        result.push(n3 * 16777216 + n2 * 65536  + n1 * 256 + n0)
+    }
+    return result
+}
+
 export const bigints_to_u8_for_gpu = (
     vals: bigint[],
     num_words: number,

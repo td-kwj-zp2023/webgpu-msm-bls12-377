@@ -91,7 +91,7 @@ export const add_points_benchmarks = async(
     const num_x_workgroups = 1;
     const word_size = 13
 
-    const num_runs = 1
+    const num_runs = 5
 
     console.log('Cost:', cost)
     const print_avg_timings = (timings: any[]) => {
