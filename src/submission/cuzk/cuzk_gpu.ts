@@ -10,10 +10,12 @@ import {
     read_from_gpu,
 } from '../gpu'
 import {
-    u8s_to_bigints,
+    to_words_le,
     gen_p_limbs,
     gen_r_limbs,
     gen_mu_limbs,
+    u8s_to_bigints,
+    u8s_to_numbers,
     bigints_to_16_bit_words_for_gpu,
 } from '../utils'
 
@@ -24,13 +26,22 @@ export const cuzk_gpu = async (
     baseAffinePoints: BigIntPoint[],
     scalars: bigint[]
 ): Promise<{x: bigint, y: bigint}> => {
-    const debug = true
+    const num_subtasks = 16
 
     const device = await get_device()
 
+    // Convert the affine points to Montgomery form in the GPU
     const { point_x_sb, point_y_sb, point_t_sb, point_z_sb } =
-        await convert_point_coords_to_mont_gpu(device, baseAffinePoints, debug)
+        await convert_point_coords_to_mont_gpu(device, baseAffinePoints, false)
 
+    // Decompose the scalars
+    const scalar_chunk_sbs = await decompose_scalars_gpu(
+        device,
+        scalars,
+        num_subtasks,
+        true,
+    )
+    
     return { x: BigInt(1), y: BigInt(0) }
 }
 
@@ -110,6 +121,7 @@ const convert_point_coords_to_mont_gpu = async (
         num_y_workgroups,
         workgroup_size,
     )
+
     const computePipeline = create_compute_pipeline(
         device,
         bindGroupLayout,
@@ -206,6 +218,109 @@ const genConvertPointCoordsShaderCode = (
             field_funcs,
             barrett_funcs,
             montgomery_product_funcs,
+        },
+    )
+    return shaderCode
+}
+
+const decompose_scalars_gpu = async (
+    device: GPUDevice,
+    scalars: bigint[],
+    num_subtasks: number,
+    debug = false,
+): Promise<GPUBuffer> => {
+    const input_size = scalars.length
+    const chunk_size = Math.ceil(256 / num_subtasks)
+
+    const scalars_bytes = bigints_to_16_bit_words_for_gpu(scalars)
+
+    // Input buffers
+    const scalars_sb = create_and_write_sb(device, scalars_bytes)
+
+    // Output buffer(s)
+    const chunks_sb = create_read_only_sb(device, input_size * num_subtasks * 4)
+    const bindGroupLayout = create_bind_group_layout(
+        device,
+        ['read-only-storage', 'storage'],
+    )
+    const bindGroup = create_bind_group(
+        device,
+        bindGroupLayout,
+        [scalars_sb, chunks_sb],
+    )
+
+    const workgroup_size = 64
+    const num_x_workgroups = 256
+    const num_y_workgroups = input_size / workgroup_size / num_x_workgroups
+
+    const shaderCode = genDecomposeScalarsShaderCode(
+        num_y_workgroups,
+        workgroup_size,
+        num_subtasks,
+        chunk_size
+    )
+
+    const computePipeline = create_compute_pipeline(
+        device,
+        bindGroupLayout,
+        shaderCode,
+        'main',
+    )
+
+    const commandEncoder = device.createCommandEncoder()
+    const passEncoder = commandEncoder.beginComputePass()
+    passEncoder.setPipeline(computePipeline)
+    passEncoder.setBindGroup(0, bindGroup)
+    passEncoder.dispatchWorkgroups(num_x_workgroups, num_y_workgroups, 1)
+    passEncoder.end()
+
+    if (debug) {
+        const data = await read_from_gpu(
+            device,
+            commandEncoder,
+            [chunks_sb],
+        )
+
+        const computed_chunks = u8s_to_numbers(data[0])
+        const expected: number[] = []
+        for (const scalar of scalars) {
+            const chunks = to_words_le(scalar, num_subtasks, chunk_size)
+            for (const chunk of chunks) {
+                expected.push(chunk)
+            }
+        }
+
+        if (computed_chunks.length !== expected.length) {
+            throw Error('output size mismatch')
+        }
+
+        for (let i = 0; i < computed_chunks.length; i ++) {
+            if (computed_chunks[i].toString() !== expected[i].toString()) {
+                throw Error(`scalar decomp mismatch at ${i}`)
+            }
+        }
+    }
+
+    return chunks_sb
+}
+
+import decompose_scalars_shader from '../wgsl/decompose_scalars.template.wgsl'
+const genDecomposeScalarsShaderCode = (
+    num_y_workgroups: number,
+    workgroup_size: number,
+    num_subtasks: number,
+    chunk_size: number,
+) => {
+    const shaderCode = mustache.render(
+        decompose_scalars_shader,
+        {
+            workgroup_size,
+            num_y_workgroups,
+            num_subtasks,
+            chunk_size,
+        },
+        {
+            extract_word_from_bytes_le_funcs,
         },
     )
     return shaderCode

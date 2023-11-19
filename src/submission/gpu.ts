@@ -57,8 +57,8 @@ export const read_from_gpu = async (
 
     device.queue.submit([commandEncoder.finish()]);
 
-    const data = []
     // Map staging buffers to read results back to JS
+    const data = []
     for (let i = 0; i < staging_buffers.length; i ++) {
         await staging_buffers[i].mapAsync(
             GPUMapMode.READ,
