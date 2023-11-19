@@ -10,6 +10,7 @@ import {
     bigints_to_u8_for_gpu,
 } from './utils'
 import { get_device, create_bind_group } from './gpu'
+import extract_word_from_bytes_le_shader from './wgsl/extract_word_from_bytes_le.template.wgsl'
 import decompose_scalars_shader from './wgsl/decompose_scalars.template.wgsl'
 
 export const decompose_scalars_ts_benchmark = async (
@@ -188,6 +189,7 @@ const decompose_scalars_gpu = async (
             word_size,
         },
         {
+            extract_word_from_bytes_le: extract_word_from_bytes_le_shader
         }
     )
 
