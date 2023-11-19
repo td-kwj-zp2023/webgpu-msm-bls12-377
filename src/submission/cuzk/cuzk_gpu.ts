@@ -30,27 +30,41 @@ export const cuzk_gpu = async (
     const input_size = scalars.length
     const num_subtasks = 16
 
+    // Each pass must use the same GPUDevice and GPUCommandEncoder, or else
+    // storage buffers from a previous pass can't be used in the current pass
     const device = await get_device()
+    const commandEncoder = device.createCommandEncoder()
 
     // Convert the affine points to Montgomery form in the GPU
     const { point_x_sb, point_y_sb, point_t_sb, point_z_sb } =
-        await convert_point_coords_to_mont_gpu(device, baseAffinePoints, false)
+        await convert_point_coords_to_mont_gpu(
+            device,
+            commandEncoder,
+            baseAffinePoints,
+            false,
+        )
 
     // Decompose the scalars
-    const scalar_chunk_sb = await decompose_scalars_gpu(
+    const scalar_chunks_sb = await decompose_scalars_gpu(
         device,
+        commandEncoder,
         scalars,
         num_subtasks,
         false,
     )
 
     for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx ++) {
+        // TODO: currently if debug is set to true here, the sanity check will
+        // fail on the second iteration, because the commandEncoder's finish()
+        // function has been used. To correctly sanity-check these outputs, do
+        // so in a separate test file.
         const { new_point_indices_sb, cluster_start_indices_sb, cluster_end_indices_sb } =
             await csr_precompute_gpu(
                 device,
+                commandEncoder,
                 input_size,
                 subtask_idx,
-                scalar_chunk_sb,
+                scalar_chunks_sb,
                 false,
             )
     }
@@ -78,6 +92,7 @@ export const cuzk_gpu = async (
 */
 const convert_point_coords_to_mont_gpu = async (
     device: GPUDevice,
+    commandEncoder: GPUCommandEncoder,
     baseAffinePoints: BigIntPoint[],
     debug = false,
 ): Promise<{
@@ -142,7 +157,6 @@ const convert_point_coords_to_mont_gpu = async (
         'main',
     )
 
-    const commandEncoder = device.createCommandEncoder()
     const passEncoder = commandEncoder.beginComputePass()
     passEncoder.setPipeline(computePipeline)
     passEncoder.setBindGroup(0, bindGroup)
@@ -238,6 +252,7 @@ const genConvertPointCoordsShaderCode = (
 
 const decompose_scalars_gpu = async (
     device: GPUDevice,
+    commandEncoder: GPUCommandEncoder,
     scalars: bigint[],
     num_subtasks: number,
     debug = false,
@@ -281,7 +296,6 @@ const decompose_scalars_gpu = async (
         'main',
     )
 
-    const commandEncoder = device.createCommandEncoder()
     const passEncoder = commandEncoder.beginComputePass()
     passEncoder.setPipeline(computePipeline)
     passEncoder.setBindGroup(0, bindGroup)
@@ -342,9 +356,10 @@ const genDecomposeScalarsShaderCode = (
 
 const csr_precompute_gpu = async (
     device: GPUDevice,
+    commandEncoder: GPUCommandEncoder,
     input_size: number,
     subtask_idx: number,
-    scalar_chunk_sb: GPUBuffer,
+    scalar_chunks_sb: GPUBuffer,
     debug = false,
 ): Promise<{
     new_point_indices_sb: GPUBuffer,
@@ -352,19 +367,21 @@ const csr_precompute_gpu = async (
     cluster_end_indices_sb: GPUBuffer,
 }> => {
     // Output buffers
+    const new_scalar_chunks_sb = create_sb(device, scalar_chunks_sb.size)
     const new_point_indices_sb = create_sb(device, input_size * 4)
     const cluster_start_indices_sb = create_sb(device, input_size * 4)
     const cluster_end_indices_sb = create_sb(device, input_size * 4)
 
     const bindGroupLayout = create_bind_group_layout(
         device,
-        ['storage', 'storage', 'storage']
+        ['storage', 'storage', 'storage', 'storage']
     )
 
     const bindGroup = create_bind_group(
         device,
         bindGroupLayout,
         [
+            new_scalar_chunks_sb,
             new_point_indices_sb,
             cluster_start_indices_sb,
             cluster_end_indices_sb,
@@ -387,7 +404,14 @@ const csr_precompute_gpu = async (
         'main',
     )
 
-    const commandEncoder = device.createCommandEncoder()
+    commandEncoder.copyBufferToBuffer(
+        scalar_chunks_sb,
+        0,
+        new_scalar_chunks_sb,
+        0,
+        new_scalar_chunks_sb.size
+    )
+
     const passEncoder = commandEncoder.beginComputePass()
     passEncoder.setPipeline(computePipeline)
     passEncoder.setBindGroup(0, bindGroup)
@@ -399,6 +423,7 @@ const csr_precompute_gpu = async (
             device,
             commandEncoder,
             [
+                //scalar_chunks_sb,
                 new_point_indices_sb,
                 cluster_start_indices_sb,
                 cluster_end_indices_sb,
