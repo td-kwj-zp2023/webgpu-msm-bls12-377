@@ -6,7 +6,7 @@ import {
     create_bind_group,
     create_bind_group_layout,
     create_compute_pipeline,
-    create_read_only_sb,
+    create_sb,
     read_from_gpu,
 } from '../gpu'
 import {
@@ -16,6 +16,7 @@ import {
     gen_mu_limbs,
     u8s_to_bigints,
     u8s_to_numbers,
+    u8s_to_numbers_32,
     bigints_to_16_bit_words_for_gpu,
 } from '../utils'
 
@@ -26,6 +27,7 @@ export const cuzk_gpu = async (
     baseAffinePoints: BigIntPoint[],
     scalars: bigint[]
 ): Promise<{x: bigint, y: bigint}> => {
+    const input_size = scalars.length
     const num_subtasks = 16
 
     const device = await get_device()
@@ -35,12 +37,23 @@ export const cuzk_gpu = async (
         await convert_point_coords_to_mont_gpu(device, baseAffinePoints, false)
 
     // Decompose the scalars
-    const scalar_chunk_sbs = await decompose_scalars_gpu(
+    const scalar_chunk_sb = await decompose_scalars_gpu(
         device,
         scalars,
         num_subtasks,
         false,
     )
+
+    for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx ++) {
+        const { new_point_indices_sb, cluster_start_indices_sb, cluster_end_indices_sb } =
+            await csr_precompute_gpu(
+                device,
+                input_size,
+                subtask_idx,
+                scalar_chunk_sb,
+                false,
+            )
+    }
     
     return { x: BigInt(1), y: BigInt(0) }
 }
@@ -84,10 +97,10 @@ const convert_point_coords_to_mont_gpu = async (
     const y_coords_sb = create_and_write_sb(device, y_coords_bytes)
 
     // Output buffers
-    const point_x_sb = create_read_only_sb(device, input_size * num_words * 4)
-    const point_y_sb = create_read_only_sb(device, input_size * num_words * 4)
-    const point_t_sb = create_read_only_sb(device, input_size * num_words * 4)
-    const point_z_sb = create_read_only_sb(device, input_size * num_words * 4)
+    const point_x_sb = create_sb(device, input_size * num_words * 4)
+    const point_y_sb = create_sb(device, input_size * num_words * 4)
+    const point_t_sb = create_sb(device, input_size * num_words * 4)
+    const point_z_sb = create_sb(device, input_size * num_words * 4)
 
     const bindGroupLayout = create_bind_group_layout(
         device,
@@ -238,7 +251,8 @@ const decompose_scalars_gpu = async (
     const scalars_sb = create_and_write_sb(device, scalars_bytes)
 
     // Output buffer(s)
-    const chunks_sb = create_read_only_sb(device, input_size * num_subtasks * 4)
+    const chunks_sb = create_sb(device, input_size * num_subtasks * 4)
+
     const bindGroupLayout = create_bind_group_layout(
         device,
         ['read-only-storage', 'storage'],
@@ -321,6 +335,106 @@ const genDecomposeScalarsShaderCode = (
         },
         {
             extract_word_from_bytes_le_funcs,
+        },
+    )
+    return shaderCode
+}
+
+const csr_precompute_gpu = async (
+    device: GPUDevice,
+    input_size: number,
+    subtask_idx: number,
+    scalar_chunk_sb: GPUBuffer,
+    debug = false,
+): Promise<{
+    new_point_indices_sb: GPUBuffer,
+    cluster_start_indices_sb: GPUBuffer,
+    cluster_end_indices_sb: GPUBuffer,
+}> => {
+    // Output buffers
+    const new_point_indices_sb = create_sb(device, input_size * 4)
+    const cluster_start_indices_sb = create_sb(device, input_size * 4)
+    const cluster_end_indices_sb = create_sb(device, input_size * 4)
+
+    const bindGroupLayout = create_bind_group_layout(
+        device,
+        ['storage', 'storage', 'storage']
+    )
+
+    const bindGroup = create_bind_group(
+        device,
+        bindGroupLayout,
+        [
+            new_point_indices_sb,
+            cluster_start_indices_sb,
+            cluster_end_indices_sb,
+        ],
+    )
+
+    const workgroup_size = 64
+    const num_x_workgroups = 256
+    const num_y_workgroups = input_size / workgroup_size / num_x_workgroups
+
+    const shaderCode = genCsrPrecomputeShaderCode(
+        num_y_workgroups,
+        workgroup_size,
+    )
+
+    const computePipeline = create_compute_pipeline(
+        device,
+        bindGroupLayout,
+        shaderCode,
+        'main',
+    )
+
+    const commandEncoder = device.createCommandEncoder()
+    const passEncoder = commandEncoder.beginComputePass()
+    passEncoder.setPipeline(computePipeline)
+    passEncoder.setBindGroup(0, bindGroup)
+    passEncoder.dispatchWorkgroups(num_x_workgroups, num_y_workgroups, 1)
+    passEncoder.end()
+
+    if (debug) {
+        const data = await read_from_gpu(
+            device,
+            commandEncoder,
+            [
+                new_point_indices_sb,
+                cluster_start_indices_sb,
+                cluster_end_indices_sb,
+            ],
+        )
+
+        const nums = data.map(u8s_to_numbers_32)
+
+        for (let i = 0; i < input_size; i ++) {
+            if (nums[0][i] !== i) {
+                throw Error(`new_point_indices_sb mismatch at ${i}`)
+            }
+            if (nums[1][i] !== i) {
+                throw Error(`cluster_start_indices_sb mismatch at ${i}`)
+            }
+
+            if (nums[2][i] - 1 !== i) {
+                throw Error(`cluster_end_indices_sb mismatch at ${i}`)
+            }
+        }
+    }
+    return { new_point_indices_sb, cluster_start_indices_sb, cluster_end_indices_sb }
+}
+
+import gen_csr_precompute_shader from '../wgsl/gen_csr_precompute.template.wgsl'
+const genCsrPrecomputeShaderCode = (
+    num_y_workgroups: number,
+    workgroup_size: number,
+) => {
+    const shaderCode = mustache.render(
+        gen_csr_precompute_shader,
+        {
+            workgroup_size,
+            num_y_workgroups,
+        },
+        {
         },
     )
     return shaderCode

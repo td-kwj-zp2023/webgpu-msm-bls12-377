@@ -24,7 +24,7 @@ export const create_and_write_sb = (
     return sb
 }
 
-export const create_read_only_sb = (
+export const create_sb = (
     device: GPUDevice,
     size: number,
 ) => {
