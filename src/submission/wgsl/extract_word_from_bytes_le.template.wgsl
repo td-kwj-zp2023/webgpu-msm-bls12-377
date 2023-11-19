@@ -3,12 +3,11 @@ fn extract_word_from_bytes_le(
     word_idx: u32
 ) -> u32 {
     var word = 0u;
-    let word_size = WORD_SIZE;
-    let start_byte_idx = 15u - ((word_idx * word_size + word_size) / 16u);
-    let end_byte_idx = 15u - ((word_idx * word_size) / 16u);
+    let start_byte_idx = 15u - ((word_idx * CHUNK_SIZE + CHUNK_SIZE) / 16u);
+    let end_byte_idx = 15u - ((word_idx * CHUNK_SIZE) / 16u);
 
-    let start_byte_offset = (word_idx * word_size + word_size) % 16u;
-    let end_byte_offset = (word_idx * word_size) % 16u;
+    let start_byte_offset = (word_idx * CHUNK_SIZE + CHUNK_SIZE) % 16u;
+    let end_byte_offset = (word_idx * CHUNK_SIZE) % 16u;
 
     var mask = 0u;
     if (start_byte_offset > 0u) {
