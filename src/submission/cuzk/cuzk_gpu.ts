@@ -39,7 +39,7 @@ export const cuzk_gpu = async (
         device,
         scalars,
         num_subtasks,
-        true,
+        false,
     )
     
     return { x: BigInt(1), y: BigInt(0) }
