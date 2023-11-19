@@ -3,34 +3,16 @@ var<storage, read> scalars: array<u32>;
 @group(0) @binding(1)
 var<storage, read_write> result: array<u32>;
 
+{{> structs }}
+{{> bigint_funcs }}
+{{> field_funcs }}
+{{> barrett_funcs }}
+{{> montgomery_product_funcs }}
+
 const NUM_WORDS = {{ num_words }}u;
 const WORD_SIZE = {{ word_size }}u;
 
-fn extract_word_from_bytes_le(
-    input: array<u32, 16>,
-    word_idx: u32
-) -> u32 {
-    var word = 0u;
-    let word_size = WORD_SIZE;
-    let start_byte_idx = 15u - ((word_idx * word_size + word_size) / 16u);
-    let end_byte_idx = 15u - ((word_idx * word_size) / 16u);
-
-    let start_byte_offset = (word_idx * word_size + word_size) % 16u;
-    let end_byte_offset = (word_idx * word_size) % 16u;
-
-    var mask = 0u;
-    if (start_byte_offset > 0u) {
-        mask = (2u << (start_byte_offset - 1u)) - 1u;
-    }
-    if (start_byte_idx == end_byte_idx) {
-        word = (input[start_byte_idx] & mask) >> end_byte_offset;
-    } else {
-        word = (input[start_byte_idx] & mask) << (16u - end_byte_offset);
-        word += input[end_byte_idx] >> end_byte_offset;
-    }
-
-    return word;
-}
+{{ > extract_word_from_bytes_le }}
 
 @compute
 @workgroup_size({{ workgroup_size }})

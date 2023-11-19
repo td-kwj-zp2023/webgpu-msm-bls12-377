@@ -2,6 +2,8 @@ import {
     to_words_le,
     from_words_le,
     compute_misc_params,
+    bigints_to_16_bit_words_for_gpu,
+    bigints_to_u8_for_gpu,
 } from './utils'
 import * as bigintCryptoUtils from 'bigint-crypto-utils'
 
@@ -91,6 +93,30 @@ describe('utils', () => {
                 expect(words.toString()).toEqual(to_words_le(test_case, num_words, word_size).toString())
             }
         })
+
+        it('bigints to 16-bit words', () => {
+            const test_cases = [
+                [p],
+                [p, p],
+                [p, p, p],
+                [p, p, p, p],
+                [BigInt(0)],
+                [BigInt(0), BigInt(0)],
+                [BigInt(1)],
+                [BigInt(1), BigInt(1)],
+                [BigInt(255)],
+                [BigInt(255), BigInt(255)],
+                [BigInt(1), BigInt(255)],
+                [BigInt(0), BigInt(255)],
+                [BigInt(255), BigInt(0)],
+                [p, p / BigInt(2), p / BigInt(3), p],
+            ]
+            for (const vals of test_cases) {
+                const b = bigints_to_16_bit_words_for_gpu(vals)
+                const c = bigints_to_u8_for_gpu(vals, 16, 16)
+                expect(b.toString()).toEqual(c.toString())
+            }
+        })
     })
 
     describe('misc functions', () => {
@@ -102,7 +128,7 @@ describe('utils', () => {
             const r = BigInt(2) ** BigInt(num_words * word_size)
 
             // Returns triple (g, rinv, pprime)
-            let egcdResult = bigintCryptoUtils.eGcd(r, p);
+            const egcdResult = bigintCryptoUtils.eGcd(r, p);
 
             // Sanity-check rinv and pprime
             if (egcdResult.x < BigInt(0)) {

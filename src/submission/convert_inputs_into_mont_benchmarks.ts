@@ -6,6 +6,7 @@ import {
     gen_r_limbs,
     gen_mu_limbs,
     u8s_to_points,
+    to_words_le,
     compute_misc_params,
     points_to_u8s_for_gpu,
 } from './utils'
@@ -48,6 +49,12 @@ export const convert_inputs_into_mont_benchmark = async(
         converted_y.push(yr)
         converted_t.push(tr)
         converted_z.push(r)
+
+        // Convert the BigInts to words as this will have to be done anyway
+        to_words_le(xr, num_words, word_size)
+        to_words_le(yr, num_words, word_size)
+        to_words_le(tr, num_words, word_size)
+        to_words_le(r, num_words, word_size)
     }
 
     const elapsed = Date.now() - start
