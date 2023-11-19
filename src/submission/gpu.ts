@@ -99,20 +99,20 @@ export const create_bind_group = (device: GPUDevice, layout: GPUBindGroupLayout,
     return device.createBindGroup({ layout, entries })
 }
 
-export const create_compute_pipeline = (
+export const create_compute_pipeline = async (
     device: GPUDevice,
-    bindGroupLayout: GPUBindGroupLayout,
+    bindGroupLayouts: GPUBindGroupLayout[],
     code: string,
     entryPoint: string,
 ) => {
-    return device.createComputePipeline({
-        layout: device.createPipelineLayout({
-            bindGroupLayouts: [bindGroupLayout]
-        }),
-        compute: {
-            module: device.createShaderModule({ code }),
-            entryPoint,
-        }
+    const m = device.createShaderModule({ code })
+
+    // It's recommended to use createComputePipelineAsync instead of
+    // createComputePipeline to prevent stalls:
+    // https://www.khronos.org/assets/uploads/developers/presentations/WebGPU_Best_Practices_Google.pdf
+    return device.createComputePipelineAsync({
+        layout: device.createPipelineLayout({ bindGroupLayouts }),
+        compute: { module: m, entryPoint }
     })
 }
 

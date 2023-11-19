@@ -150,9 +150,9 @@ const convert_point_coords_to_mont_gpu = async (
         workgroup_size,
     )
 
-    const computePipeline = create_compute_pipeline(
+    const computePipeline = await create_compute_pipeline(
         device,
-        bindGroupLayout,
+        [bindGroupLayout],
         shaderCode,
         'main',
     )
@@ -289,9 +289,9 @@ const decompose_scalars_gpu = async (
         chunk_size
     )
 
-    const computePipeline = create_compute_pipeline(
+    const computePipeline = await create_compute_pipeline(
         device,
-        bindGroupLayout,
+        [bindGroupLayout],
         shaderCode,
         'main',
     )
@@ -397,9 +397,9 @@ const csr_precompute_gpu = async (
         workgroup_size,
     )
 
-    const computePipeline = create_compute_pipeline(
+    const computePipeline = await create_compute_pipeline(
         device,
-        bindGroupLayout,
+        [bindGroupLayout],
         shaderCode,
         'main',
     )
