@@ -6,17 +6,26 @@ import { webgpu_compute_msm, wasm_compute_msm, webgpu_pippenger_msm, webgpu_best
 import { convert_inputs_into_mont_benchmark } from '../submission/convert_inputs_into_mont_benchmarks';
 import { convert_bigints_to_bytes_benchmark } from '../submission/convert_bigints_to_bytes_benchmark'
 import { mont_mul_benchmarks } from '../submission/mont_mul_benchmarks';
+import { barrett_mul_benchmarks } from '../submission/barrett_mul_benchmarks';
 import { add_points_benchmarks } from '../submission/add_points_benchmarks';
-import { create_csr_sparse_matrices_from_points_benchmark } from '../submission/cuzk/create_csr_gpu'
-import { cuzk_typescript_serial, cuzk_typescript_web_workers, transpose_wgsl, smtvp_wgsl, smvp_wgsl } from '../submission/submission';
 import { smtvp } from '../submission/cuzk/smtvp_wgsl';
+import { decompose_scalars_ts_benchmark } from '../submission/decompose_scalars_benchmark';
+import {
+    create_csr_precomputation_benchmark,
+    create_csr_sparse_matrices_from_points_benchmark,
+} from '../submission/cuzk/create_csr_gpu'
+import {
+    create_csr_wasm_precomputation_benchmark,
+} from '../submission/cuzk/create_csr_wasm'
+import { cuzk_typescript_serial, cuzk_typescript_web_workers, transpose_wgsl, smtvp_wgsl, smvp_wgsl } from '../submission/submission';
+
 import CSVExportButton from './CSVExportButton';
 import { TestCaseDropDown } from './TestCaseDropDown';
 import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
 import { smvp } from '../submission/cuzk/smvp_wgsl';
 
 export const AllBenchmarks: React.FC = () => {
-  const initialDefaultInputSize = 65536;
+  const initialDefaultInputSize = 2 ** 16;
   //const initialDefaultInputSize = 2 ** 16 //65536
   const [inputSize, setInputSize] = useState(initialDefaultInputSize);
   const [power, setPower] = useState<string>('2^0');
@@ -177,6 +186,17 @@ export const AllBenchmarks: React.FC = () => {
         postResult={postResult}
         bold={true}
       />
+
+      <Benchmark
+        name={'Decompose scalars benchmarks'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={decompose_scalars_ts_benchmark}
+        postResult={postResult}
+        bold={true}
+      />
       <Benchmark
         name={'Montgomery multiplication benchmarks'}
         disabled={disabledBenchmark}
@@ -184,6 +204,16 @@ export const AllBenchmarks: React.FC = () => {
         scalars={bigIntScalars}
         expectedResult={expectedResult}
         msmFunc={mont_mul_benchmarks}
+        postResult={postResult}
+        bold={true}
+      />
+      <Benchmark
+        name={'Barrett reduction benchmarks'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={barrett_mul_benchmarks}
         postResult={postResult}
         bold={true}
       />
@@ -264,6 +294,26 @@ export const AllBenchmarks: React.FC = () => {
         scalars={bigIntScalars}
         expectedResult={expectedResult}
         msmFunc={smtvp_wgsl}
+        postResult={postResult}
+        bold={true}
+      />
+      <Benchmark
+        name={'Create CSR sparse matrices (precomputation only in TS)'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={create_csr_precomputation_benchmark}
+        postResult={postResult}
+        bold={true}
+      />
+      <Benchmark
+        name={'Create CSR sparse matrices (precomputation only in WASM)'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={create_csr_wasm_precomputation_benchmark}
         postResult={postResult}
         bold={true}
       />

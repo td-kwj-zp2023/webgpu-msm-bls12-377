@@ -41,34 +41,31 @@ export const cuzk_typescript_web_workers = async (
 export const transpose_wgsl = async (
   baseAffinePoints: BigIntPoint[],
   scalars: bigint[]
-): Promise<any> => {
+): Promise<{x: bigint, y: bigint}> => {
   console.log("Starting WGSL Sparse-Matrix Transpose!")
   
   const result = await transpose(baseAffinePoints, scalars)
-
-  throw new Error("Not implemented");
+  return result
 };
 
 // WGSL implementation of Sparse-Matrix Vector Multiplication
 export const smvp_wgsl = async (
   baseAffinePoints: BigIntPoint[],
   scalars: bigint[]
-): Promise<any> => {
+): Promise<{x: bigint, y: bigint}> => {
   console.log("Starting WGSL SMVP!")
   
   const result = await smvp(baseAffinePoints, scalars)
-
-  throw new Error("Not implemented");
+  return result
 };
 
 // WGSL implementation of Sparse-Matrix Transpose
 export const smtvp_wgsl = async (
   baseAffinePoints: BigIntPoint[],
   scalars: bigint[]
-): Promise<any> => {
+): Promise<{x: bigint, y: bigint}> => {
   console.log("Starting WGSL SMTVP!")
   
   const result = await smtvp(baseAffinePoints, scalars)
-
-  throw new Error("Not implemented");
+  return result
 };

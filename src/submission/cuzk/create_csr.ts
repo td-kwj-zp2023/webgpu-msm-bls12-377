@@ -32,19 +32,19 @@ export const precompute_with_cluster_method = (
 
     let cluster_start_indices: number[] = [0]
     let cluster_end_indices: number[] = []
-    const new_point_indices: number[] = []
+    let new_point_indices: number[] = []
+    const s: number[] = []
 
     for (const chunk of clusters.keys()) {
         const cluster = clusters.get(chunk)
-        // append single-item clusters
         if (cluster.length === 1) {
-            new_point_indices.push(cluster[0])
+            s.push(cluster[0])
         } else {
-            for (const c of cluster) {
-                new_point_indices.unshift(c)
-            }
+            new_point_indices = new_point_indices.concat(cluster)
         }
     }
+    // append single-item clusters
+    new_point_indices = new_point_indices.concat(s)
 
     // populate cluster_start_indices and cluster_end_indices
     let prev_chunk = scalar_chunks[new_point_indices[0]]
@@ -60,15 +60,16 @@ export const precompute_with_cluster_method = (
     // the final cluster_end_index
     cluster_end_indices.push(new_point_indices.length)
 
-    let i
-    for (i = 0; i < cluster_start_indices.length; i ++) {
-        if (cluster_start_indices[i] + 1 ===  cluster_end_indices[i]) {
+    let i = 0
+    while (i < cluster_start_indices.length) {
+        if (cluster_start_indices[i] + 1 === cluster_end_indices[i]) {
             break
         }
+        i ++
     }
 
     const num_non_zero = cluster_start_indices.length
-    const singles_start_idx = cluster_start_indices[i]
+    const singles_start_idx = i < cluster_start_indices.length ? [cluster_start_indices[i]] : []
 
     cluster_start_indices = cluster_start_indices.slice(0, i)
     cluster_end_indices = cluster_end_indices.slice(0, i)
@@ -104,14 +105,13 @@ export function pre_aggregate<P> (
 }
 
 export const all_precomputation = (
-    points: any[],
     scalar_chunks: number[],
     num_rows: number,
 ) => {
     let all_new_point_indices: number[] = []
     let all_cluster_start_indices: number[] = []
     let all_cluster_end_indices: number[] = []
-    let all_single_points: any[] = []
+    let all_single_point_indices: any[] = []
     let all_single_scalar_chunks: number[] = []
 
     const row_ptr: number[] = [0]
@@ -127,17 +127,17 @@ export const all_precomputation = (
 
         row_ptr.push(row_ptr[row_ptr.length - 1] + num_non_zero)
 
-        const single_points: any[] = []
+        const single_point_indices: any[] = []
         const single_scalar_chunks: any[] = []
 
-        if (singles_start_idx != undefined) {
-            for (let i = singles_start_idx; i < new_point_indices.length; i ++) {
-                single_points.push(points[new_point_indices[i]])
+        if (singles_start_idx.length !== 0) {
+            for (let i = singles_start_idx[0]; i < new_point_indices.length; i ++) {
+                single_point_indices.push(new_point_indices[i])
                 single_scalar_chunks.push(scalar_chunks[new_point_indices[i]])
             }
         }
 
-        all_single_points = all_single_points.concat(single_points)
+        all_single_point_indices = all_single_point_indices.concat(single_point_indices)
         all_single_scalar_chunks = all_single_scalar_chunks.concat(single_scalar_chunks)
 
         for (let i = 0; i < cluster_start_indices.length; i ++) {
@@ -154,7 +154,7 @@ export const all_precomputation = (
         all_new_point_indices,
         all_cluster_start_indices,
         all_cluster_end_indices,
-        all_single_points,
+        all_single_point_indices,
         all_single_scalar_chunks,
         row_ptr,
     }
@@ -170,10 +170,10 @@ export const create_csr_cpu = (
         all_new_point_indices,
         all_cluster_start_indices,
         all_cluster_end_indices,
-        all_single_points,
+        all_single_point_indices,
         all_single_scalar_chunks,
         row_ptr,
-    } = all_precomputation(points, scalar_chunks, num_rows)
+    } = all_precomputation(scalar_chunks, num_rows)
 
     const { new_points, new_scalar_chunks } = pre_aggregate(
         points,
@@ -185,7 +185,7 @@ export const create_csr_cpu = (
     )
 
     return new CSRSparseMatrix(
-        new_points.concat(all_single_points),
+        new_points.concat(all_single_point_indices.map((x) => points[x])),
         new_scalar_chunks.concat(all_single_scalar_chunks),
         row_ptr,
     )
