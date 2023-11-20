@@ -1,5 +1,5 @@
 @group(0) @binding(0)
-var<storage, read_write> scalar_chunks: array<u32>;
+var<storage, read> scalar_chunks: array<u32>;
 @group(0) @binding(1)
 var<storage, read_write> new_point_indices: array<u32>;
 @group(0) @binding(2)
