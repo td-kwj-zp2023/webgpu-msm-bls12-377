@@ -20,6 +20,18 @@ import {
     bigints_to_16_bit_words_for_gpu,
 } from '../utils'
 
+import convert_point_coords_shader from '../wgsl/convert_point_coords.template.wgsl'
+import extract_word_from_bytes_le_funcs from '../wgsl/extract_word_from_bytes_le.template.wgsl'
+import structs from '../wgsl/struct/structs.template.wgsl'
+import bigint_funcs from '../wgsl/bigint/bigint.template.wgsl'
+import field_funcs from '../wgsl/field/field.template.wgsl'
+import ec_funcs from '../wgsl/curve/ec.template.wgsl'
+import barrett_funcs from '../wgsl/barrett.template.wgsl'
+import montgomery_product_funcs from '../wgsl/montgomery/mont_pro_product.template.wgsl'
+import decompose_scalars_shader from '../wgsl/decompose_scalars.template.wgsl'
+import gen_csr_precompute_shader from '../wgsl/gen_csr_precompute.template.wgsl'
+import preaggregation_stage_1_shader from '../wgsl/preaggregation_stage_1.template.wgsl'
+
 /*
  * End-to-end implementation of the cuZK MSM algorithm.
  */
@@ -58,17 +70,35 @@ export const cuzk_gpu = async (
         // fail on the second iteration, because the commandEncoder's finish()
         // function has been used. To correctly sanity-check these outputs, do
         // so in a separate test file.
-        const { new_point_indices_sb, cluster_start_indices_sb, cluster_end_indices_sb } =
-            await csr_precompute_gpu(
-                device,
-                commandEncoder,
-                input_size,
-                subtask_idx,
-                scalar_chunks_sb,
-                false,
-            )
+        const {
+            new_point_indices_sb,
+            cluster_start_indices_sb,
+            cluster_end_indices_sb,
+        } = await csr_precompute_gpu(
+            device,
+            commandEncoder,
+            input_size,
+            scalar_chunks_sb,
+            false,
+        )
+
+        const {
+            new_point_x_y_sb,
+            new_point_t_z_sb,
+        } = await pre_aggregation_stage_1_gpu(
+            device,
+            commandEncoder,
+            input_size,
+            point_x_y_sb,
+            point_t_z_sb,
+            new_point_indices_sb,
+            cluster_start_indices_sb,
+            cluster_end_indices_sb,
+            false,
+        )
+        break
     }
-    
+
     return { x: BigInt(1), y: BigInt(0) }
 }
 
@@ -102,13 +132,10 @@ const convert_point_coords_to_mont_gpu = async (
     const input_size = baseAffinePoints.length
 
     // An affine point only contains X and Y points.
-    //const x_y_coords = Array(input_size * 2).fill(BigInt(0))
-    const x_y_coords: bigint[] = []
+    const x_y_coords = Array(input_size * 2).fill(BigInt(0))
     for (let i = 0; i < input_size; i ++) {
-        x_y_coords.push(baseAffinePoints[i].x)
-        x_y_coords.push(baseAffinePoints[i].y)
-        //x_y_coords[i * 2] = baseAffinePoints[i].x
-        //x_y_coords[i * 2 + 1] = baseAffinePoints[i].y
+        x_y_coords[i * 2] = baseAffinePoints[i].x
+        x_y_coords[i * 2 + 1] = baseAffinePoints[i].y
     }
 
     const x_y_coords_bytes = bigints_to_16_bit_words_for_gpu(x_y_coords)
@@ -193,14 +220,7 @@ const convert_point_coords_to_mont_gpu = async (
     return { point_x_y_sb, point_t_z_sb }
 }
 
-import convert_point_coords_shader from '../wgsl/convert_point_coords.template.wgsl'
-import extract_word_from_bytes_le_funcs from '../wgsl/extract_word_from_bytes_le.template.wgsl'
-import structs from '../wgsl/struct/structs.template.wgsl'
-import bigint_funcs from '../wgsl/bigint/bigint.template.wgsl'
-import field_funcs from '../wgsl/field/field.template.wgsl'
-import barrett_funcs from '../wgsl/barrett.template.wgsl'
-import montgomery_product_funcs from '../wgsl/montgomery/mont_pro_product.template.wgsl'
-
+// Hardcode params for word_size = 13
 const p = BigInt('8444461749428370424248824938781546531375899335154063827935233455917409239041')
 const r = BigInt('3336304672246003866643098545847835280997800251509046313505217280697450888997')
 const word_size = 13
@@ -328,7 +348,6 @@ const decompose_scalars_gpu = async (
     return chunks_sb
 }
 
-import decompose_scalars_shader from '../wgsl/decompose_scalars.template.wgsl'
 const genDecomposeScalarsShaderCode = (
     num_y_workgroups: number,
     workgroup_size: number,
@@ -354,7 +373,6 @@ const csr_precompute_gpu = async (
     device: GPUDevice,
     commandEncoder: GPUCommandEncoder,
     input_size: number,
-    subtask_idx: number,
     scalar_chunks_sb: GPUBuffer,
     debug = false,
 ): Promise<{
@@ -363,7 +381,6 @@ const csr_precompute_gpu = async (
     cluster_end_indices_sb: GPUBuffer,
 }> => {
     // Output buffers
-    const new_scalar_chunks_sb = create_sb(device, scalar_chunks_sb.size)
     const new_point_indices_sb = create_sb(device, input_size * 4)
     const cluster_start_indices_sb = create_sb(device, input_size * 4)
     const cluster_end_indices_sb = create_sb(device, input_size * 4)
@@ -373,11 +390,13 @@ const csr_precompute_gpu = async (
         ['read-only-storage', 'storage', 'storage', 'storage']
     )
 
+    // Reuse the output buffer from the scalar decomp step as one of the input
+    // buffers
     const bindGroup = create_bind_group(
         device,
         bindGroupLayout,
         [
-            new_scalar_chunks_sb,
+            scalar_chunks_sb, 
             new_point_indices_sb,
             cluster_start_indices_sb,
             cluster_end_indices_sb,
@@ -400,14 +419,6 @@ const csr_precompute_gpu = async (
         'main',
     )
 
-    commandEncoder.copyBufferToBuffer(
-        scalar_chunks_sb,
-        0,
-        new_scalar_chunks_sb,
-        0,
-        new_scalar_chunks_sb.size
-    )
-
     const passEncoder = commandEncoder.beginComputePass()
     passEncoder.setPipeline(computePipeline)
     passEncoder.setBindGroup(0, bindGroup)
@@ -419,15 +430,20 @@ const csr_precompute_gpu = async (
             device,
             commandEncoder,
             [
-                //scalar_chunks_sb,
                 new_point_indices_sb,
                 cluster_start_indices_sb,
                 cluster_end_indices_sb,
+                //scalar_chunks_sb,
             ],
         )
 
         const nums = data.map(u8s_to_numbers_32)
 
+        // Assuming that the precomputation shader provides dummy outputs -
+        // that is, no clustering or sorting at all - the new point indices
+        // should just be 0, 1, ..., input_size - 1
+        // Furthermore, the cluster_start_indices should be 0, 1, ..., input_size - 1
+        // and cluster_start_indices should be 1, 2, ..., input_size
         for (let i = 0; i < input_size; i ++) {
             if (nums[0][i] !== i) {
                 throw Error(`new_point_indices_sb mismatch at ${i}`)
@@ -444,7 +460,6 @@ const csr_precompute_gpu = async (
     return { new_point_indices_sb, cluster_start_indices_sb, cluster_end_indices_sb }
 }
 
-import gen_csr_precompute_shader from '../wgsl/gen_csr_precompute.template.wgsl'
 const genCsrPrecomputeShaderCode = (
     num_y_workgroups: number,
     workgroup_size: number,
@@ -456,6 +471,124 @@ const genCsrPrecomputeShaderCode = (
             num_y_workgroups,
         },
         {
+        },
+    )
+    return shaderCode
+}
+
+const pre_aggregation_stage_1_gpu = async (
+    device: GPUDevice,
+    commandEncoder: GPUCommandEncoder,
+    input_size: number,
+    point_x_y_sb: GPUBuffer,
+    point_t_z_sb: GPUBuffer,
+    new_point_indices_sb: GPUBuffer,
+    cluster_start_indices_sb: GPUBuffer,
+    cluster_end_indices_sb: GPUBuffer,
+    debug = false,
+): Promise<{
+    new_point_x_y_sb: GPUBuffer,
+    new_point_t_z_sb: GPUBuffer,
+}> => {
+    const new_point_x_y_sb = create_sb(device, input_size * 2 * num_words * 4)
+    const new_point_t_z_sb = create_sb(device, input_size * 2 * num_words * 4)
+
+    const bindGroupLayout = create_bind_group_layout(
+        device,
+        [
+            'read-only-storage',
+            'read-only-storage',
+            'read-only-storage',
+            'read-only-storage',
+            'read-only-storage',
+            'storage',
+            'storage',
+        ],
+    )
+    const bindGroup = create_bind_group(
+        device,
+        bindGroupLayout,
+        [
+            point_x_y_sb,
+            point_t_z_sb,
+            new_point_indices_sb,
+            cluster_start_indices_sb,
+            cluster_end_indices_sb,
+            new_point_x_y_sb,
+            new_point_t_z_sb,
+        ],
+    )
+
+    const workgroup_size = 64
+    const num_x_workgroups = 256
+    const num_y_workgroups = input_size / workgroup_size / num_x_workgroups
+
+    const shaderCode = genPreaggregationStage1ShaderCode(
+        num_y_workgroups,
+        workgroup_size,
+    )
+
+    const computePipeline = await create_compute_pipeline(
+        device,
+        [bindGroupLayout],
+        shaderCode,
+        'main',
+    )
+
+    const passEncoder = commandEncoder.beginComputePass()
+    passEncoder.setPipeline(computePipeline)
+    passEncoder.setBindGroup(0, bindGroup)
+    passEncoder.dispatchWorkgroups(num_x_workgroups, num_y_workgroups, 1)
+    passEncoder.end()
+
+    if (debug) {
+        const data = await read_from_gpu(
+            device,
+            commandEncoder,
+            [
+                new_point_x_y_sb,
+                new_point_t_z_sb,
+            ],
+        )
+
+        const x_y_coords = u8s_to_bigints(data[0], num_words, word_size)
+        const t_z_coords = u8s_to_bigints(data[1], num_words, word_size)
+    }
+
+    return { new_point_x_y_sb, new_point_t_z_sb }
+}
+
+const genPreaggregationStage1ShaderCode = (
+    num_y_workgroups: number,
+    workgroup_size: number,
+) => {
+    const p_limbs = gen_p_limbs(p, num_words, word_size)
+    const r_limbs = gen_r_limbs(r, num_words, word_size)
+    const mu_limbs = gen_mu_limbs(p, num_words, word_size)
+    const shaderCode = mustache.render(
+        preaggregation_stage_1_shader,
+        {
+            num_y_workgroups,
+            workgroup_size,
+            word_size,
+            num_words,
+            n0,
+            p_limbs,
+            r_limbs,
+            mu_limbs,
+            w_mask: (1 << word_size) - 1,
+            slack,
+            num_words_mul_two: num_words * 2,
+            num_words_plus_one: num_words + 1,
+            mask,
+            two_pow_word_size: BigInt(2) ** BigInt(word_size),
+        },
+        {
+            structs,
+            bigint_funcs,
+            field_funcs,
+            ec_funcs,
+            montgomery_product_funcs,
         },
     )
     return shaderCode
