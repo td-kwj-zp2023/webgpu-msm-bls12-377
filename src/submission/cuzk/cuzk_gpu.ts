@@ -31,12 +31,12 @@ export const cuzk_gpu = async (
     const num_subtasks = 16
 
     // Each pass must use the same GPUDevice and GPUCommandEncoder, or else
-    // storage buffers from a previous pass can't be used in the current pass
+    // storage buffers can't be reused across compute passes
     const device = await get_device()
     const commandEncoder = device.createCommandEncoder()
 
     // Convert the affine points to Montgomery form in the GPU
-    const { point_x_sb, point_y_sb, point_t_sb, point_z_sb } =
+    const { point_x_y_sb, point_t_z_sb } =
         await convert_point_coords_to_mont_gpu(
             device,
             commandEncoder,
@@ -96,34 +96,34 @@ const convert_point_coords_to_mont_gpu = async (
     baseAffinePoints: BigIntPoint[],
     debug = false,
 ): Promise<{
-    point_x_sb: GPUBuffer, point_y_sb: GPUBuffer, point_t_sb: GPUBuffer, point_z_sb: GPUBuffer,
+    point_x_y_sb: GPUBuffer,
+    point_t_z_sb: GPUBuffer,
 }> => {
     const input_size = baseAffinePoints.length
 
     // An affine point only contains X and Y points.
-    const x_coords = baseAffinePoints.map((b) => b.x)
-    const y_coords = baseAffinePoints.map((b) => b.y)
+    //const x_y_coords = Array(input_size * 2).fill(BigInt(0))
+    const x_y_coords: bigint[] = []
+    for (let i = 0; i < input_size; i ++) {
+        x_y_coords.push(baseAffinePoints[i].x)
+        x_y_coords.push(baseAffinePoints[i].y)
+        //x_y_coords[i * 2] = baseAffinePoints[i].x
+        //x_y_coords[i * 2 + 1] = baseAffinePoints[i].y
+    }
 
-    const x_coords_bytes = bigints_to_16_bit_words_for_gpu(x_coords)
-    const y_coords_bytes = bigints_to_16_bit_words_for_gpu(y_coords)
+    const x_y_coords_bytes = bigints_to_16_bit_words_for_gpu(x_y_coords)
 
     // Input buffers
-    const x_coords_sb = create_and_write_sb(device, x_coords_bytes)
-    const y_coords_sb = create_and_write_sb(device, y_coords_bytes)
+    const x_y_coords_sb = create_and_write_sb(device, x_y_coords_bytes)
 
     // Output buffers
-    const point_x_sb = create_sb(device, input_size * num_words * 4)
-    const point_y_sb = create_sb(device, input_size * num_words * 4)
-    const point_t_sb = create_sb(device, input_size * num_words * 4)
-    const point_z_sb = create_sb(device, input_size * num_words * 4)
+    const point_x_y_sb = create_sb(device, input_size * 2 * num_words * 4)
+    const point_t_z_sb = create_sb(device, input_size * 2 * num_words * 4)
 
     const bindGroupLayout = create_bind_group_layout(
         device,
         [
             'read-only-storage',
-            'read-only-storage',
-            'storage',
-            'storage',
             'storage',
             'storage'
         ],
@@ -132,18 +132,15 @@ const convert_point_coords_to_mont_gpu = async (
         device,
         bindGroupLayout,
         [
-            x_coords_sb,
-            y_coords_sb,
-            point_x_sb,
-            point_y_sb,
-            point_t_sb,
-            point_z_sb,
+            x_y_coords_sb,
+            point_x_y_sb,
+            point_t_z_sb,
         ],
     )
 
     const workgroup_size = 64
     const num_x_workgroups = 256
-    const num_y_workgroups = x_coords.length / workgroup_size / num_x_workgroups
+    const num_y_workgroups = input_size / workgroup_size / num_x_workgroups
 
     const shaderCode = genConvertPointCoordsShaderCode(
         num_y_workgroups,
@@ -167,14 +164,12 @@ const convert_point_coords_to_mont_gpu = async (
         const data = await read_from_gpu(
             device,
             commandEncoder,
-            [point_x_sb, point_y_sb, point_t_sb, point_z_sb],
+            [point_x_y_sb, point_t_z_sb],
         )
 
         // Check point_x data
-        const computed_x_coords = u8s_to_bigints(data[0], num_words, word_size)
-        const computed_y_coords = u8s_to_bigints(data[1], num_words, word_size)
-        const computed_t_coords = u8s_to_bigints(data[2], num_words, word_size)
-        const computed_z_coords = u8s_to_bigints(data[3], num_words, word_size)
+        const computed_x_y_coords = u8s_to_bigints(data[0], num_words, word_size)
+        const computed_t_z_coords = u8s_to_bigints(data[1], num_words, word_size)
 
         for (let i = 0; i < input_size; i ++) {
             const expected_x = baseAffinePoints[i].x * r % p
@@ -183,18 +178,19 @@ const convert_point_coords_to_mont_gpu = async (
             const expected_z = r % p
 
             if (!(
-                expected_x === computed_x_coords[i] &&
-                expected_y === computed_y_coords[i] &&
-                expected_t === computed_t_coords[i] &&
-                expected_z === computed_z_coords[i]
+                expected_x === computed_x_y_coords[i * 2] 
+                && expected_y === computed_x_y_coords[i * 2 + 1] 
+                && expected_t === computed_t_z_coords[i * 2] 
+                && expected_z === computed_t_z_coords[i * 2 + 1]
             )) {
                 console.log('mismatch at', i)
+                debugger
                 break
             }
         }
     }
 
-    return { point_x_sb, point_y_sb, point_t_sb, point_z_sb }
+    return { point_x_y_sb, point_t_z_sb }
 }
 
 import convert_point_coords_shader from '../wgsl/convert_point_coords.template.wgsl'
@@ -374,7 +370,7 @@ const csr_precompute_gpu = async (
 
     const bindGroupLayout = create_bind_group_layout(
         device,
-        ['storage', 'storage', 'storage', 'storage']
+        ['read-only-storage', 'storage', 'storage', 'storage']
     )
 
     const bindGroup = create_bind_group(
