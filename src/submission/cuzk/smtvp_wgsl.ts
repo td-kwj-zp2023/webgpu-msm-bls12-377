@@ -1,4 +1,5 @@
 import mustache from 'mustache'
+import { bigIntPointToExtPointType, compute_misc_params, u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, gen_p_limbs, to_words_le } from '../utils'
 import { BigIntPoint } from "../../reference/types"
 import { FieldMath } from "../../reference/utils/FieldMath";
 import { ELLSparseMatrix, CSRSparseMatrix } from '../matrices/matrices'; 
@@ -9,25 +10,11 @@ import field_functions from '../wgsl/field/field.template.wgsl'
 import curve_functions from '../wgsl/curve/ec.template.wgsl'
 import curve_parameters from '../wgsl/curve/parameters.template.wgsl'
 import montgomery_product_funcs from '../wgsl/montgomery/mont_pro_product.template.wgsl'
-import { compute_misc_params, u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, gen_p_limbs, to_words_le } from '../utils'
 import { ExtPointType } from "@noble/curves/abstract/edwards";
+import { get_device, create_bind_group } from '../gpu'
 import assert from 'assert'
 
 const fieldMath = new FieldMath();
-
-export async function get_device() {
-    const gpuErrMsg = "Please use a browser that has WebGPU enabled.";
-    const adapter = await navigator.gpu.requestAdapter({
-        powerPreference: 'high-performance',
-    });
-    if (!adapter) {
-        console.log(gpuErrMsg)
-        throw Error('Couldn\'t request WebGPU adapter.')
-    }
-
-    const device = await adapter.requestDevice()
-    return device
-}
 
 /*
  * Returns an array of CSR sparse matrices. Each sparse matrix contains the
@@ -115,7 +102,7 @@ export const smtvp = async (
     const window_size = word_size
 
     // Thread count
-    const threads = 20
+    const threads = 1
 
     const csr_sparse_matrices = await gen_csr_sparse_matrices(
         baseAffinePoints,
@@ -149,8 +136,8 @@ export const smtvp = async (
     }
 
     if (timings.length === 1) {
-        console.log(`CPU took ${timings[0].cpu_elapsed} (1 CSR sparse matrix)`)
-        console.log(`GPU took ${timings[0].gpu_elapsed} (1 CSR sparse matrix)`)
+        console.log(`CPU took ${timings[0].cpu_elapsed}ms (1 CSR sparse matrix)`)
+        console.log(`GPU took ${timings[0].gpu_elapsed}ms (1 CSR sparse matrix)`)
     } else {
         let cpu_total = 0
         let gpu_total = 0
@@ -403,11 +390,8 @@ export const smtvp_run = async (
 
     const data_as_uint8s = new Uint8Array(data)
 
-    const bigIntPointToExtPointType = (bip: BigIntPoint): ExtPointType => {
-        return fieldMath.createPoint(bip.x, bip.y, bip.t, bip.z)
-    }
-
     const output_points = u8s_to_points(data_as_uint8s, num_words, word_size)
+    console.log(output_points[0])
 
     // convert output_points out of Montgomery coords
     const output_points_non_mont: ExtPointType[] = []
@@ -418,11 +402,12 @@ export const smtvp_run = async (
             t: fieldMath.Fp.mul(pt.t, rinv),
             z: fieldMath.Fp.mul(pt.z, rinv),
         }
-        output_points_non_mont.push(bigIntPointToExtPointType(non))
+        output_points_non_mont.push(bigIntPointToExtPointType(non, fieldMath))
     }
+
     // convert output_points_non_mont into affine
     const output_points_non_mont_and_affine = output_points_non_mont.map((x) => x.toAffine())
-    //console.log('points from gpu, in affine:', output_points_non_mont_and_affine)
+    console.log('points from gpu, in affine:', output_points_non_mont_and_affine)
 
     if (run_on_cpu && smtvp_result_affine) {
         for (let i = 0; i < smtvp_result_affine.length; i ++) {
@@ -462,15 +447,4 @@ const setup_shader_code = (
     )
 
     return shaderCode
-}
-
-const create_bind_group = (device: GPUDevice,layout: GPUBindGroupLayout, buffers: GPUBuffer[]) => {
-    const entries: any[] = []
-    for (let i = 0; i < buffers.length; i ++) {
-        entries.push({
-            binding: i,
-            resource: { buffer: buffers[i] }
-        })
-    }
-    return device.createBindGroup({ layout, entries })
 }

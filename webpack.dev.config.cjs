@@ -53,6 +53,9 @@ const config = {
     }
   },
   plugins: [
+    new webpack.ProvidePlugin({
+      Buffer: ['buffer', 'Buffer'],
+    }),
     new HtmlWebpackPlugin({
       template: "public/index.html",
     }),
@@ -88,7 +91,7 @@ const config = {
     static: path.join(__dirname, "build"),
     historyApiFallback: true,
     port: 4040,
-    open: true,
+    open: false,
     hot: true,
     client: {
       overlay: false
@@ -115,7 +118,6 @@ const workerConfig = {
   entry: {
     wasmMSM: './src/workers/wasmMSM.ts',
     webworkers: './src/submission/cuzk/workers/csrSparseMatrixWorker.ts',
-
   },
   output: {
     pathinfo: false,
