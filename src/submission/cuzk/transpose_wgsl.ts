@@ -2,7 +2,7 @@ import { BigIntPoint } from "../../reference/types";
 import mustache from 'mustache'
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import { CSRSparseMatrix, ELLSparseMatrix, fieldMath } from '../matrices/matrices';
-import transpose_shader from '../wgsl/cuzk/tranpose.template.wgsl'
+import transpose_shader from '../wgsl/cuzk/transpose_segment_1.template.wgsl'
 import structs from '../wgsl/struct/structs.template.wgsl'
 import bigint_functions from '../wgsl/bigint/bigint.template.wgsl'
 import curve_functions from '../wgsl/curve/ec.template.wgsl'
@@ -13,10 +13,9 @@ import { u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, compute_m
 import assert from 'assert'
 
 export async function transpose(
-    inputSize: number,
     baseAffinePoints: BigIntPoint[],
     scalars: bigint[]
-): Promise<any> {    
+): Promise<{x: bigint, y: bigint}> {
     // Scalar finite field
     const p = BigInt('0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001')
 
@@ -65,6 +64,7 @@ export async function transpose(
         await transpose_gpu(device, csr_sparse_matrices[i], num_words, word_size, p, n0, params.r, params.rinv, max_col_idx)
         break
     }
+    return { x: BigInt(1), y: BigInt(0) }
 }
 
 export async function gen_csr_sparse_matrices(
@@ -111,7 +111,6 @@ export async function gen_csr_sparse_matrices(
       
       // Divide EC points into t parts
       for (let thread_idx = 0; thread_idx < num_rows; thread_idx++) {
-        const z = 0
         for (let j = 0; j < num_columns; j++) {
             const point_i = thread_idx + j * threads
             data[thread_idx][j] = baseAffinePoints[point_i]
@@ -311,7 +310,6 @@ export async function transpose_gpu(
     const expected_1 = add_points(points_with_mont_coords[0], points_with_mont_coords[1], p, rinv, r)
     const expected_1_affine = expected_1.toAffine()
 
-    const ZERO_POINT = fieldMath.customEdwards.ExtendedPoint.ZERO;
     const test_point = fieldMath.createPoint(csr_sm.data[0].x, csr_sm.data[0].y, csr_sm.data[0].t, csr_sm.data[0].z)
     const result = test_point.add(test_point)
     const expected_affine_2 = result.toAffine()
