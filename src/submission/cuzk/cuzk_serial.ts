@@ -112,10 +112,10 @@ export async function smtvp(csr_sparse_matrix: CSRSparseMatrix): Promise<ExtPoin
 }
 
 export async function execute_cuzk(
-    inputSize: number,
     baseAffinePoints: BigIntPoint[],
     scalars: bigint[]
 ): Promise<ExtPointType> {    
+  const inputSize = baseAffinePoints.length
   // Initialize instance 
   const csr_sparse_matrix_array = await init(inputSize, baseAffinePoints, scalars)
 
