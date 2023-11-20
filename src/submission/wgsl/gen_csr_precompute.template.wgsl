@@ -15,6 +15,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let id = gidx * {{ num_y_workgroups }} + gidy;
 
     // TODO: implement precomputation
+    // TODO: compute a row_ptr buffer
     new_point_indices[id] = id;
     cluster_start_indices[id] = id;
     cluster_end_indices[id] = id + 1u;
