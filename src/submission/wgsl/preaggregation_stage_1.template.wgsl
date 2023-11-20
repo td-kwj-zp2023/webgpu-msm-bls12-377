@@ -23,7 +23,7 @@ var<storage, read_write> new_point_x_y: array<BigInt>;
 var<storage, read_write> new_point_t_z: array<BigInt>;
 
 @compute
-@workgroup_size(256)
+@workgroup_size({{ workgroup_size }})
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let gidx = global_id.x; 
     let gidy = global_id.y; 
