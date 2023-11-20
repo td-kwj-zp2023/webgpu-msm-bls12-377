@@ -31,6 +31,7 @@ import montgomery_product_funcs from '../wgsl/montgomery/mont_pro_product.templa
 import decompose_scalars_shader from '../wgsl/decompose_scalars.template.wgsl'
 import gen_csr_precompute_shader from '../wgsl/gen_csr_precompute.template.wgsl'
 import preaggregation_stage_1_shader from '../wgsl/preaggregation_stage_1.template.wgsl'
+import preaggregation_stage_2_shader from '../wgsl/preaggregation_stage_2.template.wgsl'
 
 /*
  * End-to-end implementation of the cuZK MSM algorithm.
@@ -96,7 +97,16 @@ export const cuzk_gpu = async (
             cluster_end_indices_sb,
             false,
         )
-        break
+
+        const new_scalar_chunks_sb = await pre_aggregation_stage_2_gpu(
+            device,
+            commandEncoder,
+            input_size,
+            scalar_chunks_sb,
+            cluster_start_indices_sb,
+            new_point_indices_sb,
+            false,
+        )
     }
 
     return { x: BigInt(1), y: BigInt(0) }
@@ -589,6 +599,93 @@ const genPreaggregationStage1ShaderCode = (
             field_funcs,
             ec_funcs,
             montgomery_product_funcs,
+        },
+    )
+    return shaderCode
+}
+
+const pre_aggregation_stage_2_gpu = async (
+    device: GPUDevice,
+    commandEncoder: GPUCommandEncoder,
+    input_size: number,
+    scalar_chunks_sb: GPUBuffer,
+    cluster_start_indices_sb: GPUBuffer,
+    new_point_indices_sb: GPUBuffer,
+    debug = false,
+): Promise<GPUBuffer> => {
+    const new_scalar_chunks_sb = create_sb(device, input_size *  num_words * 4)
+
+    const bindGroupLayout = create_bind_group_layout(
+        device,
+        [
+            'read-only-storage',
+            'read-only-storage',
+            'read-only-storage',
+            'storage',
+        ],
+    )
+
+    const bindGroup = create_bind_group(
+        device,
+        bindGroupLayout,
+        [
+            scalar_chunks_sb,
+            new_point_indices_sb,
+            cluster_start_indices_sb,
+            new_scalar_chunks_sb,
+        ],
+    )
+
+    const workgroup_size = 64
+    const num_x_workgroups = 256
+    const num_y_workgroups = input_size / workgroup_size / num_x_workgroups
+
+    const shaderCode = genPreaggregationStage2ShaderCode(
+        num_y_workgroups,
+        workgroup_size,
+    )
+
+    const computePipeline = await create_compute_pipeline(
+        device,
+        [bindGroupLayout],
+        shaderCode,
+        'main',
+    )
+
+    const passEncoder = commandEncoder.beginComputePass()
+    passEncoder.setPipeline(computePipeline)
+    passEncoder.setBindGroup(0, bindGroup)
+    passEncoder.dispatchWorkgroups(num_x_workgroups, num_y_workgroups, 1)
+    passEncoder.end()
+
+    if (debug) {
+        // TODO
+        const data = await read_from_gpu(
+            device,
+            commandEncoder,
+            [new_scalar_chunks_sb],
+        )
+        const nums = data.map(u8s_to_numbers_32)
+        console.log(nums)
+    }
+
+    return new_scalar_chunks_sb
+}
+
+const genPreaggregationStage2ShaderCode = (
+    num_y_workgroups: number,
+    workgroup_size: number,
+) => {
+    const p_limbs = gen_p_limbs(p, num_words, word_size)
+    const r_limbs = gen_r_limbs(r, num_words, word_size)
+    const mu_limbs = gen_mu_limbs(p, num_words, word_size)
+    const shaderCode = mustache.render(
+        preaggregation_stage_2_shader,
+        {
+            num_y_workgroups,
+            workgroup_size,
+        },
+        {
         },
     )
     return shaderCode
