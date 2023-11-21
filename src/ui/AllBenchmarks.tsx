@@ -8,6 +8,7 @@ import { convert_bigints_to_bytes_benchmark } from '../submission/convert_bigint
 import { mont_mul_benchmarks } from '../submission/mont_mul_benchmarks';
 import { barrett_mul_benchmarks } from '../submission/barrett_mul_benchmarks';
 import { add_points_benchmarks } from '../submission/add_points_benchmarks';
+import { smtvp } from '../submission/cuzk/smtvp_wgsl';
 import { decompose_scalars_ts_benchmark } from '../submission/decompose_scalars_benchmark';
 import {
     create_csr_precomputation_benchmark,
@@ -18,9 +19,11 @@ import {
 } from '../submission/cuzk/create_csr_wasm'
 import { cuzk_gpu } from '../submission/cuzk/cuzk_gpu'
 import { cuzk_typescript_serial, cuzk_typescript_web_workers, transpose_wgsl, smtvp_wgsl, smvp_wgsl } from '../submission/submission';
+
 import CSVExportButton from './CSVExportButton';
 import { TestCaseDropDown } from './TestCaseDropDown';
 import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
+import { smvp } from '../submission/cuzk/smvp_wgsl';
 
 export const AllBenchmarks: React.FC = () => {
   const initialDefaultInputSize = 2 ** 16
