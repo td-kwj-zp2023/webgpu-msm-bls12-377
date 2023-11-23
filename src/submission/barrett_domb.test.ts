@@ -1,9 +1,12 @@
 import {
     to_words_le,
+    compute_misc_params,
+    genRandomFieldElement,
 } from './utils'
 import {
     calc_m,
     mp_adder,
+    mp_subtracter,
     mp_shifter_left,
     mp_msb_multiply,
     mp_lsb_multiply,
@@ -12,6 +15,7 @@ import {
     machine_multiply,
     mp_full_multiply,
     machine_two_digit_add,
+    mp_lsb_extra_diagonal,
 } from './barrett_domb'
 
 describe('Barrett-Domb ', () => {
@@ -20,6 +24,17 @@ describe('Barrett-Domb ', () => {
         const word_size = 16
         const m = calc_m(p, word_size)
         expect(m).toEqual(BigInt('153139381818454018477577869068761289266858026142902538442762978823351945372822'))
+    })
+
+    it('mp_lsb_extra_diagonal', () => {
+        const num_words = 16
+        const word_size = 16
+        const a = BigInt('0x2211111111111111111111111111111111111111111111111111111111111133')
+        const a_words = to_words_le(a, num_words, word_size)
+        const b = BigInt('0x2222222222222222222222222222222222222222222222222222222222222222')
+        const b_words = to_words_le(b, num_words, word_size)
+        const result = mp_lsb_extra_diagonal(a_words, b_words, num_words, word_size)
+        expect(result).toEqual(8158)
     })
 
     it('mp_msb_multiply', () => {
@@ -57,8 +72,21 @@ describe('Barrett-Domb ', () => {
         const b_words = to_words_le(b, num_words, word_size)
 
         const result = mp_adder(a_words, b_words, num_words, word_size)
-        expect(result.toString()).toEqual(
-            [13141, 13107, 13107, 13107, 13107, 13107, 13107, 13107, 13107, 13107, 13107, 13107, 13107, 13107, 13107, 17459, 0].toString())
+        const expected = to_words_le(a + b, num_words + 1, word_size)
+        expect(result.toString()).toEqual(expected.toString())
+    })
+
+    it('mp_subtracter', () => {
+        const num_words = 16
+        const word_size = 16
+        const a = BigInt('0x2211111111111111111111111111111111111111111111111111111111111133')
+        const a_words = to_words_le(a, num_words, word_size)
+        const b = BigInt('0x1111111111111111111111111111111111111111111111111111111111111111')
+        const b_words = to_words_le(b, num_words, word_size)
+
+        const result = mp_subtracter(a_words, b_words, num_words, word_size)
+        const expected = to_words_le(a - b, num_words, word_size)
+        expect(result.toString()).toEqual(expected.toString())
     })
 
     it('mp_shifter_left', () => {
@@ -100,20 +128,26 @@ describe('Barrett-Domb ', () => {
     })
 
     it('machine_multiply', () => {
-        const a = 0xff
-        const b = 0xfab
+        //const a = 0xff
+        //const b = 0xfab
+        const a = 44273
+        const b = 53641
         const res = machine_multiply(a, b, 16)
-        expect(res.toString()).toEqual([39765, 15].toString())
+        expect(res.toString()).toEqual([19961, 36237].toString())
     })
 
     it('machine_two_digit_add', () => {
-        const a = [0xfff0, 0xfffe]
-        const b = [0xfff1, 0xfff2]
+        const a = [25512, 7628]
+        const b = [55494, 14279]
+        const expected = [15470, 21908, 0]
+
+        //const a = [0xfff0, 0xfffe]
+        //const b = [0xfff1, 0xfff2]
         const res = machine_two_digit_add(a, b, 16)
-        expect(res.toString()).toEqual([65505, 65521, 1].toString())
+        expect(res.toString()).toEqual(expected.toString())
     })
 
-    it('should multiply and reduce correctly', () => {
+    it('barrett_domb_mul', () => {
         const num_words = 16
         const word_size = 16
 
@@ -123,10 +157,32 @@ describe('Barrett-Domb ', () => {
         const a = BigInt('0x1111111111111111111111111111111111111111111111111111111111111111')
         const a_words = to_words_le(a, num_words, word_size)
 
-        const b = BigInt('0x2222222222222222222222222222222222222222222222222222222222222222')
+        const b = BigInt('0x1222222222222222222222222222222222222222222222222222222222222222')
         const b_words = to_words_le(b, num_words, word_size)
 
-        const result = barrett_domb_mul(a_words, b_words, p_words)
+        const m = calc_m(p, word_size)
+        const m_words = to_words_le(m, num_words, word_size)
+
+        const result = barrett_domb_mul(a_words, b_words, p_words, p.toString(2).length, m_words, num_words, word_size)
+        const expected = a * b % p
+        const expected_words = to_words_le(expected, num_words, word_size)
+
+        expect(result.toString()).toEqual(expected_words.toString())
+    })
+
+    it('barrett_domb_mul with random inputs', () => {
+        const word_size = 13
+        const num_words = 20
+        const p = BigInt('0x30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001')
+        const p_words = to_words_le(p, num_words, word_size)
+        const a = genRandomFieldElement(p)
+        const a_words = to_words_le(a, num_words, word_size)
+        const b = genRandomFieldElement(p)
+        const b_words = to_words_le(b, num_words, word_size)
+        const m = calc_m(p, word_size)
+        const m_words = to_words_le(m, num_words, word_size)
+
+        const result = barrett_domb_mul(a_words, b_words, p_words, p.toString(2).length, m_words, num_words, word_size)
         const expected = a * b % p
         const expected_words = to_words_le(expected, num_words, word_size)
 
