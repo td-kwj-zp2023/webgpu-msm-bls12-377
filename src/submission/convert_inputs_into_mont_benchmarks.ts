@@ -92,7 +92,11 @@ export const convert_inputs_into_mont_benchmark = async(
 
     //console.log(shaderCode)
 
+    const start_convert = Date.now()
     const points_bytes = points_to_u8s_for_gpu(baseAffinePoints, num_words, word_size)
+    const elapsed_convert = Date.now() - start_convert
+    console.log(num_words, word_size)
+    console.log(`points_to_u8s_for_gpu took ${elapsed_convert}ms`)
     
     const device = await get_device()
     const shaderModule = device.createShaderModule({ code: shaderCode })

@@ -119,8 +119,6 @@ export const create_csr_gpu = async (
         row_ptr,
     } = all_precomputation(scalar_chunks, num_rows)
 
-    const num_x_workgroups = 256
-
     const scalar_chunks_bytes = numbers_to_u8s_for_gpu(scalar_chunks)
     const new_point_indices_bytes = numbers_to_u8s_for_gpu(all_new_point_indices)
     const cluster_start_indices_bytes = numbers_to_u8s_for_gpu(all_cluster_start_indices)

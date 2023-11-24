@@ -1,6 +1,5 @@
 import {
     to_words_le,
-    from_words_le,
     genRandomFieldElement,
 } from './utils'
 import {
