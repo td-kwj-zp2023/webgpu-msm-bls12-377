@@ -1,6 +1,5 @@
 import {
     to_words_le,
-    compute_misc_params,
     genRandomFieldElement,
 } from './utils'
 import {
@@ -148,22 +147,25 @@ describe('Barrett-Domb ', () => {
     })
 
     it('barrett_domb_mul', () => {
-        const num_words = 16
-        const word_size = 16
-
         const p = BigInt('0x30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001')
+        const n = p.toString(2).length
+        const word_size = 13
+        const num_words = Math.ceil(n / word_size)
+
         const p_words = to_words_le(p, num_words, word_size)
 
-        const a = BigInt('0x1111111111111111111111111111111111111111111111111111111111111111')
+        const a = BigInt('12606796758224846727326035948803889824738128609730484894316100840265045196027')
+        const b = BigInt('14276552610056165753848820256553331055663673083569154091093918058913504134283')
+
         const a_words = to_words_le(a, num_words, word_size)
 
-        const b = BigInt('0x1222222222222222222222222222222222222222222222222222222222222222')
         const b_words = to_words_le(b, num_words, word_size)
 
         const m = calc_m(p, word_size)
         const m_words = to_words_le(m, num_words, word_size)
 
         const result = barrett_domb_mul(a_words, b_words, p_words, p.toString(2).length, m_words, num_words, word_size)
+
         const expected = a * b % p
         const expected_words = to_words_le(expected, num_words, word_size)
 
@@ -171,21 +173,33 @@ describe('Barrett-Domb ', () => {
     })
 
     it('barrett_domb_mul with random inputs', () => {
+        const num_runs = 1000
         const word_size = 13
-        const num_words = 20
+
         const p = BigInt('0x30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001')
-        const p_words = to_words_le(p, num_words, word_size)
-        const a = genRandomFieldElement(p)
-        const a_words = to_words_le(a, num_words, word_size)
-        const b = genRandomFieldElement(p)
-        const b_words = to_words_le(b, num_words, word_size)
-        const m = calc_m(p, word_size)
-        const m_words = to_words_le(m, num_words, word_size)
+        const n = p.toString(2).length
 
-        const result = barrett_domb_mul(a_words, b_words, p_words, p.toString(2).length, m_words, num_words, word_size)
-        const expected = a * b % p
-        const expected_words = to_words_le(expected, num_words, word_size)
+        for (let i = 0; i < num_runs; i ++) {
+            const num_words = Math.ceil(n / word_size)
 
-        expect(result.toString()).toEqual(expected_words.toString())
+            const p_words = to_words_le(p, num_words, word_size)
+
+            const a = genRandomFieldElement(p)
+            const a_words = to_words_le(a, num_words, word_size)
+
+            const b = genRandomFieldElement(p)
+            const b_words = to_words_le(b, num_words, word_size)
+
+            //console.log(a, b)
+
+            const m = calc_m(p, word_size)
+            const m_words = to_words_le(m, num_words, word_size)
+
+            const result = barrett_domb_mul(a_words, b_words, p_words, p.toString(2).length, m_words, num_words, word_size)
+            const expected = a * b % p
+            const expected_words = to_words_le(expected, num_words, word_size)
+
+            expect(result.toString()).toEqual(expected_words.toString())
+        }
     })
 })
