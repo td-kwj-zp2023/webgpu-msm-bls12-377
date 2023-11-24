@@ -7,6 +7,7 @@ import { convert_inputs_into_mont_benchmark } from '../submission/convert_inputs
 import { convert_bigints_to_bytes_benchmark } from '../submission/convert_bigints_to_bytes_benchmark'
 import { mont_mul_benchmarks } from '../submission/mont_mul_benchmarks';
 import { barrett_mul_benchmarks } from '../submission/barrett_mul_benchmarks';
+import { barrett_domb_mul_benchmarks } from '../submission/barrett_domb_mul_benchmarks';
 import { add_points_benchmarks } from '../submission/add_points_benchmarks';
 import { smtvp } from '../submission/cuzk/smtvp_wgsl';
 import { decompose_scalars_ts_benchmark } from '../submission/decompose_scalars_benchmark';
@@ -26,7 +27,8 @@ import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
 import { smvp } from '../submission/cuzk/smvp_wgsl';
 
 export const AllBenchmarks: React.FC = () => {
-  const initialDefaultInputSize = 2 ** 16
+  const initialDefaultInputSize = 1
+  //const initialDefaultInputSize = 2 ** 16
   //const initialDefaultInputSize = 2 ** 16 //65536
   const [inputSize, setInputSize] = useState(initialDefaultInputSize);
   const [power, setPower] = useState<string>('2^0');
@@ -138,6 +140,17 @@ export const AllBenchmarks: React.FC = () => {
         <TestCaseDropDown useRandomInputs={useRandomInputs} loadAndSetData={loadAndSetData}/>
         <CSVExportButton data={benchmarkResults} filename={'msm-benchmark'} />
       </div>
+
+      <Benchmark
+        name={'Barrett-Domb reduction benchmarks'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={barrett_domb_mul_benchmarks}
+        postResult={postResult}
+        bold={true}
+      />
 
       <Benchmark
         name={'cuZK in WebGPU'}
