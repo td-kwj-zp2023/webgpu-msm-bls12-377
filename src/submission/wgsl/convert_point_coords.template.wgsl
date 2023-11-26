@@ -50,9 +50,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     y_bigint.limbs[NUM_WORDS - 1u] = y_bytes[0] >> shift;
 
     // Convert x and y coordinates to Montgomery form
-    let r = get_r();
-    var xr = field_mul(x_bigint, r);
-    var yr = field_mul(y_bigint, r);
+    var r = get_r();
+    var xr = field_mul(&x_bigint, &r);
+    var yr = field_mul(&y_bigint, &r);
     point_x_y[id * 2u] = xr;
     point_x_y[id * 2u + 1u] = yr;
 
