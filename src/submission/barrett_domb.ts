@@ -1,4 +1,5 @@
 import assert from 'assert'
+import { from_words_le } from './utils'
 /*
  * Adapted from https://github.com/ingonyama-zk/modular_multiplication
  */
@@ -33,15 +34,27 @@ export const mp_shifter_left = (
     num_words: number,
     word_size: number,
 ): Uint16Array => {
-    assert(shift <= word_size)
-    const res = Array(num_words + 1).fill(0)
+    const res = Array(num_words).fill(0)
     const w_mask = (1 << word_size) - 1
-    for (let i = 0; i < num_words; i ++) {
-        const s = a_words[i] << shift
-        res[i] = Number(BigInt(res[i]) | BigInt((s & w_mask)))
-        res[i + 1] = Number(BigInt(s) >> BigInt(word_size))
+    if (shift > word_size) {
+        let carry = 0
+        const x = shift - word_size
+        for (let i = 1; i < num_words; i ++) {
+            res[i] = ((a_words[i - 1] << x) & w_mask) + carry
+            carry = a_words[i - 1] >> (word_size - x)
+        }
+    } else {
+        const n = num_words - 1
+        let s = 0
+        for (let i = 0; i < n; i ++) {
+            s = a_words[i] << shift
+            res[i] = Number(BigInt(res[i]) | BigInt((s & w_mask)))
+            res[i + 1] = Number(BigInt(s) >> BigInt(word_size))
+        }
+        s = a_words[n] << shift
+        res[n] = Number(BigInt(res[n]) | BigInt((s & w_mask)))
     }
-    return new Uint16Array(res.slice(0, num_words))
+    return new Uint16Array(res)
 }
 
 export const mp_shifter_right = (
@@ -87,9 +100,9 @@ export const mp_msb_multiply = (
     word_size: number,
 ): Uint16Array => {
     const c = Array(num_words * 2 + 1).fill(0)
-    for (let l = num_words - 1; l < num_words * 2 - 2 + 1; l ++) {
+    for (let l = num_words - 1; l < num_words * 2 - 1; l ++) {
         const i_min = l - (num_words - 1)
-        const i_max = num_words - 1 + 1  // + 1 for inclusive
+        const i_max = num_words
         for (let i = i_min; i < i_max; i ++) {
             const mult_res = machine_multiply(
                 a_words[i], 
@@ -191,7 +204,7 @@ export const mp_full_multiply = (
     word_size: number,
 ): Uint16Array => {
     const c = new Uint16Array(num_words * 2 + 1)
-    for (let l = 0; l < num_words * 2 - 2 + 1; l ++) {
+    for (let l = 0; l < num_words * 2 - 1; l ++) {
         const i_min = Math.max(0, l - (num_words - 1))
         const i_max = Math.min(l, num_words - 1) + 1  // + 1 for inclusive
         for (let i = i_min; i < i_max; i ++) {
@@ -280,19 +293,23 @@ export const barrett_domb_mul = (
 
     // multiply and break into LSB, MSB parts
     const ab = mp_full_multiply(a_words, b_words, num_words, word_size)
+    //console.log('ab:', ab)
 
     const wk = word_size * num_words
     const z = wk - n
 
     // AB msb extraction (+ shift)
     const ab_shift = mp_shifter_left(ab, 2 * z, num_words * 2, word_size)
+    //console.log('ab_shift:', ab_shift)
 
     const ab_msb = new Uint16Array(ab_shift.slice(num_words, num_words * 2))
+    //console.log('ab_msb:', ab_msb)
 
     // L estimation
     let l = mp_msb_multiply(ab_msb, m_words, num_words, word_size) // calculate l estimator (MSB multiply)
     l = new Uint16Array(mp_adder(l, ab_msb, num_words, word_size).slice(0, num_words)) // Add another AB_msb because m[n] = 1
     l = mp_shifter_right(l, z, num_words, word_size)
+    //console.log('l:', l)
 
     // LS calculation
     let ls = mp_lsb_multiply(l, p_words, num_words, word_size, true)
@@ -317,11 +334,11 @@ export const barrett_domb_mul = (
     } else {
         ab_lsb = ab.slice(0, num_words)
     }
+    //console.log('ls:', ls)
+    //console.log('ab_lsb:', ab_lsb)
 
-    const result_wide = mp_subtracter(ab_lsb, ls, num_words + 1, word_size)
-    const p_words_wide = new Uint16Array(Array.from(p_words).concat([0]))
+    const result = mp_subtracter(ab_lsb, ls, num_words, word_size)
+    //console.log('result:', result)
 
-    const result = mp_subtract_red(result_wide, p_words_wide, num_words + 1, word_size)
-
-    return result.slice(0, num_words)
+    return mp_subtract_red(result, p_words, num_words, word_size).slice(0, num_words)
 }

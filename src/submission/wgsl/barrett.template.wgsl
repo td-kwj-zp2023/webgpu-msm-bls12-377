@@ -1,11 +1,5 @@
-const W_mask = {{ w_mask }}u;
+const W_MASK = {{ w_mask }}u;
 const SLACK = {{ slack }}u;
-
-fn get_r() -> BigInt {
-    var r: BigInt;
-{{{ r_limbs }}}
-    return r;
-}
 
 fn get_mu() -> BigInt {
     var mu: BigInt;
@@ -24,7 +18,7 @@ fn mul(a: BigInt, b: BigInt) -> BigIntWide {
     for (var i = 0u; i < NUM_WORDS; i = i + 1u) {
         for (var j = 0u; j < NUM_WORDS; j = j + 1u) {
             let c = a.limbs[i] * b.limbs[j];
-            res.limbs[i+j] += c & W_mask;
+            res.limbs[i+j] += c & W_MASK;
             res.limbs[i+j+1] += c >> WORD_SIZE;
         }   
     }
@@ -32,7 +26,7 @@ fn mul(a: BigInt, b: BigInt) -> BigIntWide {
     // start from 0 and carry the extra over to the next index
     for (var i = 0u; i < 2 * NUM_WORDS - 1; i = i + 1u) {
         res.limbs[i+1] += res.limbs[i] >> WORD_SIZE;
-        res.limbs[i] = res.limbs[i] & W_mask;
+        res.limbs[i] = res.limbs[i] & W_MASK;
     }
     return res;
 }
@@ -42,7 +36,7 @@ fn sub_512(a: BigIntWide, b: BigIntWide, res: ptr<function, BigIntWide>) -> u32 
     for (var i = 0u; i < 2u * NUM_WORDS; i = i + 1u) {
         (*res).limbs[i] = a.limbs[i] - b.limbs[i] - borrow;
         if (a.limbs[i] < (b.limbs[i] + borrow)) {
-            (*res).limbs[i] += W_mask + 1u;
+            (*res).limbs[i] += W_MASK + 1u;
             borrow = 1u;
         } else {
             borrow = 0u;
@@ -54,7 +48,7 @@ fn sub_512(a: BigIntWide, b: BigIntWide, res: ptr<function, BigIntWide>) -> u32 
 fn get_higher_with_slack(a: BigIntWide) -> BigInt {
     var out: BigInt;
     for (var i = 0u; i < NUM_WORDS; i = i + 1u) {
-        out.limbs[i] = ((a.limbs[i + NUM_WORDS] << SLACK) + (a.limbs[i + NUM_WORDS - 1] >> (WORD_SIZE - SLACK))) & W_mask;
+        out.limbs[i] = ((a.limbs[i + NUM_WORDS] << SLACK) + (a.limbs[i + NUM_WORDS - 1] >> (WORD_SIZE - SLACK))) & W_MASK;
     }
     return out;
 }

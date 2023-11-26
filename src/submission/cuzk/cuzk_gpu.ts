@@ -26,7 +26,7 @@ import structs from '../wgsl/struct/structs.template.wgsl'
 import bigint_funcs from '../wgsl/bigint/bigint.template.wgsl'
 import field_funcs from '../wgsl/field/field.template.wgsl'
 import ec_funcs from '../wgsl/curve/ec.template.wgsl'
-import barrett_funcs from '../wgsl/barrett.template.wgsl'
+import barrett_domb_funcs from '../wgsl/barrett_domb.template.wgsl'
 import montgomery_product_funcs from '../wgsl/montgomery/mont_pro_product.template.wgsl'
 import decompose_scalars_shader from '../wgsl/decompose_scalars.template.wgsl'
 import gen_csr_precompute_shader from '../wgsl/gen_csr_precompute.template.wgsl'
@@ -243,6 +243,7 @@ const genConvertPointCoordsShaderCode = (
     num_y_workgroups: number,
     workgroup_size: number,
 ) => {
+    const p_bitlength = p.toString(2).length
     const p_limbs = gen_p_limbs(p, num_words, word_size)
     const r_limbs = gen_r_limbs(r, num_words, word_size)
     const mu_limbs = gen_mu_limbs(p, num_words, word_size)
@@ -263,13 +264,14 @@ const genConvertPointCoordsShaderCode = (
             num_words_plus_one: num_words + 1,
             mask,
             two_pow_word_size: BigInt(2) ** BigInt(word_size),
+            z: (word_size * num_words) - p_bitlength
         },
         {
             extract_word_from_bytes_le_funcs,
             structs,
             bigint_funcs,
             field_funcs,
-            barrett_funcs,
+            barrett_funcs: barrett_domb_funcs,
             montgomery_product_funcs,
         },
     )

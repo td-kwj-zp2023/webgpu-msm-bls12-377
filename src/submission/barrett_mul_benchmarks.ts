@@ -22,7 +22,7 @@ export const barrett_mul_benchmarks = async(
     scalars: bigint[]
 ): Promise<{x: bigint, y: bigint}> => {
     // Define and generate params
-    const num_inputs = 64
+    const num_inputs = 1
     const num_x_workgroups = 1
     const cost = 8192
 
