@@ -83,6 +83,8 @@ export const barrett_domb_mul_benchmarks = async(
         }
     )
 
+    //console.log(shaderCode)
+
     const expected: bigint[] = []
     const expected_words: Uint16Array[] = []
     const inputs: bigint[] = []

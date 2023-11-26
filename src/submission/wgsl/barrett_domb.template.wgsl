@@ -1,3 +1,7 @@
+/*
+ * Adapted from https://github.com/ingonyama-zk/modular_multiplication
+ */
+
 const W_MASK = {{ w_mask }}u;
 const SLACK = {{ slack }}u;
 
@@ -31,7 +35,6 @@ fn machine_two_digit_add(a: vec2<u32>, b: vec2<u32>) -> vec3<u32> {
     res[2] = carry;
     return res;
 }
-
 
 /*
  * Bitshift to the left. The shift value must be greater than the word size.
