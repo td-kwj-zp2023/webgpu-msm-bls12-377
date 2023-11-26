@@ -17,12 +17,13 @@ import {
     mp_lsb_extra_diagonal,
 } from './barrett_domb'
 
+const p = BigInt('0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001')
+
 describe('Barrett-Domb ', () => {
     it('calc_m', () => {
-        const p = BigInt('0x30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001')
-        const word_size = 16
+        const word_size = 13
         const m = calc_m(p, word_size)
-        expect(m).toEqual(BigInt('153139381818454018477577869068761289266858026142902538442762978823351945372822'))
+        expect(m).toEqual(BigInt('3175526949565544461387917976211949610519440472185200499782210609897170941048074'))
     })
 
     it('mp_lsb_extra_diagonal', () => {
@@ -125,6 +126,17 @@ describe('Barrett-Domb ', () => {
         expect(result.toString()).toEqual(expected.toString())
     })
 
+    it('mp_shifter_left 2', () => {
+        const num_words = 20
+        const word_size = 13
+        const a = BigInt('0x2211111111111111111111111111111111111111111111111111111111111133')
+        const a_words = to_words_le(a, num_words, word_size)
+        const shift = 14
+        const expected = to_words_le(a << BigInt(shift), num_words, word_size)
+        const result = mp_shifter_left(a_words, shift, num_words, word_size)
+        expect(result.toString()).toEqual(expected.toString())
+    })
+
     it('mp_shifter_right', () => {
         const num_words = 16
         const word_size = 16
@@ -138,7 +150,6 @@ describe('Barrett-Domb ', () => {
 
     it('mp_full_multiply with random inputs', () => {
         const num_runs = 100
-        const p = BigInt('0x30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001')
         const n = p.toString(2).length
 
         for (let word_size = 13; word_size < 17; word_size ++) {
@@ -185,15 +196,14 @@ describe('Barrett-Domb ', () => {
     })
 
     it('barrett_domb_mul', () => {
-        const p = BigInt('0x30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001')
         const n = p.toString(2).length
         const word_size = 13
         const num_words = Math.ceil(n / word_size)
 
         const p_words = to_words_le(p, num_words, word_size)
 
-        const a = BigInt('12606796758224846727326035948803889824738128609730484894316100840265045196027')
-        const b = BigInt('14276552610056165753848820256553331055663673083569154091093918058913504134283')
+        const a = BigInt('8341461749428370124248824931781546531375899335154063827935293455917439005792')
+        const b = BigInt('3444221749422370424228824238781524531374499335144063827945233455917409005733')
 
         const a_words = to_words_le(a, num_words, word_size)
 
@@ -214,8 +224,10 @@ describe('Barrett-Domb ', () => {
         const num_runs = 1000
         const word_size = 13
 
-        const p = BigInt('0x30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001')
+        const p = BigInt('0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001')
         const n = p.toString(2).length
+
+        const m = calc_m(p, word_size)
 
         for (let i = 0; i < num_runs; i ++) {
             const num_words = Math.ceil(n / word_size)
@@ -230,7 +242,6 @@ describe('Barrett-Domb ', () => {
 
             //console.log(a, b)
 
-            const m = calc_m(p, word_size)
             const m_words = to_words_le(m, num_words, word_size)
 
             const result = barrett_domb_mul(a_words, b_words, p_words, p.toString(2).length, m_words, num_words, word_size)

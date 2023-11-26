@@ -7,6 +7,12 @@
 @group(0) @binding(0)
 var<storage, read_write> points: array<Point>;
 
+fn get_r() -> BigInt {
+    var r: BigInt;
+{{{ r_limbs }}}
+    return r;
+}
+
 @compute
 @workgroup_size({{ workgroup_size }})
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {

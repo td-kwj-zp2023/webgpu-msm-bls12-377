@@ -27,8 +27,8 @@ import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
 import { smvp } from '../submission/cuzk/smvp_wgsl';
 
 export const AllBenchmarks: React.FC = () => {
-  const initialDefaultInputSize = 1
-  //const initialDefaultInputSize = 2 ** 16
+  //const initialDefaultInputSize = 2
+  const initialDefaultInputSize = 2 ** 16
   //const initialDefaultInputSize = 2 ** 16 //65536
   const [inputSize, setInputSize] = useState(initialDefaultInputSize);
   const [power, setPower] = useState<string>('2^0');
@@ -142,17 +142,6 @@ export const AllBenchmarks: React.FC = () => {
       </div>
 
       <Benchmark
-        name={'Barrett-Domb reduction benchmarks'}
-        disabled={disabledBenchmark}
-        baseAffinePoints={baseAffineBigIntPoints}
-        scalars={bigIntScalars}
-        expectedResult={expectedResult}
-        msmFunc={barrett_domb_mul_benchmarks}
-        postResult={postResult}
-        bold={true}
-      />
-
-      <Benchmark
         name={'cuZK in WebGPU'}
         disabled={disabledBenchmark}
         baseAffinePoints={baseAffineBigIntPoints}
@@ -239,6 +228,16 @@ export const AllBenchmarks: React.FC = () => {
         scalars={bigIntScalars}
         expectedResult={expectedResult}
         msmFunc={barrett_mul_benchmarks}
+        postResult={postResult}
+        bold={true}
+      />
+      <Benchmark
+        name={'Barrett-Domb reduction benchmarks'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={barrett_domb_mul_benchmarks}
         postResult={postResult}
         bold={true}
       />

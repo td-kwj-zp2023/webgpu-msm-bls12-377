@@ -17,6 +17,12 @@ var<storage, read_write> point_x_y: array<BigInt>;
 @group(0) @binding(2)
 var<storage, read_write> point_t_z: array<BigInt>;
 
+fn get_r() -> BigInt {
+    var r: BigInt;
+{{{ r_limbs }}}
+    return r;
+}
+
 @compute
 @workgroup_size({{ workgroup_size }})
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
