@@ -130,6 +130,7 @@ fn mp_subtracter(a: ptr<function, BigIntWide>, b: ptr<function, BigIntMediumWide
     return res;
 }
 
+// n^2 + (2n - 1)
 fn mp_full_multiply(a: ptr<function, BigInt>, b: ptr<function, BigInt>) -> BigIntWide {
     var res: BigIntWide;
     for (var i = 0u; i < NUM_WORDS; i = i + 1u) {
@@ -163,20 +164,22 @@ fn field_mul(a: ptr<function, BigInt>, b: ptr<function, BigInt>) -> BigInt {
     let z = {{ z }}u;
 
     // AB msb extraction (+ shift)
-    var ab_shift = mp_shifter_left(&ab, z * 2u);
+    var ab_shift: BigIntWide = mp_shifter_left(&ab, z * 2u);
 
     // L estimation
     var m = get_m();
 
-    var l = mp_msb_multiply(&ab_shift, &m); // calculate l estimator (MSB multiply)
-    var l_add_ab_msb = mp_adder(&l, &ab_shift);
+    var l: BigInt = mp_msb_multiply(&ab_shift, &m); // calculate l estimator (MSB multiply)
 
-    l = mp_shifter_right(&l_add_ab_msb, z);
-    var p = get_p();
+    var l_add_ab_msb: BigIntMediumWide = mp_adder(&l, &ab_shift);
+
+    var l2: BigInt = mp_shifter_right(&l_add_ab_msb, z);
+
+    var p: BigInt = get_p();
 
     // LS calculation
-    var ls_mw: BigIntMediumWide = mp_lsb_multiply(&l, &p);
+    var ls_mw: BigIntMediumWide = mp_lsb_multiply(&l2, &p);
 
-    var result = mp_subtracter(&ab, &ls_mw);
+    var result: BigInt = mp_subtracter(&ab, &ls_mw);
     return mp_subtract_red(&result, &p);
 }
