@@ -125,6 +125,22 @@ export const create_compute_pipeline = async (
     })
 }
 
+// Encode pipeline commands 
+export const execute_pipeline = async (
+    commandEncoder: GPUCommandEncoder,
+    computePipeline: GPUComputePipeline,
+    bindGroup: GPUBindGroup,
+    num_x_workgroups: number,
+    num_y_workgroups: number,
+    num_z_workgroups: number,
+) => {
+    const passEncoder = commandEncoder.beginComputePass()
+    passEncoder.setPipeline(computePipeline)
+    passEncoder.setBindGroup(0, bindGroup)
+    passEncoder.dispatchWorkgroups(num_x_workgroups, num_y_workgroups, 1)
+    passEncoder.end()
+}
+ 
 export const read_write_buffer_usage = 
     GPUBufferUsage.STORAGE |
     GPUBufferUsage.COPY_SRC |
