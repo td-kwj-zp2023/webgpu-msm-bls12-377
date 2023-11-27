@@ -1,4 +1,4 @@
-import { BigIntPoint, U32ArrayPoint } from "../reference/types";
+import { BigIntPoint } from "../reference/types";
 import { execute_cuzk } from "./cuzk/cuzk_serial"
 import { execute_cuzk_parallel } from "./cuzk/cuzk_parallel"
 import { transpose } from "./cuzk/transpose_wgsl"

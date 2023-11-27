@@ -1,23 +1,26 @@
 import mustache from 'mustache'
 import { BigIntPoint } from "../reference/types"
+import { calc_m, barrett_domb_mul } from './barrett_domb'
 import {
     compute_misc_params,
     genRandomFieldElement,
     from_words_le,
+    to_words_le,
     gen_p_limbs,
     gen_r_limbs,
     gen_mu_limbs,
+    gen_barrett_domb_m_limbs,
     bigints_to_u8_for_gpu,
 } from './utils'
 import { get_device } from './gpu'
 import structs from './wgsl/struct/structs.template.wgsl'
 import bigint_functions from './wgsl/bigint/bigint.template.wgsl'
 import field_functions from './wgsl/field/field.template.wgsl'
-import barrett_functions from './wgsl/barrett.template.wgsl'
+import barrett_functions from './wgsl/barrett_domb.template.wgsl'
 import barrett_benchmarks_shader from './wgsl/barrett_benchmarks_shader.template.wgsl'
 import montgomery_product_funcs from './wgsl/montgomery/mont_pro_product.template.wgsl'
 
-export const barrett_mul_benchmarks = async(
+export const barrett_domb_mul_benchmarks = async(
     baseAffinePoints: BigIntPoint[],
     scalars: bigint[]
 ): Promise<{x: bigint, y: bigint}> => {
@@ -47,7 +50,7 @@ export const barrett_mul_benchmarks = async(
     const two_pow_word_size = 2 ** word_size
     const p_limbs = gen_p_limbs(p, num_words, word_size)
     const r_limbs = gen_r_limbs(r, num_words, word_size)
-    const mu_limbs = gen_mu_limbs(p, num_words, word_size)
+    const m_limbs = gen_barrett_domb_m_limbs(misc_params.barrett_domb_m, num_words, word_size)
     const p_bitlength = p.toString(2).length
     const slack = num_words * word_size - p_bitlength
 
@@ -64,11 +67,12 @@ export const barrett_mul_benchmarks = async(
             cost,
             p_limbs,
             r_limbs,
-            mu_limbs,
+            m_limbs,
             w_mask: (1 << word_size) - 1,
             slack,
             num_words_mul_two: num_words * 2,
             num_words_plus_one: num_words + 1,
+            z: (word_size * num_words) - p_bitlength
         },
         {
             structs,
@@ -79,17 +83,33 @@ export const barrett_mul_benchmarks = async(
         }
     )
 
+    //console.log(shaderCode)
+
     const expected: bigint[] = []
+    const expected_words: Uint16Array[] = []
     const inputs: bigint[] = []
 
+    const p_words = to_words_le(p, num_words, word_size)
     // Generate random inputs
     for (let i = 0; i < num_inputs; i ++) {
         const a = genRandomFieldElement(p)
         const b = genRandomFieldElement(p)
+        //const a = BigInt('8341461749428370124248824931781546531375899335154063827935293455917439005792')
+        //const b = BigInt('3444221749422370424228824238781524531374499335144063827945233455917409005733')
 
         inputs.push(a)
         inputs.push(b)
 
+        const a_words = to_words_le(a, num_words, word_size)
+        const b_words = to_words_le(b, num_words, word_size)
+
+        const m = calc_m(p, word_size)
+        const m_words = to_words_le(m, num_words, word_size)
+
+        const result = barrett_domb_mul(a_words, b_words, p_words, p.toString(2).length, m_words, num_words, word_size)
+        expected_words.push(result)
+
+        //expected.push(a * b % p)
         expected.push(expensive_computation(a, b, cost))
     }
 
@@ -189,6 +209,7 @@ export const barrett_mul_benchmarks = async(
     console.log(`GPU took ${elapsed}ms`)
 
     const dataBuf = new Uint32Array(data);
+    //console.log(dataBuf)
 
     const results: bigint[] = []
     for (let i = 0; i < num_inputs; i ++) {
@@ -199,9 +220,11 @@ export const barrett_mul_benchmarks = async(
         results.push(from_words_le(new Uint16Array(r), num_words, word_size))
     }
 
+    //console.log(results, expected)
     for (let i = 0; i < num_inputs; i ++) {
         if (results[i] !== expected[i]) {
             console.error(`Result mismatch at ${i}`)
+            //console.log(to_words_le(results[i], num_words, word_size))
             break
         }
     }
