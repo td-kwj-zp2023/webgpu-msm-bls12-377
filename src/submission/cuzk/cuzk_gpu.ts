@@ -58,7 +58,7 @@ export const cuzk_gpu = async (
             device,
             commandEncoder,
             baseAffinePoints,
-            true,
+            false,
         )
 
     // Decompose the scalars
