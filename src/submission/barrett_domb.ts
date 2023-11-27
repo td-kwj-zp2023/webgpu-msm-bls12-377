@@ -99,11 +99,12 @@ export const mp_msb_multiply = (
     num_words: number,
     word_size: number,
 ): Uint16Array => {
-    const c = Array(num_words * 2 + 1).fill(0)
+    const c = Array(num_words + 1).fill(0)
     for (let l = num_words - 1; l < num_words * 2 - 1; l ++) {
         const i_min = l - (num_words - 1)
         const i_max = num_words
         for (let i = i_min; i < i_max; i ++) {
+            const v = l + 1 - num_words
             const mult_res = machine_multiply(
                 a_words[i], 
                 b_words[l-i],
@@ -111,15 +112,16 @@ export const mp_msb_multiply = (
             )
             const add_res = machine_two_digit_add(
                 mult_res,
-                [c[l], c[l+1]],
+                [c[v], c[v + 1]],
                 word_size,
             )
-            c[l] = add_res[0]
-            c[l + 1] = add_res[1]
-            c[l + 2] = c[l + 2] + add_res[2]
+
+            c[v] = add_res[0]
+            c[v + 1] = add_res[1]
+            c[v + 2] = c[v + 2] + add_res[2]
         }
     }
-    return new Uint16Array(c.slice(num_words, 2 * num_words))
+    return new Uint16Array(c.slice(1))
 }
 
 export const mp_lsb_multiply = (
@@ -127,9 +129,8 @@ export const mp_lsb_multiply = (
     b_words: Uint16Array,
     num_words: number,
     word_size: number,
-    return_extra_digit: boolean,
 ): Uint16Array => {
-    const c = Array(num_words * 2 + 1).fill(0)
+    const c = Array(num_words + 1).fill(0)
     for (let l = 0; l < num_words; l ++) {
         const i_min = Math.max(0, l - (num_words - 1))
         const i_max = Math.min(l, num_words - 1) + 1  // + 1 for inclusive
@@ -150,13 +151,7 @@ export const mp_lsb_multiply = (
         }
     }
 
-    if (return_extra_digit) {
-        // Will be true in barrett_domb_mul, so the WGSL version should just
-        // use this branch
-        return new Uint16Array(c.slice(0, num_words + 1))
-    } else {
-        return new Uint16Array(c.slice(0, num_words))
-    }
+    return new Uint16Array(c)
 }
 
 export const mp_adder = (
@@ -312,7 +307,7 @@ export const barrett_domb_mul = (
     //console.log('l:', l)
 
     // LS calculation
-    let ls = mp_lsb_multiply(l, p_words, num_words, word_size, true)
+    let ls = mp_lsb_multiply(l, p_words, num_words, word_size)
 
     // If needed, calculate extra diagonal.
     if (z < Math.log2(4 + num_words / (2 ** z))) {

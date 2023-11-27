@@ -64,51 +64,46 @@ fn mp_shifter_right(a: ptr<function, BigIntMediumWide>, shift: u32) -> BigInt {
     return res;
 }
 
-fn mp_msb_multiply(a: ptr<function, BigIntWide>, b: ptr<function, BigInt>) -> BigInt {
-    var c: array<u32, NUM_WORDS * 2 + 1>;
+fn mp_msb_multiply(a: ptr<function, BigIntWide>, b: ptr<function, BigInt>) -> BigIntMediumWide {
+    var c: BigIntMediumWide;
+
     for (var l = NUM_WORDS - 1u; l < NUM_WORDS * 2u - 1u; l ++) {
         let i_min = l - (NUM_WORDS - 1u);
         for (var i = i_min; i < NUM_WORDS; i ++) {
+            let v = l + 1u - NUM_WORDS;
             let mult_res = machine_multiply((*a).limbs[NUM_WORDS + i], (*b).limbs[l-i]);
-            let add_res = machine_two_digit_add(mult_res, vec2(c[l], c[l+1]));
-            c[l] = add_res[0];
-            c[l + 1] = add_res[1];
-            c[l + 2] = c[l + 2] + add_res[2];
+            let add_res = machine_two_digit_add(mult_res, vec2(c.limbs[v], c.limbs[v+1]));
+
+            c.limbs[v] = add_res[0];
+            c.limbs[v + 1] = add_res[1];
+            c.limbs[v + 2] = c.limbs[v + 2] + add_res[2];
         }
     }
 
-    var result: BigInt;
-    for (var i = 0u; i < NUM_WORDS; i ++) {
-        result.limbs[i] = c[NUM_WORDS + i];
-    }
-    return result;
+    return c;
 }
 
 fn mp_lsb_multiply(a: ptr<function, BigInt>, b: ptr<function, BigInt>) -> BigIntMediumWide {
-    var c: array<u32, NUM_WORDS * 2 + 1>;
+    var c: BigIntMediumWide;
     for (var l = 0u; l < NUM_WORDS; l ++) {
         let i_min = max(0i, i32(l) - (i32(NUM_WORDS) - 1i));
         let i_max = min(i32(l), (i32(NUM_WORDS) - 1i)) + 1i;  // + 1 for inclusive
         for (var i = i_min; i < i_max; i ++) {
             let mult_res = machine_multiply((*a).limbs[i], (*b).limbs[l - u32(i)]);
-            let add_res = machine_two_digit_add(mult_res, vec2(c[l], c[l + 1]));
-            c[l] = add_res[0];
-            c[l + 1] = add_res[1];
-            c[l + 2] = c[l + 2] + add_res[2];
+            let add_res = machine_two_digit_add(mult_res, vec2(c.limbs[l], c.limbs[l + 1]));
+            c.limbs[l] = add_res[0];
+            c.limbs[l + 1] = add_res[1];
+            c.limbs[l + 2] = c.limbs[l + 2] + add_res[2];
         }
     }
-    var result: BigIntMediumWide;
-    for (var i = 0u; i < NUM_WORDS + 1u; i ++) {
-        result.limbs[i] = c[i];
-    }
-    return result;
+    return c;
 }
 
-fn mp_adder(a: ptr<function, BigInt>, b: ptr<function, BigIntWide>) -> BigIntMediumWide {
+fn mp_adder(a: ptr<function, BigIntMediumWide>, b: ptr<function, BigIntWide>) -> BigIntMediumWide {
     var c: BigIntMediumWide;
     var carry = 0u;
     for (var i = 0u; i < NUM_WORDS; i ++) {
-        let x = (*a).limbs[i] + (*b).limbs[NUM_WORDS + i] + carry;
+        let x = (*a).limbs[i + 1u] + (*b).limbs[NUM_WORDS + i] + carry;
         c.limbs[i] = x & MASK;
         carry = x >> WORD_SIZE;
     }
@@ -169,7 +164,7 @@ fn field_mul(a: ptr<function, BigInt>, b: ptr<function, BigInt>) -> BigInt {
     // L estimation
     var m = get_m();
 
-    var l: BigInt = mp_msb_multiply(&ab_shift, &m); // calculate l estimator (MSB multiply)
+    var l: BigIntMediumWide = mp_msb_multiply(&ab_shift, &m); // calculate l estimator (MSB multiply)
 
     var l_add_ab_msb: BigIntMediumWide = mp_adder(&l, &ab_shift);
 
