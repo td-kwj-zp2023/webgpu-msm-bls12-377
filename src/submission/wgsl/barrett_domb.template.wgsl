@@ -131,23 +131,21 @@ fn mp_subtracter(a: ptr<function, BigIntWide>, b: ptr<function, BigIntMediumWide
 }
 
 fn mp_full_multiply(a: ptr<function, BigInt>, b: ptr<function, BigInt>) -> BigIntWide {
-    var c: array<u32, NUM_WORDS * 2 + 1>;
-    for (var l = 0u; l < NUM_WORDS * 2u - 1u; l ++) {
-        let i_min = u32(max(0i, i32(l) - i32(NUM_WORDS - 1u)));
-        let i_max = u32(min(l, NUM_WORDS - 1u) + 1u);  // + 1 for inclusive
-        for (var i = i_min; i < i_max; i ++) {
-            let mult_res = machine_multiply((*a).limbs[i], (*b).limbs[l - u32(i)]);
-            let add_res = machine_two_digit_add(mult_res, vec2(c[l], c[l+1]));
-            c[l] = add_res[0];
-            c[l + 1] = add_res[1];
-            c[l + 2] += add_res[2];
-        }
+    var res: BigIntWide;
+    for (var i = 0u; i < NUM_WORDS; i = i + 1u) {
+        for (var j = 0u; j < NUM_WORDS; j = j + 1u) {
+            let c = (*a).limbs[i] * (*b).limbs[j];
+            res.limbs[i+j] += c & W_MASK;
+            res.limbs[i+j+1] += c >> WORD_SIZE;
+        }   
     }
-    var result: BigIntWide;
-    for (var i = 0u; i < NUM_WORDS * 2u; i ++) {
-        result.limbs[i] = c[i];
+
+    // start from 0 and carry the extra over to the next index
+    for (var i = 0u; i < 2 * NUM_WORDS - 1; i = i + 1u) {
+        res.limbs[i+1] += res.limbs[i] >> WORD_SIZE;
+        res.limbs[i] = res.limbs[i] & W_MASK;
     }
-    return result;
+    return res;
 }
 
 fn mp_subtract_red(a: ptr<function, BigInt>, b: ptr<function, BigInt>) -> BigInt {
