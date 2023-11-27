@@ -47,7 +47,7 @@ describe('Barrett-Domb ', () => {
 
         const result = mp_msb_multiply(a_words, b_words, num_words, word_size)
         expect(result.toString()).toEqual(
-            [18063, 48642, 13689, 44273, 9320, 39904, 4951, 35535, 582, 31166, 61749, 26796, 57380, 22427, 53011, 1162].toString())
+            [18063, 48642, 13689, 44273, 9320, 39904, 4951, 35535, 582, 31166, 61749, 26796, 57380, 22427, 53011, 1162, 0].toString())
     })
 
     it('mp_msb_multiply 2', () => {
@@ -60,7 +60,7 @@ describe('Barrett-Domb ', () => {
 
         const result = mp_msb_multiply(a_words, b_words, num_words, word_size)
         expect(result.toString()).toEqual(
-            [2165, 4700, 172, 2275, 6372, 2494, 3559, 3643, 4358, 3285, 3136, 6280, 1860, 5007, 6542, 954, 409, 7593, 3518, 0].toString())
+            [2165, 4700, 172, 2275, 6372, 2494, 3559, 3643, 4358, 3285, 3136, 6280, 1860, 5007, 6542, 954, 409, 7593, 3518, 0, 0].toString())
     })
 
     it('mp_lsb_multiply', () => {
@@ -71,9 +71,9 @@ describe('Barrett-Domb ', () => {
         const b = BigInt('0x2222222222222222222222222222222222222222222222222222222222222222')
         const b_words = to_words_le(b, num_words, word_size)
 
-        const result = mp_lsb_multiply(a_words, b_words, num_words, word_size, true)
+        const result = mp_lsb_multiply(a_words, b_words, num_words, word_size)
         expect(result.toString()).toEqual(
-            [3782, 38739, 8155, 43108, 12524, 47477, 16893, 51846, 21262, 56215, 25631, 60584, 30000, 64953, 34369, 20682, 9905].toString())
+            [3782, 38739, 8155, 43108, 12524, 47477, 16893, 51846, 21262, 56215, 25631, 60584, 30000, 64953, 34369, 20682, 9905, 0].toString())
     })
 
     it('mp_lsb_multiply 2', () => {
@@ -84,9 +84,9 @@ describe('Barrett-Domb ', () => {
         const b = BigInt('14276552610056165753848820256553331055663673083569154091093918058913504134283')
         const b_words = to_words_le(b, num_words, word_size)
 
-        const result = mp_lsb_multiply(a_words, b_words, num_words, word_size, true)
+        const result = mp_lsb_multiply(a_words, b_words, num_words, word_size)
         expect(result.toString()).toEqual(
-            [2121, 7108, 8052, 630, 3743, 7907, 2443, 7965, 3945, 757, 6249, 4778, 5546, 4338, 4253, 7207, 1664, 1300, 4815, 6771, 1483].toString())
+            [2121, 7108, 8052, 630, 3743, 7907, 2443, 7965, 3945, 757, 6249, 4778, 5546, 4338, 4253, 7207, 1664, 1300, 4815, 6771, 1483, 0].toString())
     })
 
     it('mp_adder', () => {

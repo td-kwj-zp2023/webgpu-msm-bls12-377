@@ -220,6 +220,7 @@ export const barrett_domb_mul_benchmarks = async(
         results.push(from_words_le(new Uint16Array(r), num_words, word_size))
     }
 
+    //console.log(results, expected)
     for (let i = 0; i < num_inputs; i ++) {
         if (results[i] !== expected[i]) {
             console.error(`Result mismatch at ${i}`)
