@@ -18,6 +18,10 @@ import {
     u8s_to_numbers,
     u8s_to_numbers_32,
     bigints_to_16_bit_words_for_gpu,
+    bigint_to_u8_for_gpu,
+    bigints_to_u8_for_gpu,
+    gen_barrett_domb_m_limbs,
+    compute_misc_params,
 } from '../utils'
 
 import convert_point_coords_shader from '../wgsl/convert_point_coords.template.wgsl'
@@ -26,7 +30,7 @@ import structs from '../wgsl/struct/structs.template.wgsl'
 import bigint_funcs from '../wgsl/bigint/bigint.template.wgsl'
 import field_funcs from '../wgsl/field/field.template.wgsl'
 import ec_funcs from '../wgsl/curve/ec.template.wgsl'
-import barrett_domb_funcs from '../wgsl/barrett_domb.template.wgsl'
+import barrett_functions from '../wgsl/barrett_domb.template.wgsl'
 import montgomery_product_funcs from '../wgsl/montgomery/mont_pro_product.template.wgsl'
 import decompose_scalars_shader from '../wgsl/decompose_scalars.template.wgsl'
 import gen_csr_precompute_shader from '../wgsl/gen_csr_precompute.template.wgsl'
@@ -134,11 +138,8 @@ const convert_point_coords_to_mont_gpu = async (
     device: GPUDevice,
     commandEncoder: GPUCommandEncoder,
     baseAffinePoints: BigIntPoint[],
-    debug = false,
-): Promise<{
-    point_x_y_sb: GPUBuffer,
-    point_t_z_sb: GPUBuffer,
-}> => {
+    debug = true,
+): Promise<any> => {
     const input_size = baseAffinePoints.length
 
     // An affine point only contains X and Y points.
@@ -148,7 +149,7 @@ const convert_point_coords_to_mont_gpu = async (
         x_y_coords[i * 2 + 1] = baseAffinePoints[i].y
     }
 
-    const x_y_coords_bytes = bigints_to_16_bit_words_for_gpu(x_y_coords)
+    const x_y_coords_bytes = bigints_to_u8_for_gpu(x_y_coords, 20, 13)
 
     // Input buffers
     const x_y_coords_sb = create_and_write_sb(device, x_y_coords_bytes)
@@ -162,7 +163,7 @@ const convert_point_coords_to_mont_gpu = async (
         [
             'read-only-storage',
             'storage',
-            'storage'
+            'storage',
         ],
     )
     const bindGroup = create_bind_group(
@@ -175,12 +176,10 @@ const convert_point_coords_to_mont_gpu = async (
         ],
     )
 
-    const workgroup_size = 64
+    const workgroup_size = 256
     const num_x_workgroups = 256
-    const num_y_workgroups = input_size / workgroup_size / num_x_workgroups
 
     const shaderCode = genConvertPointCoordsShaderCode(
-        num_y_workgroups,
         workgroup_size,
     )
 
@@ -194,7 +193,7 @@ const convert_point_coords_to_mont_gpu = async (
     const passEncoder = commandEncoder.beginComputePass()
     passEncoder.setPipeline(computePipeline)
     passEncoder.setBindGroup(0, bindGroup)
-    passEncoder.dispatchWorkgroups(num_x_workgroups, num_y_workgroups, 1)
+    passEncoder.dispatchWorkgroups(num_x_workgroups)
     passEncoder.end()
 
     if (debug) {
@@ -221,11 +220,13 @@ const convert_point_coords_to_mont_gpu = async (
                 && expected_z === computed_t_z_coords[i * 2 + 1]
             )) {
                 console.log('mismatch at', i)
-                debugger
+                // debugger
                 break
             }
         }
     }
+
+    console.log("montgomery conversion assertion checks pass!")
 
     return { point_x_y_sb, point_t_z_sb }
 }
@@ -235,43 +236,43 @@ const p = BigInt('84444617494283704242488249387815465313758993351540638279352334
 const r = BigInt('3336304672246003866643098545847835280997800251509046313505217280697450888997')
 const word_size = 13
 const num_words = 20
-const n0 = 8191
-const mask = 8191
-const slack = 7
 
 const genConvertPointCoordsShaderCode = (
-    num_y_workgroups: number,
     workgroup_size: number,
 ) => {
     const p_bitlength = p.toString(2).length
     const p_limbs = gen_p_limbs(p, num_words, word_size)
     const r_limbs = gen_r_limbs(r, num_words, word_size)
-    const mu_limbs = gen_mu_limbs(p, num_words, word_size)
+    const misc_params = compute_misc_params(p, word_size)
+    const m_limbs = gen_barrett_domb_m_limbs(misc_params.barrett_domb_m, num_words, word_size)
+    const n0 = misc_params.n0
+    const slack = num_words * word_size - p_bitlength
+    const mask = BigInt(2) ** BigInt(word_size) - BigInt(1)
+    const two_pow_word_size = 2 ** word_size
+
     const shaderCode = mustache.render(
         convert_point_coords_shader,
         {
-            num_y_workgroups,
             workgroup_size,
-            word_size,
             num_words,
+            word_size,
             n0,
+            mask,
+            two_pow_word_size,
             p_limbs,
             r_limbs,
-            mu_limbs,
+            m_limbs,
             w_mask: (1 << word_size) - 1,
             slack,
             num_words_mul_two: num_words * 2,
             num_words_plus_one: num_words + 1,
-            mask,
-            two_pow_word_size: BigInt(2) ** BigInt(word_size),
             z: (word_size * num_words) - p_bitlength
         },
         {
-            extract_word_from_bytes_le_funcs,
             structs,
             bigint_funcs,
             field_funcs,
-            barrett_funcs: barrett_domb_funcs,
+            barrett_functions,
             montgomery_product_funcs,
         },
     )
@@ -577,6 +578,12 @@ const genPreaggregationStage1ShaderCode = (
     const p_limbs = gen_p_limbs(p, num_words, word_size)
     const r_limbs = gen_r_limbs(r, num_words, word_size)
     const mu_limbs = gen_mu_limbs(p, num_words, word_size)
+    const misc_params = compute_misc_params(p, word_size)
+    const n0 = misc_params.n0
+    const p_bitlength = p.toString(2).length
+    const slack = num_words * word_size - p_bitlength
+    const mask = BigInt(2) ** BigInt(word_size) - BigInt(1)
+
     const shaderCode = mustache.render(
         preaggregation_stage_1_shader,
         {
