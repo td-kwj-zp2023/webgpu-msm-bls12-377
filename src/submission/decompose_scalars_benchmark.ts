@@ -7,9 +7,10 @@ import {
     u8s_to_numbers,
     decompose_scalars,
     compute_misc_params,
-    bigints_to_u8_for_gpu,
+    bigints_to_16_bit_words_for_gpu,
 } from './utils'
 import { get_device, create_bind_group } from './gpu'
+import extract_word_from_bytes_le_shader from './wgsl/extract_word_from_bytes_le.template.wgsl'
 import decompose_scalars_shader from './wgsl/decompose_scalars.template.wgsl'
 
 export const decompose_scalars_ts_benchmark = async (
@@ -138,7 +139,7 @@ const decompose_scalars_gpu = async (
     word_size: number,
 ) => {
     // Convert scalars to bytes
-    const scalar_bytes = bigints_to_u8_for_gpu(scalars, 16, 16)
+    const scalar_bytes = bigints_to_16_bit_words_for_gpu(scalars)
 
     // Calculate expected decomposed scalars
     const expected: number[][] = []
@@ -184,10 +185,11 @@ const decompose_scalars_gpu = async (
         {
             workgroup_size,
             num_y_workgroups,
-            num_words,
-            word_size,
+            num_subtasks: num_words,
+            chunk_size: word_size,
         },
         {
+            extract_word_from_bytes_le_funcs: extract_word_from_bytes_le_shader
         }
     )
 
@@ -245,8 +247,9 @@ const decompose_scalars_gpu = async (
             const e = expected[i][j]
             const s = scalar_chunks[i * num_words + j]
             if (e !== s) {
-                console.log(i, j)
+                console.log('mismatch at', i, j)
                 debugger
+                break
             }
             assert(e === s)
         }
