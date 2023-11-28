@@ -84,16 +84,31 @@ export const cuzk_gpu_approach_d = async (
         [scalar_chunks_sb, point_x_y_sb, point_t_z_sb],
     )
 
+    // Measure the amount of data read
+    const total_gpu_to_cpu_data =
+        scalar_chunks_data.length +
+        point_x_y_data.length +
+        point_t_z_data.length
+    
+    console.log(`Data transfer from GPU to CPU: ${total_gpu_to_cpu_data} bytes (${total_gpu_to_cpu_data / 1024 / 1024} MB)`)
+
     // The concatenation of the decomposed scalar chunks across all subtasks
     const all_computed_chunks = u8s_to_numbers(scalar_chunks_data)
 
-    // Recreate the commandEncoder, since read_from_gpu ran finish() on it
+    // Recreate the commandEncoder, since read_from_gpu ran finish() on it, as
+    // well as the device, since storage buffers can't be shared across devices
     device = await get_device()
     commandEncoder = device.createCommandEncoder()
 
+    // Recreate the storage buffers under the new device object
     scalar_chunks_sb = create_and_write_sb(device, scalar_chunks_data)
     point_x_y_sb = create_and_write_sb(device, point_x_y_data)
     point_t_z_sb = create_and_write_sb(device, point_t_z_data)
+
+    let total_cpu_to_gpu_data =
+        scalar_chunks_data.length +
+        point_x_y_data.length +
+        point_t_z_data.length
 
     let total_precomputation_ms = 0
     const num_rows = 16
@@ -123,6 +138,11 @@ export const cuzk_gpu_approach_d = async (
         const cluster_end_indices_sb = create_and_write_sb(device, all_cluster_end_indices_bytes)
         const elapsed = Date.now() - start
         total_precomputation_ms += elapsed
+
+        total_cpu_to_gpu_data +=
+            all_new_point_indices_bytes.length +
+            all_cluster_start_indices_bytes.length +
+            all_cluster_end_indices_bytes.length
 
         // TOOD: figure out where these go:
         // - all_single_point_indices
@@ -155,6 +175,7 @@ export const cuzk_gpu_approach_d = async (
         )
     }
     console.log(`all_precomputation for ${num_subtasks} subtasks took: ${total_precomputation_ms}ms`)
+    console.log(`Data transfer from CPU to GPU: ${total_cpu_to_gpu_data} bytes (${total_cpu_to_gpu_data / 1024 / 1024} MB)`)
 
     return { x: BigInt(1), y: BigInt(0) }
 }
@@ -342,7 +363,6 @@ const convert_point_coords_to_mont_gpu = async (
                 && expected_z === computed_t_z_coords[i * 2 + 1]
             )) {
                 console.log('mismatch at', i)
-                // debugger
                 break
             }
         }
