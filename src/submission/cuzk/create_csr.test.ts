@@ -1,6 +1,22 @@
-import { create_csr_cpu, all_precomputation } from './create_csr'
+import { 
+    create_csr_cpu,
+    all_precomputation,
+    precompute_with_gpu_simulated,
+} from './create_csr'
 
 describe('Create an CSR sparse matrix from the MSM input points and scalars', () => {
+    describe('pre-aggregation using a simulated GPU', () => {
+        const num_points = 8
+        const num_rows = 1
+
+        it('small test #0', () => {
+            //const scalar_chunk = [4, 4, 4, 3, 3, 3, 3, 0]
+            const scalar_chunk = [3, 3, 2, 1, 2, 1, 4, 5]
+            const r = precompute_with_gpu_simulated(scalar_chunk, 0, num_rows)
+            console.log(r)
+        })
+    })
+
     describe('pre-aggregation using the cluster method', () => {
         describe('small tests', () => {
             const num_points = 8
@@ -10,7 +26,6 @@ describe('Create an CSR sparse matrix from the MSM input points and scalars', ()
                 //const scalar_chunk = [4, 4, 4, 3, 3, 3, 3, 0]
                 const scalar_chunk = [3, 3, 2, 1, 2, 1, 4, 4]
                 const r = all_precomputation(scalar_chunk, num_rows)
-                console.log(r)
             })
 
             it('small test #1', () => {
