@@ -17,11 +17,11 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     var a: BigInt = buf[gidx * 2u];
     var b: BigInt = buf[(gidx * 2u) + 1u];
 
-    var c = field_mul(a, a);
+    var c = field_mul(&a, &a);
     for (var i = 1u; i < COST - 1u; i ++) {
-        c = field_mul(c, a);
+        c = field_mul(&c, &a);
     }
-    var result = field_mul(c, b);
+    var result = field_mul(&c, &b);
 
     buf[gidx] = result;
 }

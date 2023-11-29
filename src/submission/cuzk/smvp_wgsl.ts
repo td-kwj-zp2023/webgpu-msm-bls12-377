@@ -2,17 +2,17 @@ import { BigIntPoint } from "../../reference/types";
 import mustache from 'mustache'
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import { CSRSparseMatrix, ELLSparseMatrix, fieldMath } from '../matrices/matrices';
-import transpose_shader from '../wgsl/cuzk/transpose_segment_1.template.wgsl'
+import smvp_shader from '../wgsl/cuzk/smvp.template.wgsl'
 import structs from '../wgsl/struct/structs.template.wgsl'
 import bigint_functions from '../wgsl/bigint/bigint.template.wgsl'
+import field_functions from '../wgsl/field/field.template.wgsl'
 import curve_functions from '../wgsl/curve/ec.template.wgsl'
 import curve_parameters from '../wgsl/curve/parameters.template.wgsl'
-import field_functions from '../wgsl/field/field.template.wgsl'
-import montgomery_product_functions from '../wgsl/montgomery/mont_pro_product.template.wgsl'
-import { u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, compute_misc_params, to_words_le } from '../utils'
+import montgomery_product_funcs from '../wgsl/montgomery/mont_pro_product.template.wgsl'
+import { u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, compute_misc_params, to_words_le, gen_p_limbs } from '../utils'
 import assert from 'assert'
 
-export async function transpose(
+export async function smvp(
     baseAffinePoints: BigIntPoint[],
     scalars: bigint[]
 ): Promise<{x: bigint, y: bigint}> {
@@ -29,17 +29,17 @@ export async function transpose(
     const lambda = 260
 
     // Thread count
-    const threads = 16
+    const threads = 20
 
     // Misc parameters
     const params = compute_misc_params(p, word_size)
     const n0 = params.n0    
 
-    const edwards_limbs = to_words_le(fieldMath.Fp.mul(BigInt(3021), params.r), 20, 13)
-    console.log("! edwards_limbs: ", edwards_limbs)
-
     // Request GPU device
     const device = await get_device()
+    const limits = device.limits
+
+    console.log("limits is: ", limits)
 
     // Generate CSR sparse matrices
     const csr_sparse_matrices = await gen_csr_sparse_matrices(
@@ -52,17 +52,8 @@ export async function transpose(
 
     // WGSL Shader invocations
     for (let i = 0; i < csr_sparse_matrices.length; i ++) {
-        // Determine maximum column index
-        let max_col_idx = 0
-        for (const j of csr_sparse_matrices[i].col_idx) {
-            if (j > max_col_idx) {
-                max_col_idx = j
-            }
-        }
-
         // Perform Sparse-Matrix Tranpose and SMVP
-        await transpose_gpu(device, csr_sparse_matrices[i], num_words, word_size, p, n0, params.r, params.rinv, max_col_idx)
-        break
+        await smvp_gpu(device, csr_sparse_matrices[i], num_words, word_size, p, n0, params.r, params.rinv)
     }
     return { x: BigInt(1), y: BigInt(0) }
 }
@@ -99,7 +90,7 @@ export async function gen_csr_sparse_matrices(
   
       // Perform scalar decomposition
       const scalars_decomposed: number[][] = []
-      for (let j =  Math.ceil(lambda / s); j > 0; j--) {
+      for (let j = Math.ceil(lambda / s); j > 0; j--) {
         const chunk: number[] = [];
         for (let i = 0; i < scalars.length; i++) {
           const mask = (BigInt(1) << BigInt(s)) - BigInt(1)  
@@ -129,7 +120,7 @@ export async function gen_csr_sparse_matrices(
     return csr_sparse_matrix_array 
 }
 
-export async function transpose_gpu(
+export async function smvp_gpu(
     device: GPUDevice,
     csr_sm: CSRSparseMatrix,
     num_words: number,
@@ -138,11 +129,21 @@ export async function transpose_gpu(
     n0: bigint,
     r: bigint,
     rinv: bigint,
-    max_col_idx: number
 ) {
+    const csr_sparse_matrix_transposed = await csr_sm.transpose()
+
+    const start_1 = Date.now()
+    
+    const vector_smvp: bigint[] = Array(csr_sparse_matrix_transposed.row_ptr.length - 1).fill(BigInt(1));
+    const buckets_svmp: ExtPointType[] = await csr_sparse_matrix_transposed.smvp(vector_smvp)
+    
+    const elapsed_1 = Date.now() - start_1
+    const output_points_non_mont_and_affine_cpu = buckets_svmp.map((x) => x.toAffine())
+    console.log(`CPU took ${elapsed_1}ms`)
+
     // Convert BigIntPoint to montgomery form
     const points_with_mont_coords: BigIntPoint[] = []
-    for (const pt of csr_sm.data) {
+    for (const pt of csr_sparse_matrix_transposed.data) {
         points_with_mont_coords.push(
             {
                 x: fieldMath.Fp.mul(pt.x, r),
@@ -153,53 +154,63 @@ export async function transpose_gpu(
         )
     }
 
-    // Define number of workgroups
-    const num_x_workgroups = 1;
+    const row_ptr_bytes = numbers_to_u8s_for_gpu(csr_sparse_matrix_transposed.row_ptr)
 
-    const col_idx_bytes = numbers_to_u8s_for_gpu(csr_sm.col_idx)
-    const row_ptr_bytes = numbers_to_u8s_for_gpu(csr_sm.row_ptr)
+    const NUM_ROWS = csr_sparse_matrix_transposed.row_ptr.length - 1
+
+    let NUM_ROWS_GPU = 0
+    let numBlocks = 1
+    if (NUM_ROWS < 256) {
+        NUM_ROWS_GPU = NUM_ROWS
+    }
+    else {
+        const blockSize = 256;
+        const totalThreads = NUM_ROWS
+        numBlocks = Math.floor((totalThreads + blockSize - 1) / blockSize)
+        NUM_ROWS_GPU = blockSize
+    }
+
+    // Define number of workgroups
+    const num_x_workgroups = numBlocks; 
+
     const points_bytes = points_to_u8s_for_gpu(points_with_mont_coords, num_words, word_size)
-    const num_rows = csr_sm.row_ptr.length - 1
 
     // 1: Create a shader module with templating engine
+    const p_limbs = gen_p_limbs(p, num_words, word_size)
     const shaderCode = mustache.render(
-        transpose_shader,
+        smvp_shader,
         {
-            num_words,
             word_size,
-            num_rows,
-            max_col_idx,
+            num_words,
             n0,
-            two_pow_word_size: 2 ** word_size,
+            p_limbs,
             mask: BigInt(2) ** BigInt(word_size) - BigInt(1),
+            two_pow_word_size: BigInt(2) ** BigInt(word_size),
+            NUM_ROWS_GPU,
         },
         {
             structs,
             bigint_functions,
-            montgomery_product_functions,
-            curve_functions,
-            curve_parameters,
+            montgomery_product_funcs,
             field_functions,
+            curve_parameters,
+            curve_functions,
         },
     )
     const shaderModule = device.createShaderModule({
         code: shaderCode
     })
 
-    // 2: Create buffered memory accessible by the GPU memory space
-    // const output_buffer_length = max_col_idx * num_words * 4 * 4
-    const output_buffer_length = 640
+    const commandEncoder = device.createCommandEncoder();
 
+    // 2: Create buffered memory accessible by the GPU memory space
+    const output_buffer_length = NUM_ROWS * num_words * 4 * 4
+
+    const start = Date.now()
     const output_storage_buffer = device.createBuffer({
         size: output_buffer_length,
         usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST
     });
-
-    const col_idx_storage_buffer = device.createBuffer({
-        size: col_idx_bytes.length,
-        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
-    });
-    device.queue.writeBuffer(col_idx_storage_buffer, 0, col_idx_bytes);
 
     const row_ptr_storage_buffer = device.createBuffer({
         size: row_ptr_bytes.length,
@@ -225,20 +236,18 @@ export async function transpose_gpu(
             { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: "storage" } },
             { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } },
             { binding: 2, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } },
-            { binding: 3, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } },
         ]
     });
 
-    // Bind Group represents the actual input/output data for the shader, and associate with GPU buffers 
-    const bindGroup = device.createBindGroup({
-        layout: bindGroupLayout,
-        entries: [
-            { binding: 0, resource: { buffer: output_storage_buffer } },
-            { binding: 1, resource: { buffer: col_idx_storage_buffer } },
-            { binding: 2, resource: { buffer: row_ptr_storage_buffer } },
-            { binding: 3, resource: { buffer: points_storage_buffer } },
-        ]
-    });
+    const bindGroup = create_bind_group(
+        device, 
+        bindGroupLayout,
+        [
+            output_storage_buffer,
+            row_ptr_storage_buffer,
+            points_storage_buffer,
+        ],
+    )
 
     // 4: Setup Compute Pipeline 
     // Creates pipeline with bind group layout and compute stage as arguments
@@ -251,13 +260,6 @@ export async function transpose_gpu(
             entryPoint: "main"     
         }
     });
-
-    // 5: Create GPUCommandEncoder to issue commands to the GPU
-    // Returns a Javascript object that encodes a batch of "buffered" GPU commands 
-    const commandEncoder = device.createCommandEncoder();
-
-    // Start timer
-    const start = Date.now()
 
     // 6: Encode pipeline commands 
     const passEncoder = commandEncoder.beginComputePass();
@@ -273,11 +275,11 @@ export async function transpose_gpu(
     passEncoder.end();
 
     commandEncoder.copyBufferToBuffer(
-        output_storage_buffer,      // source
-        0,                          // sourceOffset
-        stagingBuffer,              // destination
-        0,                          // destinationOffset
-        output_buffer_length / 2        // buffer size
+        output_storage_buffer, // source
+        0, // sourceOffset
+        stagingBuffer, // destination
+        0, // destinationOffset
+        output_buffer_length,
     );
 
     // 8: Finish encoding commands and submit to GPU device command queue
@@ -288,7 +290,7 @@ export async function transpose_gpu(
     await stagingBuffer.mapAsync(
         GPUMapMode.READ,
         0, // Offset
-        points_bytes.length,
+        output_buffer_length,
     );
 
     // Returns an ArrayBuffer with the contents of the GPUBuffer in the given mapped range.
@@ -303,27 +305,32 @@ export async function transpose_gpu(
     // Transform results 
     const data_as_uint8s = new Uint8Array(data)
     const output_points = u8s_to_points(data_as_uint8s, num_words, word_size)
-    const gpu_point = fieldMath.createPoint(output_points[0].x, output_points[0].y, output_points[0].t, output_points[0].z)
-    const gpu_point_affine = gpu_point.toAffine()
 
-    // Compare agaisnt expected CPU results 
-    const expected_1 = add_points(points_with_mont_coords[0], points_with_mont_coords[1], p, rinv, r)
-    const expected_1_affine = expected_1.toAffine()
+    const bigIntPointToExtPointType = (bip: BigIntPoint): ExtPointType => {
+        return fieldMath.createPoint(bip.x, bip.y, bip.t, bip.z)
+    }
 
-    const test_point = fieldMath.createPoint(csr_sm.data[0].x, csr_sm.data[0].y, csr_sm.data[0].t, csr_sm.data[0].z)
-    const result = test_point.add(test_point)
-    const expected_affine_2 = result.toAffine()
+    // Convert output_points out of Montgomery coords
+    const output_points_non_mont: ExtPointType[] = []
+    for (const pt of output_points) {
+        const non = {
+            x: fieldMath.Fp.mul(pt.x, rinv),
+            y: fieldMath.Fp.mul(pt.y, rinv),
+            t: fieldMath.Fp.mul(pt.t, rinv),
+            z: fieldMath.Fp.mul(pt.z, rinv),
+        }
+        output_points_non_mont.push(bigIntPointToExtPointType(non))
+    }
 
-    // Assertion checks
-    assert(expected_1_affine.x === gpu_point_affine.x)
-    assert(expected_1_affine.y === gpu_point_affine.y)
-    assert(expected_affine_2.x === gpu_point_affine.x)
-    assert(expected_affine_2.y === gpu_point_affine.y)
+    // Convert output_points_non_mont into affine
+    const output_points_non_mont_and_affine_gpu = output_points_non_mont.map((x) => x.toAffine())
 
-    // Print results
-    console.log('GPU results:', gpu_point_affine)
-    console.log('CPU results 1:', expected_1_affine)
-    console.log('CPU results 1:', expected_affine_2)
+    for (let i = 0; i < output_points_non_mont_and_affine_gpu.length; i ++) {
+        assert(output_points_non_mont_and_affine_gpu[i].x === output_points_non_mont_and_affine_cpu[i].x)
+        assert(output_points_non_mont_and_affine_gpu[i].y === output_points_non_mont_and_affine_cpu[i].y)
+    }
+
+    console.log("passed assertion checks!")
 }
 
 export async function get_device() {
@@ -339,6 +346,17 @@ export async function get_device() {
     // Returns a promise that asynchronously resolves with a GPU device
     const device = await adapter.requestDevice()
     return device
+}
+
+const create_bind_group = (device: GPUDevice,layout: GPUBindGroupLayout, buffers: GPUBuffer[]) => {
+    const entries: any[] = []
+    for (let i = 0; i < buffers.length; i ++) {
+        entries.push({
+            binding: i,
+            resource: { buffer: buffers[i] }
+        })
+    }
+    return device.createBindGroup({ layout, entries })
 }
 
 export const add_points = (
