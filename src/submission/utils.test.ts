@@ -2,6 +2,8 @@ import {
     to_words_le,
     from_words_le,
     compute_misc_params,
+    bigints_to_16_bit_words_for_gpu,
+    bigints_to_u8_for_gpu,
 } from './utils'
 import * as bigintCryptoUtils from 'bigint-crypto-utils'
 
@@ -22,6 +24,99 @@ describe('utils', () => {
             const val = from_words_le(words, num_words, word_size)
             expect(val).toEqual(expected)
         })
+
+        /*
+         * @param input A big-endian buffer of bytes
+         * @param word_idx The index of the word_size word you want to
+         *                 extract. This index is of a little-endian array.
+         * @param word_size The bitlength of each word to extract. It should be greater than 8.
+         */
+        const extract_word_from_bytes_le = (
+            input: Buffer,
+            word_idx: number,
+            word_size: number,
+        ): number => {
+            /*
+             * 3333 3333 2222 2222 1111 1111 0000 0000
+             * .... ..-- ---- ---- ---. .... .... ....
+             */
+            const start_byte_idx = input.length - 1 - Math.floor((word_idx * word_size + word_size) / 8)
+            const end_byte_idx = input.length - 1 - Math.floor((word_idx * word_size) / 8)
+
+            const start_byte_offset = (word_idx * word_size + word_size) % 8
+            const end_byte_offset = (word_idx * word_size) % 8
+
+            let sum = 0
+            for (let i = start_byte_idx; i <= end_byte_idx; i ++) {
+                if (i === start_byte_idx) {
+                    const mask = 2 ** start_byte_offset - 1
+                    sum += (input[i] & mask)
+                } else if (i === end_byte_idx) {
+                    sum = sum << (8 - end_byte_offset)
+                    sum += input[i] >> end_byte_offset
+                } else {
+                    sum = sum << 8
+                    sum += input[i]
+                }
+            }
+            //console.log(start_byte_idx, start_byte_offset, end_byte_idx, end_byte_offset)
+
+            return sum
+        }
+
+        const to_words_le_modified = (val: bigint, num_words: number, word_size: number): Uint16Array => {
+            let hex_str = val.toString(16)
+            while (hex_str.length < Math.ceil((num_words * word_size) / 8) * 2) {
+                hex_str = '0' + hex_str
+            }
+            const bytes = Buffer.from(hex_str, 'hex')
+
+            const words = Array(num_words).fill(0)
+            for (let i = 0; i < num_words; i ++) {
+                const w = extract_word_from_bytes_le(bytes, i, word_size)
+                words[i] = w
+            }
+            return new Uint16Array(words)
+        }
+
+        it('bytes to words', () => {
+            const test_cases = [
+                BigInt(0),
+                BigInt(1),
+                BigInt('0x10'),
+                BigInt('0xabcde'),
+                BigInt('0xffffffffffffffff'),
+                p,
+            ]
+            for (const test_case of test_cases) {
+                const words = to_words_le_modified(test_case, num_words, word_size)
+                expect(words.toString()).toEqual(to_words_le(test_case, num_words, word_size).toString())
+            }
+        })
+
+        it('bigints to 16-bit words', () => {
+            const test_cases = [
+                [p],
+                [p, p],
+                [p, p, p],
+                [p, p, p, p],
+                [BigInt(0)],
+                [BigInt(0), BigInt(0)],
+                [BigInt(1)],
+                [BigInt(1), BigInt(1)],
+                [BigInt(255)],
+                [BigInt(255), BigInt(255)],
+                [BigInt(1), BigInt(255)],
+                [BigInt(0), BigInt(255)],
+                [BigInt(255), BigInt(0)],
+                [p, p / BigInt(2), p / BigInt(3), p],
+            ]
+            for (const vals of test_cases) {
+                const b = bigints_to_16_bit_words_for_gpu(vals)
+                const c = bigints_to_u8_for_gpu(vals, 16, 16)
+                expect(b.toString()).toEqual(c.toString())
+            }
+        })
     })
 
     describe('misc functions', () => {
@@ -33,7 +128,7 @@ describe('utils', () => {
             const r = BigInt(2) ** BigInt(num_words * word_size)
 
             // Returns triple (g, rinv, pprime)
-            let egcdResult = bigintCryptoUtils.eGcd(r, p);
+            const egcdResult = bigintCryptoUtils.eGcd(r, p);
 
             // Sanity-check rinv and pprime
             if (egcdResult.x < BigInt(0)) {
