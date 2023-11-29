@@ -46,6 +46,7 @@ export const cuzk_gpu = async (
 ): Promise<{x: bigint, y: bigint}> => {
     const input_size = scalars.length
     const num_subtasks = 16
+    const num_rows = 16
 
     // Each pass must use the same GPUDevice and GPUCommandEncoder, or else
     // storage buffers can't be reused across compute passes
@@ -71,10 +72,10 @@ export const cuzk_gpu = async (
     )
 
     for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx ++) {
-        // TODO: currently if debug is set to true here, the sanity check will
-        // fail on the second iteration, because the commandEncoder's finish()
-        // function has been used. To correctly sanity-check these outputs, do
-        // so in a separate test file.
+        // TODO: if debug is set to true in any invocations within a loop, the
+        // sanity check will fail on the second iteration, because the
+        // commandEncoder's finish() function has been used. To correctly
+        // sanity-check these outputs, do so in a separate test file.
         const {
             new_point_indices_sb,
             cluster_start_indices_sb,
@@ -83,6 +84,7 @@ export const cuzk_gpu = async (
             device,
             commandEncoder,
             input_size,
+            num_rows,
             scalar_chunks_sb,
             false,
         )
@@ -109,9 +111,11 @@ export const cuzk_gpu = async (
             scalar_chunks_sb,
             cluster_start_indices_sb,
             new_point_indices_sb,
-            false,
+            true,
         )
+        break
     }
+    device.destroy()
 
     return { x: BigInt(1), y: BigInt(0) }
 }
@@ -386,6 +390,7 @@ const csr_precompute_gpu = async (
     device: GPUDevice,
     commandEncoder: GPUCommandEncoder,
     input_size: number,
+    num_rows: number,
     scalar_chunks_sb: GPUBuffer,
     debug = false,
 ): Promise<{
@@ -416,13 +421,21 @@ const csr_precompute_gpu = async (
         ],
     )
 
-    const workgroup_size = 64
-    const num_x_workgroups = 256
-    const num_y_workgroups = input_size / workgroup_size / num_x_workgroups
+    const workgroup_size = 1
+    const num_x_workgroups = num_rows
+    const num_y_workgroups = 1 //input_size / workgroup_size / num_x_workgroups
+    const max_cluster_size = 3 // TODO: set this based on chunk_size and num_inputs
+	const max_chunk_val = 2 ** word_size
+    const overflow_size = max_chunk_val - max_cluster_size
 
     const shaderCode = genCsrPrecomputeShaderCode(
         num_y_workgroups,
         workgroup_size,
+        max_chunk_val,
+		input_size,
+        num_rows,
+        max_cluster_size,
+        overflow_size,
     )
 
     const computePipeline = await create_compute_pipeline(
@@ -451,24 +464,28 @@ const csr_precompute_gpu = async (
         )
 
         const nums = data.map(u8s_to_numbers_32)
+        console.log(nums[0])
+        console.log(nums[1])
+        console.log(nums[2])
+        //debugger
 
         // Assuming that the precomputation shader provides dummy outputs -
         // that is, no clustering or sorting at all - the new point indices
         // should just be 0, 1, ..., input_size - 1
         // Furthermore, the cluster_start_indices should be 0, 1, ..., input_size - 1
         // and cluster_start_indices should be 1, 2, ..., input_size
-        for (let i = 0; i < input_size; i ++) {
-            if (nums[0][i] !== i) {
-                throw Error(`new_point_indices_sb mismatch at ${i}`)
-            }
-            if (nums[1][i] !== i) {
-                throw Error(`cluster_start_indices_sb mismatch at ${i}`)
-            }
+        //for (let i = 0; i < input_size; i ++) {
+            //if (nums[0][i] !== i) {
+                //throw Error(`new_point_indices_sb mismatch at ${i}`)
+            //}
+            //if (nums[1][i] !== i) {
+                //throw Error(`cluster_start_indices_sb mismatch at ${i}`)
+            //}
 
-            if (nums[2][i] - 1 !== i) {
-                throw Error(`cluster_end_indices_sb mismatch at ${i}`)
-            }
-        }
+            //if (nums[2][i] - 1 !== i) {
+                //throw Error(`cluster_end_indices_sb mismatch at ${i}`)
+            //}
+        //}
     }
     return { new_point_indices_sb, cluster_start_indices_sb, cluster_end_indices_sb }
 }
@@ -476,12 +493,22 @@ const csr_precompute_gpu = async (
 const genCsrPrecomputeShaderCode = (
     num_y_workgroups: number,
     workgroup_size: number,
+    max_chunk_val: number,
+	input_size: number,
+    num_rows: number,
+    max_cluster_size: number,
+    overflow_size: number,
 ) => {
     const shaderCode = mustache.render(
         gen_csr_precompute_shader,
         {
             workgroup_size,
             num_y_workgroups,
+            max_cluster_size,
+            max_chunk_val,
+            num_rows,
+            row_size: input_size / num_rows,
+            overflow_size,
         },
         {
         },
@@ -566,6 +593,8 @@ const pre_aggregation_stage_1_gpu = async (
 
         const x_y_coords = u8s_to_bigints(data[0], num_words, word_size)
         const t_z_coords = u8s_to_bigints(data[1], num_words, word_size)
+        console.log(x_y_coords)
+        console.log(t_z_coords)
     }
 
     return { new_point_x_y_sb, new_point_t_z_sb }
