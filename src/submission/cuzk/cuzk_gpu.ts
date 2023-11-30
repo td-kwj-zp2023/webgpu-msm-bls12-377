@@ -426,8 +426,7 @@ const csr_precompute_gpu = async (
     const num_y_workgroups = 1 //input_size / workgroup_size / num_x_workgroups
     const max_cluster_size = 3 // TODO: set this based on chunk_size and num_inputs
 	const max_chunk_val = 2 ** word_size
-    //const overflow_size = max_chunk_val - max_cluster_size
-    const overflow_size = 4000;
+    const overflow_size = max_chunk_val - max_cluster_size
 
     const shaderCode = genCsrPrecomputeShaderCode(
         num_y_workgroups,
