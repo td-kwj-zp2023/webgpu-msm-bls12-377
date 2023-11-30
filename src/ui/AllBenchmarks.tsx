@@ -20,11 +20,11 @@ import {
 } from '../submission/cuzk/create_csr_wasm'
 import { cuzk_gpu } from '../submission/cuzk/cuzk_gpu'
 import { cuzk_typescript_serial, cuzk_typescript_web_workers, transpose_wgsl, smtvp_wgsl, smvp_wgsl } from '../submission/submission';
-
 import CSVExportButton from './CSVExportButton';
 import { TestCaseDropDown } from './TestCaseDropDown';
 import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
 import { smvp } from '../submission/cuzk/smvp_wgsl';
+import { data_transfer_cost_benchmarks } from '../submission/data_transfer_cost_benchmarks'
 
 export const AllBenchmarks: React.FC = () => {
   //const initialDefaultInputSize = 2
@@ -151,7 +151,16 @@ export const AllBenchmarks: React.FC = () => {
         postResult={postResult}
         bold={true}
       />
-      
+      <Benchmark
+        name={'Data transfer cost benchmarks'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={data_transfer_cost_benchmarks}
+        postResult={postResult}
+        bold={true}
+      />
       <Benchmark
         name={'Pippenger WebGPU MSM'}
         disabled={disabledBenchmark}
