@@ -6,11 +6,13 @@ import { FieldMath } from "../reference/utils/FieldMath";
 import { createHash } from 'crypto'
 import {
     gen_p_limbs,
+    to_words_le,
     from_words_le,
     u8s_to_points,
     compute_misc_params,
     points_to_u8s_for_gpu,
     numbers_to_u8s_for_gpu,
+    calc_num_words,
 } from './utils'
 import {
     create_sb,
@@ -46,7 +48,7 @@ export const scalar_mul_benchmarks = async (
     baseAffinePoints: BigIntPoint[],
     bigint_scalars: bigint[]
 ): Promise<{x: bigint, y: bigint}> => {
-    const cost = 4
+    const cost = 1
 
     const num_scalars = 256
     const scalars: number[] = []
@@ -75,6 +77,7 @@ export const scalar_mul_benchmarks = async (
     // Benchmark in CPU
     const expected = cpu_benchmark(points, scalars, cost)
 
+    /*
     // Double-and-add method in TS
     const double_and_add_cpu_results = double_and_add_cpu(points, scalars, cost)
 
@@ -86,15 +89,21 @@ export const scalar_mul_benchmarks = async (
     let elapsed = Date.now() - start
     console.log(`double-and-add (cost = ${cost}) in GPU (including data transfer) took ${elapsed}ms`)
 
-    assert(are_point_arr_equal(double_and_add_gpu_results, double_and_add_cpu_results))
+    assert(are_point_arr_equal(double_and_add_gpu_results, expected))
+    */
 
-    // Sliding window method in TS and GPU
-    // NAF method in TS and GPU
-    // wNAF method in TS and GPU
-    // Booth encoding method in TS and GPU
+    // 2^w-ary method in CPU
+    const two_w_ary_results = two_w_ary_cpu(points, scalars, cost)
+    assert(are_point_arr_equal(two_w_ary_results, expected))
+
+    // TODO: 2^w-ary method in CPU
+    /*
+    // Sliding window method
+    // NAF method
+    // wNAF method
+    // Booth encoding method
     start = 0
     elapsed = 0
-    /*
     */
 
     return { x: BigInt(1), y: BigInt(0) }
@@ -127,6 +136,8 @@ const cpu_benchmark = (
     return results
 } 
 
+// On average, requires (n−1) doublings and n/2 additions
+// where n is the number of digits of the binary decomposition of the scalar
 const double_and_add = (
     point: ExtPointType,
     scalar: number,
@@ -145,12 +156,60 @@ const double_and_add = (
     return result
 }
 
+const two_w_ary_cpu = (
+    points: ExtPointType[],
+    scalars: number[],
+    cost: number,
+    w = 3,
+): ExtPointType[] => {
+    const results: ExtPointType[] = []
+
+    for (let i = 0; i < scalars.length; i ++) {
+        let result = copyPoint(points[i])
+        for (let j = 0; j < cost; j ++) {
+            result = two_w_ary(result, scalars[i], w)
+        }
+        results.push(result)
+    }
+
+    return results
+}
+
+// On average, requires (l - 1) doublings and 
+// 2^w - 2 + ((2^w -1) / 2^w) * l additions
+// TODO: calculate the optimal w on a spreadsheet
+const two_w_ary = (
+    point: ExtPointType,
+    scalar: number,
+    w: number,
+): ExtPointType => {
+    const scalar_width = BigInt(scalar).toString(2).length
+    const base = 2 ** w
+    const num_digits = calc_num_words(w, scalar_width)
+    const digits = to_words_le(BigInt(scalar), num_digits, w)
+    const precomputed = [copyPoint(point)]
+
+    for (let i = 1; i < base; i ++) {
+        const pt_prev = precomputed[i - 1]
+        const pt = point
+        precomputed.push(pt_prev.add(pt))
+    }
+
+    let result = ZERO_POINT
+    for (let i = num_digits - 1; i >= 0; i --) {
+        result = result.multiply(BigInt(base))
+        if (digits[i] !== 0) {
+            result = result.add(precomputed[digits[i] - 1])
+        }
+    }
+    return result
+}
+
 const double_and_add_cpu = (
     points: ExtPointType[],
     scalars: number[],
     cost: number,
 ): ExtPointType[] => {
-
     const results: ExtPointType[] = []
 
     for (let i = 0; i < scalars.length; i ++) {
