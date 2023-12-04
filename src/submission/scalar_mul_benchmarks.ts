@@ -59,9 +59,9 @@ export const scalar_mul_benchmarks = async (
     for (let i = 0; i < num_scalars; i ++) {
         hasher.update(new Uint8Array([i]))
         const d = Array.from(hasher.digest())
-        const s = new Uint16Array(d.slice(0, 4))
-        const u32 = from_words_le(s, 4, 8)
-        scalars.push(Number(u32))
+        const s = new Uint16Array(d.slice(0, 2))
+        const u16 = from_words_le(s, 2, 8)
+        scalars.push(Number(u16))
     }
 
     // Convert baseAffinePoints to ETE points
