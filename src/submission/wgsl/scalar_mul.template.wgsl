@@ -76,7 +76,7 @@ fn booth(point: Point, scalar: u32) -> Point {
     }
 
     // Binary decomposition of the scalar
-    var a: array<u32, 33>;
+    var a: array<u32, 17>;
 
     var s = scalar;
     var i = 0u;
@@ -86,7 +86,7 @@ fn booth(point: Point, scalar: u32) -> Point {
         i ++;
     }
 
-    for (var i = 32u; i >= 1u; i --) {
+    for (var i = 16u; i >= 1u; i --) {
         if (a[i] == 0u && a[i - 1u] == 1u) {
             a[i] = 1u;
         } else if (a[i] == 1u && a[i - 1u] == 0u) {
@@ -103,7 +103,7 @@ fn booth(point: Point, scalar: u32) -> Point {
     }
 
     // Find the last 1
-    var max_idx = 32u;
+    var max_idx = 16u;
     while (a[max_idx] == 0u) {
         max_idx --;
     }
