@@ -3,6 +3,29 @@ fn fr_double(a: ptr<function, BigInt>) -> BigInt {
     bigint_double(a, &res);
     return fr_reduce(&res);
 }
+fn double_point(p1: Point) -> Point {
+    var p1x = p1.x;
+    var p1y = p1.y;
+    var a = montgomery_product(&p1x, &p1x);
+    var b = montgomery_product(&p1y, &p1y);
+    var p1z = p1.z;
+    var z1_m_z1 = montgomery_product(&p1z, &p1z);
+    var c = fr_add(&z1_m_z1, &z1_m_z1);
+    var p = get_p();
+    var d = fr_sub(&p, &a);
+    var x1_m_y1 = fr_add(&p1x, &p1y);
+    var x1y1_m_x1y1 = montgomery_product(&x1_m_y1, &x1_m_y1);
+    var x1y1_m_x1y1_s_a = fr_sub(&x1y1_m_x1y1, &a);
+    var e = fr_sub(&x1y1_m_x1y1_s_a, &b);
+    var g = fr_add(&d, &b);
+    var f = fr_sub(&g, &c);
+    var h = fr_sub(&d, &b);
+    var x3 = montgomery_product(&e, &f);
+    var y3 = montgomery_product(&g, &h);
+    var t3 = montgomery_product(&e, &h);
+    var z3 = montgomery_product(&f, &g);
+    return Point(x3, y3, t3, z3);
+}
 
 fn add_points(p1: Point, p2: Point) -> Point {
     // This is add-2008-hwcd-4
@@ -38,26 +61,7 @@ fn add_points(p1: Point, p2: Point) -> Point {
     if (b_eq_a == 1u) {
         // The dedicated addition formula in add-2008-hwcd-4 assumes that a and
         // b are distinct, so double the point instead if a == b. 
-
-        var a = montgomery_product(&p1x, &p1x);
-        var b = montgomery_product(&p1y, &p1y);
-        var p1z = p1.z;
-        var z1_m_z1 = montgomery_product(&p1z, &p1z);
-        var c = fr_add(&z1_m_z1, &z1_m_z1);
-        var p = get_p();
-        var d = fr_sub(&p, &a);
-        var x1_m_y1 = fr_add(&p1x, &p1y);
-        var x1y1_m_x1y1 = montgomery_product(&x1_m_y1, &x1_m_y1);
-        var x1y1_m_x1y1_s_a = fr_sub(&x1y1_m_x1y1, &a);
-        var e = fr_sub(&x1y1_m_x1y1_s_a, &b);
-        var g = fr_add(&d, &b);
-        var f = fr_sub(&g, &c);
-        var h = fr_sub(&d, &b);
-        var x3 = montgomery_product(&e, &f);
-        var y3 = montgomery_product(&g, &h);
-        var t3 = montgomery_product(&e, &h);
-        var z3 = montgomery_product(&f, &g);
-        return Point(x3, y3, t3, z3);
+        return double_point(p1);
     }
 
     var f = fr_sub(&b, &a);

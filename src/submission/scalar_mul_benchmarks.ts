@@ -48,9 +48,9 @@ export const scalar_mul_benchmarks = async (
     baseAffinePoints: BigIntPoint[],
     bigint_scalars: bigint[]
 ): Promise<{x: bigint, y: bigint}> => {
-    const cost = 1
+    const cost = 1024
 
-    const num_scalars = 256
+    const num_scalars = 1
     const scalars: number[] = []
 
     // Use a PRNG instead of system randomness so that the inputs are
@@ -86,8 +86,7 @@ export const scalar_mul_benchmarks = async (
     const start = Date.now()
     const double_and_add_gpu_results = await double_and_add_gpu(points, scalars, cost)
     const elapsed = Date.now() - start
-    console.log(`double-and-add (cost = ${cost}) in GPU (including data transfer) took ${elapsed}ms`)
-
+    console.log(`double-and-add method (cost = ${cost}) in GPU (including data transfer) took ${elapsed}ms`)
     assert(are_point_arr_equal(double_and_add_gpu_results, expected))
 
     // 2^w-ary method in CPU
@@ -108,14 +107,12 @@ export const scalar_mul_benchmarks = async (
     const booth_cpu_results = await booth_cpu(points, scalars, cost)
     assert(are_point_arr_equal(booth_cpu_results, expected))
 
-    for (let i = 0; i < 512; i ++) {
-        const s = i + 1
-        const b = booth(points[0], s)
-        const e = points[0].multiply(BigInt(s))
-        assert(are_point_arr_equal([b], [e]))
-    }
-
-    // TODO: Booth encoding method in GPU
+    // Booth encoding method in GPU
+    const start_booth = Date.now()
+    const booth_gpu_results = await booth_gpu(points, scalars, cost)
+    const elapsed_booth = Date.now() - start_booth
+    console.log(`booth method (cost = ${cost}) in GPU (including data transfer) took ${elapsed_booth}ms`)
+    assert(are_point_arr_equal(booth_gpu_results, expected))
 
     return { x: BigInt(1), y: BigInt(0) }
 }
@@ -197,12 +194,24 @@ const booth = (
 
     // Binary decomp of the scalar
     const a = Array.from(to_words_le(BigInt(scalar), num_digits, 1))
+    assert(a.length === num_digits)
+
+    // Sanity check
+    const b = Array(num_digits).fill(0)
+    let s = scalar
+    let i = 0
+    while (s != 0) {
+        b[i] = s & 1
+        s = Number(BigInt(s) >> BigInt(1))
+        i ++
+    }
+    assert(a.toString() === b.toString())
 
     for (let i = a.length - 1; i >= 1; i --) {
         if (a[i] === 0 && a[i-1] === 1) {
             a[i] = 1
         } else if (a[i] === 1 && a[i-1] === 0) {
-            a[i] = -1
+            a[i] = 2
         } else if (a[i] === 0 && a[i-1] === 0) {
             //a[i] = 0
         } else if (a[i] === 1 && a[i-1] === 1) {
@@ -211,21 +220,21 @@ const booth = (
     }
 
     if (a[0] === 1) {
-        a[0] = -1
+        a[0] = 2
     }
 
     // Find the last 1
-    let max = a.length - 1
-    while (a[max] === 0) {
-        max --
+    let max_idx = a.length - 1
+    while (a[max_idx] === 0) {
+        max_idx --
     }
 
     let result = ZERO_POINT
     let temp = point
-    for (let i = 0; i < max + 1; i ++) {
+    for (let i = 0; i < max_idx + 1; i ++) {
         if (a[i] === 1) {
             result = result.add(temp)
-        } else if (a[i] === -1) {
+        } else if (a[i] === 2) {
             result = result.add(temp.negate())
         }
         temp = temp.double()
@@ -368,10 +377,27 @@ const double_and_add_cpu = (
     return results
 }
 
+const booth_gpu = async(
+    points: ExtPointType[],
+    scalars: number[],
+    cost: number,
+): Promise<ExtPointType[]> => {
+    return run_in_gpu(points, scalars, cost, 'booth_benchmark')
+}
+
 const double_and_add_gpu = async(
     points: ExtPointType[],
     scalars: number[],
     cost: number,
+): Promise<ExtPointType[]> => {
+    return run_in_gpu(points, scalars, cost, 'double_and_add_benchmark')
+}
+
+const run_in_gpu = async(
+    points: ExtPointType[],
+    scalars: number[],
+    cost: number,
+    entrypoint: string,
 ): Promise<ExtPointType[]> => {
     const params = compute_misc_params(p, word_size)
     const n0 = params.n0
@@ -446,7 +472,7 @@ const double_and_add_gpu = async(
         device,
         [bindGroupLayout],
         shaderCode,
-        'double_and_add_benchmark',
+        entrypoint,
     )
 
     const passEncoder = commandEncoder.beginComputePass()
