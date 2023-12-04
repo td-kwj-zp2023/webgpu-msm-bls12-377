@@ -22,10 +22,10 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let num_rows = {{ num_rows }}u;
 
     // Max cluster size
-    let m = {{ max_cluster_size }}u;
+    let m = {{ max_cluster_size }}u; 
 
     // Initialise the 2D array
-    var map: array<array<u32, {{ max_cluster_size}}>, {{ max_chunk_val }}>;
+    var map: array<array<u32, {{ max_cluster_size }}>, {{ max_chunk_val }}>;
 
     // The keys to the map
     var keys: array<u32, {{ max_chunk_val }}>;
@@ -35,12 +35,13 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     // The overflow array
     var overflow: array<u32, {{ overflow_size }}>;
+    var overflow_size: array<u32, {{ overflow_size }}>;
     var num_overflow = 0u;
 
     let row_size = {{ row_size }}u;
 
     // For each scalar chunk in the row
-    for (var i = 0u; i < row_size; i ++) {
+    for (var i = 0u; i < row_size; i++) {
         let pt_idx = id * row_size + i;
         let chunk = scalar_chunks[pt_idx];
 
@@ -52,15 +53,16 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         // If this chunk has not been seen, store it in keys
         if (map[chunk][0] == 0u) {
             keys[num_keys] = chunk;
-            num_keys ++;
+            num_keys++;
         }
 
         // If the chunk has been seen at least m times, place it in the
         // overflow array
         let cluster_current_size = map[chunk][0];
-        if (cluster_current_size > m) {
+        if (cluster_current_size + 1 > m - 1) {
             overflow[num_overflow] = pt_idx;
-            num_overflow ++;
+            overflow_size[num_overflow] = (cluster_current_size + 1) - (m - 1);
+            num_overflow++;
 		} else {
             // Otherwise, store it in the map
             map[chunk][cluster_current_size + 1u] = pt_idx;
@@ -69,22 +71,17 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
 
     var k = 0u;
-    for (var i = 0u; i < num_keys; i ++) {
+    for (var i = 0u; i < num_keys; i++) {
         let chunk = keys[i];
         let start = k;
-        for (var j = 0u; j < map[chunk][0]; j ++) {
+        for (var j = 0u; j < map[chunk][0]; j++) {
             new_point_indices[id * row_size + k] = map[chunk][j + 1u];
-            k ++;
+            k++;
         }
         cluster_start_indices[id * row_size + i] = start;
         cluster_end_indices[id * row_size + i] = start + map[chunk][0];
     }
-
-    // TODO: looking up overflow and setting new_point_indices causes an
-    // unexplained GPU error. Perhaps this has to do with memory?
-    /*new_point_indices[0] = overflow[0];*/
-
-    /*
+    
     var last_cluster_start_index = cluster_start_indices[id * row_size + num_keys - 1];
 
     // Handle overflow
@@ -93,8 +90,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         new_point_indices[id * row_size + k + i] = pt_idx;
 
         last_cluster_start_index ++;
-        cluster_start_indices[id * row_size + num_keys + i] = last_cluster_start_index;
-        cluster_end_indices[id * row_size + num_keys + i] = last_cluster_start_index + 1u;
+        cluster_start_indices[id * row_size + num_keys + i] = last_cluster_start_index + overflow_size[i] + 1;
+        cluster_end_indices[id * row_size + num_keys + i] = last_cluster_start_index + overflow_size[i] + 1;
     }
-    */
 }
