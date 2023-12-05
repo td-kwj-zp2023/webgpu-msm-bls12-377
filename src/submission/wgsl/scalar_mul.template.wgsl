@@ -12,18 +12,10 @@ var<storage, read> scalars: array<u32>;
 @group(0) @binding(2)
 var<storage, read_write> results: array<Point>;
 
-@compute
-@workgroup_size({{ workgroup_size }})
-fn blah2(@builtin(global_invocation_id) global_id: vec3<u32>) {
-    let id = global_id.x;
-}
-
 // Double-and-add algo from the ZPrize test harness
 fn double_and_add(point: Point, scalar: u32) -> Point {
     // Set result to the point at infinity
-    var result: Point;
-    result.y = get_r();
-    result.z = get_r();
+    var result: Point = get_paf();
 
     var s = scalar;
     var temp = point;
@@ -91,8 +83,6 @@ fn booth(point: Point, scalar: u32) -> Point {
             a[i] = 1u;
         } else if (a[i] == 1u && a[i - 1u] == 0u) {
             a[i] = 2u;
-        //} else if (a[i] == 0u && a[i - 1u] == 0u) {
-            ////a[i] = 0
         } else if (a[i] == 1u && a[i - 1u] == 1u) {
             a[i] = 0u;
         }
@@ -118,6 +108,102 @@ fn booth(point: Point, scalar: u32) -> Point {
         if (a[i] == 1u) {
             result = add_points(result, temp);
         } else if (a[i] == 2u) {
+            result = add_points(result, negate_point(temp));
+        }
+        temp = double_point(temp);
+    }
+
+    return result;
+}
+
+fn get_paf() -> Point {
+    var result: Point;
+    let r = get_r();
+    result.y = r;
+    result.z = r;
+    return result;
+}
+
+fn encode_pair(pair: u32) -> u32 {
+    if (pair == 4u) {
+        return 5u;
+    } else if (pair == 1u) {
+        return 2u;
+    } else if (pair == 5u) {
+        return 4u;
+    }
+    return 0u;
+}
+
+// Booth encoding method
+fn booth_new(point: Point, scalar: u32) -> Point {
+    if (scalar == 0u) {
+        return point;
+    }
+
+    // Set result to the point at infinity
+    var result: Point = get_paf();
+
+    var s = scalar;
+
+    // Store the Booth-encoded scalar in booth.
+    var booth = 0u;
+
+    // The zeroth digit has to be stored separately because booth is limited to
+    // 32 bits
+    var zeroth = s & 1u;
+
+    // Truncuate the zeroth bit
+    s = s >> 1u;
+
+    // Use 2 digits per bit. e.g. 0b1111 should become 01, 01, 01, 01
+    var i = 30u;
+    while (s != 0) {
+        let digit = s & 1u;
+        booth += digit << i;
+        s = s >> 1u;
+        i -= 2u;
+    }
+
+    // Perform Booth encoding
+    var pair: u32;
+    for (var i = 0u; i < 15u; i ++) {
+        // Replace the digits
+        pair = (booth >> (i * 2)) & 15u;
+        pair = encode_pair(pair);
+
+        let left = booth >> ((i * 2) + 4u);
+        let right = booth & ((1u << (i * 2)) - 1u);
+        booth = (((left << 4u) + pair) << (i * 2)) + right;
+    }
+
+    // Encode the last digit and the 0th digit
+    var im = booth >> 30u;
+    if (im == 0u && zeroth == 1u) {
+        im = 1u;
+    } else if (im == 1u && zeroth == 0u) {
+        im = 2u;
+    } else if (im == 1u && zeroth == 1u) {
+        im = 0u;
+    }
+    var temp = point;
+
+    // Handle the zeroth and 1st digits
+    if (zeroth == 1u) {
+        result = add_points(result, negate_point(temp));
+    }
+    temp = double_point(temp);
+
+    let mask = (1u << 30u) - 1u;
+    booth = (booth & mask) + (im << 30u);
+
+    for (var idx = 0u; idx < 15u; idx ++) {
+        let i = 15u - idx;
+        let x = (booth >> (i * 2)) & 3u;
+
+        if (x == 1u) {
+            result = add_points(result, temp);
+        } else if (x == 2u) {
             result = add_points(result, negate_point(temp));
         }
         temp = double_point(temp);
