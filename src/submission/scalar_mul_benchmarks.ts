@@ -89,7 +89,6 @@ export const scalar_mul_benchmarks = async (
     console.log(`double-and-add method (cost = ${cost}) in GPU (including data transfer) took ${elapsed}ms`)
     assert(are_point_arr_equal(double_and_add_gpu_results, expected))
 
-    /*
     // 2^w-ary method in CPU
     const two_w_ary_results = two_w_ary_cpu(points, scalars, cost)
     assert(are_point_arr_equal(two_w_ary_results, expected))
@@ -103,7 +102,6 @@ export const scalar_mul_benchmarks = async (
     // TODO: NAF method
 
     // TODO: wNAF method
-    */
 
     // Booth encoding method in CPU
     const booth_cpu_results = await booth_cpu(points, scalars, cost)
@@ -558,6 +556,8 @@ const run_in_gpu = async(
             workgroup_size,
             num_y_workgroups,
             cost,
+            num_words_plus_one: num_words + 1,
+            num_words_mul_two: num_words * 2,
         },
         {
             structs,
@@ -568,6 +568,7 @@ const run_in_gpu = async(
             montgomery_product_funcs,
         },
     )
+    //console.log(shaderCode)
     const computePipeline = await create_compute_pipeline(
         device,
         [bindGroupLayout],

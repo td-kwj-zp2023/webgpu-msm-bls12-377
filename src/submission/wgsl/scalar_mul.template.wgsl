@@ -2,8 +2,8 @@
 {{> bigint_funcs }}
 {{> field_funcs }}
 {{> ec_funcs }}
-{{> curve_parameters }}
 {{> montgomery_product_funcs }}
+{{> curve_parameters }}
 
 @group(0) @binding(0)
 var<storage, read> points: array<Point>;
@@ -11,6 +11,14 @@ var<storage, read> points: array<Point>;
 var<storage, read> scalars: array<u32>;
 @group(0) @binding(2)
 var<storage, read_write> results: array<Point>;
+
+fn get_paf() -> Point {
+    var result: Point;
+    let r = get_r();
+    result.y = r;
+    result.z = r;
+    return result;
+}
 
 // Double-and-add algo from the ZPrize test harness
 fn double_and_add(point: Point, scalar: u32) -> Point {
@@ -35,7 +43,7 @@ fn double_and_add(point: Point, scalar: u32) -> Point {
 fn double_and_add_benchmark(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let gidx = global_id.x; 
     let gidy = global_id.y; 
-    let id = gidx * {{ num_y_workgroups }} + gidy;
+    let id = gidx * {{ num_y_workgroups }}u + gidy;
 
     var point = points[id];
     var scalar = scalars[id];
@@ -116,14 +124,6 @@ fn booth(point: Point, scalar: u32) -> Point {
     return result;
 }
 
-fn get_paf() -> Point {
-    var result: Point;
-    let r = get_r();
-    result.y = r;
-    result.z = r;
-    return result;
-}
-
 fn encode_pair(pair: u32) -> u32 {
     if (pair == 4u) {
         return 5u;
@@ -158,7 +158,7 @@ fn booth_new(point: Point, scalar: u32) -> Point {
 
     // Use 2 digits per bit. e.g. 0b1111 should become 01, 01, 01, 01
     var i = 30u;
-    while (s != 0) {
+    while (s != 0u) {
         let digit = s & 1u;
         booth += digit << i;
         s = s >> 1u;
@@ -169,12 +169,12 @@ fn booth_new(point: Point, scalar: u32) -> Point {
     var pair: u32;
     for (var i = 0u; i < 15u; i ++) {
         // Replace the digits
-        pair = (booth >> (i * 2)) & 15u;
+        pair = (booth >> (i * 2u)) & 15u;
         pair = encode_pair(pair);
 
-        let left = booth >> ((i * 2) + 4u);
-        let right = booth & ((1u << (i * 2)) - 1u);
-        booth = (((left << 4u) + pair) << (i * 2)) + right;
+        let left = booth >> ((i * 2u) + 4u);
+        let right = booth & ((1u << (i * 2u)) - 1u);
+        booth = (((left << 4u) + pair) << (i * 2u)) + right;
     }
 
     // Encode the last digit and the 0th digit
@@ -199,7 +199,7 @@ fn booth_new(point: Point, scalar: u32) -> Point {
 
     for (var idx = 0u; idx < 15u; idx ++) {
         let i = 15u - idx;
-        let x = (booth >> (i * 2)) & 3u;
+        let x = (booth >> (i * 2u)) & 3u;
 
         if (x == 1u) {
             result = add_points(result, temp);
@@ -217,7 +217,7 @@ fn booth_new(point: Point, scalar: u32) -> Point {
 fn booth_benchmark(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let gidx = global_id.x; 
     let gidy = global_id.y; 
-    let id = gidx * {{ num_y_workgroups }} + gidy;
+    let id = gidx * {{ num_y_workgroups }}u + gidy;
 
     var point = points[id];
     var scalar = scalars[id];
