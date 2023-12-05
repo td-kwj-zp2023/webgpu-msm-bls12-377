@@ -89,6 +89,7 @@ export const scalar_mul_benchmarks = async (
     console.log(`double-and-add method (cost = ${cost}) in GPU (including data transfer) took ${elapsed}ms`)
     assert(are_point_arr_equal(double_and_add_gpu_results, expected))
 
+    /*
     // 2^w-ary method in CPU
     const two_w_ary_results = two_w_ary_cpu(points, scalars, cost)
     assert(are_point_arr_equal(two_w_ary_results, expected))
@@ -102,6 +103,7 @@ export const scalar_mul_benchmarks = async (
     // TODO: NAF method
 
     // TODO: wNAF method
+    */
 
     // Booth encoding method in CPU
     const booth_cpu_results = await booth_cpu(points, scalars, cost)
@@ -113,6 +115,22 @@ export const scalar_mul_benchmarks = async (
     const elapsed_booth = Date.now() - start_booth
     console.log(`booth method (cost = ${cost}) in GPU (including data transfer) took ${elapsed_booth}ms`)
     assert(are_point_arr_equal(booth_gpu_results, expected))
+
+    const booth2_cpu_results = await booth_cpu(points, scalars, cost)
+    assert(are_point_arr_equal(booth2_cpu_results, expected))
+
+    /*
+    const scalar = 1123
+    const booth_result = booth(points[0], scalar)
+    const booth2_result = booth2(points[0], scalar)
+    const expected_result = points[0].multiply(BigInt(scalar))
+    assert(booth_result.toAffine().x === expected_result.toAffine().x)
+    assert(booth2_result.toAffine().x === expected_result.toAffine().x)
+
+    const booth_gpu_r = await booth_gpu([points[0]], [scalar], cost)
+    console.log(booth_gpu_r[0].toAffine())
+    assert(booth_gpu_r[0].toAffine().x === expected_result.toAffine().x)
+    */
 
     return { x: BigInt(1), y: BigInt(0) }
 }
@@ -174,12 +192,93 @@ const booth_cpu = (
     for (let i = 0; i < scalars.length; i ++) {
         let result = copyPoint(points[i])
         for (let j = 0; j < cost; j ++) {
-            result = booth(result, scalars[i])
+            result = booth2(result, scalars[i])
         }
         results.push(result)
     }
 
     return results
+}
+
+const booth2 = (
+    point: ExtPointType,
+    scalar: number,
+): ExtPointType => {
+    if (scalar === 0) {
+        return point
+    }
+
+    let s = scalar
+
+    // Store the Booth-encoded scalar in booth.
+    let booth = 0
+
+    // The zeroth digit has to be stored separately because booth is limited to
+    // 32 bits
+    const zeroth = s & 1
+
+    // Use 2 digits per bit. e.g. 0b1111 should become 01, 01, 01, 01
+    s = s >> 1
+    let i = 30
+    while (s !== 0) {
+        const digit = s & 1
+        booth += digit << i
+        s = s >> 1
+        i -= 2
+    }
+
+    // Perform Booth encoding
+    for (let i = 0; i < 15; i ++) {
+        let pair = (booth >> (i * 2)) & 0b1111
+        if (pair === 0b0100) {
+            pair = 0b0101
+        } else if (pair === 0b0001) {
+            pair = 0b0010
+        } else if (pair === 0b0101) {
+            pair = 0b0100
+        }
+
+        const left = booth >> ((i * 2) + 4)
+        const right = booth & ((1 << (i * 2)) - 1)
+        booth = (((left << 4) + pair) << (i * 2)) + right
+    }
+
+    let result = ZERO_POINT
+    let temp = point
+
+    // Encode the last digit and the 0th digit
+    let im = booth >> 30
+    if (im === 0 && zeroth === 1) {
+        im = 1
+    } else if (im === 1 && zeroth === 0) {
+        im = 2
+    } else if (im === 1 && zeroth === 1) {
+        im = 0
+    }
+    
+    // Handle the zeroth and 1st digits
+    if (zeroth === 1) { // Treat it as 2
+        result = result.add(temp.negate())
+    }
+    temp = temp.double()
+
+    const mask = (1 << 30) - 1
+    booth = (booth & mask) + Number(BigInt(im) << BigInt(30))
+
+    // Handle the rest of the digits
+    for (let idx = 0; idx < 15; idx ++) {
+        const i = 15 - idx
+        const x = (booth >> (i * 2)) & 0b11
+
+        if (x === 1) {
+            result = result.add(temp)
+        } else if (x === 2) {
+            result = result.add(temp.negate())
+        }
+        temp = temp.double()
+    }
+
+    return result
 }
 
 const booth = (
@@ -222,6 +321,7 @@ const booth = (
     if (a[0] === 1) {
         a[0] = 2
     }
+    //console.log(a)
 
     // Find the last 1
     let max_idx = a.length - 1
