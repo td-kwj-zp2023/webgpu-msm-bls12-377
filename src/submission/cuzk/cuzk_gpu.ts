@@ -8,6 +8,7 @@ import {
     create_compute_pipeline,
     create_sb,
     read_from_gpu,
+    execute_pipeline,
 } from '../gpu'
 import {
     to_words_le,
@@ -24,6 +25,7 @@ import {
     compute_misc_params,
     decompose_scalars,
 } from '../utils'
+import assert from 'assert'
 
 import convert_point_coords_shader from '../wgsl/convert_point_coords.template.wgsl'
 import extract_word_from_bytes_le_funcs from '../wgsl/extract_word_from_bytes_le.template.wgsl'
@@ -31,7 +33,7 @@ import structs from '../wgsl/struct/structs.template.wgsl'
 import bigint_funcs from '../wgsl/bigint/bigint.template.wgsl'
 import field_funcs from '../wgsl/field/field.template.wgsl'
 import ec_funcs from '../wgsl/curve/ec.template.wgsl'
-import barrett_functions from '../wgsl/barrett_domb.template.wgsl'
+import barrett_functions from '../wgsl/barrett.template.wgsl'
 import montgomery_product_funcs from '../wgsl/montgomery/mont_pro_product.template.wgsl'
 import decompose_scalars_shader from '../wgsl/decompose_scalars.template.wgsl'
 import gen_csr_precompute_shader from '../wgsl/gen_csr_precompute.template.wgsl'
@@ -55,6 +57,12 @@ export const cuzk_gpu = async (
     // storage buffers can't be reused across compute passes
     const device = await get_device()
     const commandEncoder = device.createCommandEncoder()
+
+    // Determine the optimal window size dynamically based on a static analysis 
+    // of varying input sizes. This will be determined using a seperate function.   
+    const input_size = scalars.length
+    const num_subtasks = 20
+    const word_size = 13
 
     // Convert the affine points to Montgomery form in the GPU
     const { point_x_y_sb, point_t_z_sb } =
@@ -152,7 +160,10 @@ const convert_point_coords_to_mont_gpu = async (
     num_subtasks: number,
     word_size: number,
     debug = false,
-): Promise<any> => {
+): Promise<{
+    point_x_y_sb: GPUBuffer,
+    point_t_z_sb: GPUBuffer,
+}> => {
     const input_size = baseAffinePoints.length
 
     // An affine point only contains X and Y points.
@@ -162,7 +173,10 @@ const convert_point_coords_to_mont_gpu = async (
         x_y_coords[i * 2 + 1] = baseAffinePoints[i].y
     }
 
+    // Convert points to bytes (performs ~2x faster than `bigints_to_16_bit_words_for_gpu`)
     const x_y_coords_bytes = bigints_to_u8_for_gpu(x_y_coords, num_subtasks, word_size)
+
+    const words = u8s_to_bigints(x_y_coords_bytes, num_subtasks, word_size);
 
     // Input buffers
     const x_y_coords_sb = create_and_write_sb(device, x_y_coords_bytes)
@@ -203,6 +217,8 @@ const convert_point_coords_to_mont_gpu = async (
         'main',
     )
 
+    // execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1);
+
     const passEncoder = commandEncoder.beginComputePass()
     passEncoder.setPipeline(computePipeline)
     passEncoder.setBindGroup(0, bindGroup)
@@ -215,12 +231,26 @@ const convert_point_coords_to_mont_gpu = async (
             commandEncoder,
             [point_x_y_sb, point_t_z_sb],
         )
-
+        
         // Check point_x data
         const computed_x_y_coords = u8s_to_bigints(data[0], num_words, word_size)
         const computed_t_z_coords = u8s_to_bigints(data[1], num_words, word_size)
 
-        for (let i = 0; i < input_size; i ++) {
+        console.log("computed_x_y_coords is: ", computed_x_y_coords)
+        console.log("computed_t_z_coords is: ", computed_t_z_coords)
+
+        const expected_x = baseAffinePoints[0].x * r % p
+        const expected_y = baseAffinePoints[0].y * r % p
+        const expected_t = (baseAffinePoints[0].x * baseAffinePoints[0].y * r) % p
+        const expected_z = r % p
+
+        // console.log("expected_x is: ", expected_x)
+        // console.log("expected_y is: ", expected_y)
+        // console.log("expected_t is: ", expected_t)
+        // console.log("expected_z is: ", expected_z)
+
+
+        for (let i = 0; i < input_size; i++) {
             const expected_x = baseAffinePoints[i].x * r % p
             const expected_y = baseAffinePoints[i].y * r % p
             const expected_t = (baseAffinePoints[i].x * baseAffinePoints[i].y * r) % p
@@ -233,8 +263,8 @@ const convert_point_coords_to_mont_gpu = async (
                 && expected_z === computed_t_z_coords[i * 2 + 1]
             )) {
                 console.log('mismatch at', i)
-                debugger
-                break
+                // debugger
+                // break
             }
         }
     }
@@ -251,17 +281,19 @@ const num_words = 20
 const genConvertPointCoordsShaderCode = (
     workgroup_size: number,
 ) => {
-    const p_bitlength = p.toString(2).length
+    const word_size = 13
+    const misc_params = compute_misc_params(p, word_size)
+    const num_words = misc_params.num_words
+    const n0 = misc_params.n0
+    const mask = BigInt(2) ** BigInt(word_size) - BigInt(1)
+    const r = misc_params.r
+    const two_pow_word_size = 2 ** word_size
     const p_limbs = gen_p_limbs(p, num_words, word_size)
     const r_limbs = gen_r_limbs(r, num_words, word_size)
-    const misc_params = compute_misc_params(p, word_size)
-    const m_limbs = gen_barrett_domb_m_limbs(misc_params.barrett_domb_m, num_words, word_size)
-    const n0 = misc_params.n0
+    const mu_limbs = gen_mu_limbs(p, num_words, word_size)
+    const p_bitlength = p.toString(2).length
     const slack = num_words * word_size - p_bitlength
-    const mask = BigInt(2) ** BigInt(word_size) - BigInt(1)
-    const two_pow_word_size = 2 ** word_size
-
-    const shaderCode = mustache.render(
+        const shaderCode = mustache.render(
         convert_point_coords_shader,
         {
             workgroup_size,
@@ -277,7 +309,8 @@ const genConvertPointCoordsShaderCode = (
             slack,
             num_words_mul_two: num_words * 2,
             num_words_plus_one: num_words + 1,
-            z: (word_size * num_words) - p_bitlength
+            mask,
+            two_pow_word_size,
         },
         {
             structs,
@@ -301,7 +334,8 @@ const decompose_scalars_gpu = async (
     const input_size = scalars.length
     const chunk_size = Math.ceil(256 / num_subtasks)
 
-    const scalars_bytes = bigints_to_16_bit_words_for_gpu(scalars)
+    // Convert scalars to bytes
+    const scalars_bytes = bigints_to_u8_for_gpu(scalars, num_subtasks, word_size)
 
     // Input buffers
     const scalars_sb = create_and_write_sb(device, scalars_bytes)
@@ -464,11 +498,7 @@ const csr_precompute_gpu = async (
         'main',
     )
 
-    const passEncoder = commandEncoder.beginComputePass()
-    passEncoder.setPipeline(computePipeline)
-    passEncoder.setBindGroup(0, bindGroup)
-    passEncoder.dispatchWorkgroups(num_x_workgroups, num_y_workgroups, 1)
-    passEncoder.end()
+    execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1);
 
     if (debug) {
         const data = await read_from_gpu(
@@ -610,11 +640,7 @@ const pre_aggregation_stage_1_gpu = async (
         'main',
     )
 
-    const passEncoder = commandEncoder.beginComputePass()
-    passEncoder.setPipeline(computePipeline)
-    passEncoder.setBindGroup(0, bindGroup)
-    passEncoder.dispatchWorkgroups(num_x_workgroups, num_y_workgroups, 1)
-    passEncoder.end()
+    execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1);
 
     if (debug) {
         const data = await read_from_gpu(
@@ -639,14 +665,19 @@ const genPreaggregationStage1ShaderCode = (
     num_y_workgroups: number,
     workgroup_size: number,
 ) => {
+    const num_runs = 1
+    const word_size = 13
+    const misc_params = compute_misc_params(p, word_size)
+    const num_words = misc_params.num_words
+    const n0 = misc_params.n0
+    const mask = BigInt(2) ** BigInt(word_size) - BigInt(1)
+    const r = misc_params.r
+    const two_pow_word_size = 2 ** word_size
     const p_limbs = gen_p_limbs(p, num_words, word_size)
     const r_limbs = gen_r_limbs(r, num_words, word_size)
     const mu_limbs = gen_mu_limbs(p, num_words, word_size)
-    const misc_params = compute_misc_params(p, word_size)
-    const n0 = misc_params.n0
     const p_bitlength = p.toString(2).length
     const slack = num_words * word_size - p_bitlength
-    const mask = BigInt(2) ** BigInt(word_size) - BigInt(1)
 
     const shaderCode = mustache.render(
         preaggregation_stage_1_shader,
@@ -725,12 +756,8 @@ const pre_aggregation_stage_2_gpu = async (
         'main',
     )
 
-    const passEncoder = commandEncoder.beginComputePass()
-    passEncoder.setPipeline(computePipeline)
-    passEncoder.setBindGroup(0, bindGroup)
-    passEncoder.dispatchWorkgroups(num_x_workgroups, num_y_workgroups, 1)
-    passEncoder.end()
-
+    execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1);
+    
     if (debug) {
         // TODO
         const data = await read_from_gpu(

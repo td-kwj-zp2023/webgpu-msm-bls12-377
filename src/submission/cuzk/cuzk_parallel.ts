@@ -4,7 +4,6 @@ import { CSRSparseMatrix, ELLSparseMatrix, fieldMath } from '../matrices/matrice
 import { webWorkers } from "./workers/worker";
 
 export async function init(
-    inputSize: number,
     baseAffinePoints: BigIntPoint[],
     scalars: bigint[]
 ): Promise<CSRSparseMatrix[]> {  
@@ -78,7 +77,7 @@ export async function execute_cuzk_parallel(
     const inputSize = baseAffinePoints.length
 
     // Initialize instance 
-    const csr_sparse_matrices = await init(inputSize, baseAffinePoints, scalars)
+    const csr_sparse_matrices = await init(baseAffinePoints, scalars)
 
     // Use `hardwareConcurrency` instead
     const maxWebWorkers = 8; 
