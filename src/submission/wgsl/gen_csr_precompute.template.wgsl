@@ -9,6 +9,8 @@ var<storage, read_write> new_point_indices: array<u32>;
 var<storage, read_write> cluster_start_indices: array<u32>;
 @group(0) @binding(3)
 var<storage, read_write> cluster_end_indices: array<u32>;
+@group(0) @binding(4)
+var<storage, read_write> map: array<array<u32, {{ max_cluster_size }}>, {{ max_chunk_val }}>;
 
 @compute
 @workgroup_size({{ workgroup_size }})
@@ -23,10 +25,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     // Max cluster size
     let m = {{ max_cluster_size }}u; 
-
-    // Initialise the 2D array
-    var map: array<array<u32, {{ max_cluster_size }}>, {{ max_chunk_val }}>;
-
+    
     // The keys to the map
     var keys: array<u32, {{ max_chunk_val }}>;
 
