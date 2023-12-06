@@ -18,6 +18,7 @@ import {
 import {
     create_csr_wasm_precomputation_benchmark,
 } from '../submission/cuzk/create_csr_wasm'
+import { scalar_mul_benchmarks } from '../submission/scalar_mul_benchmarks'
 import { cuzk_gpu } from '../submission/cuzk/cuzk_gpu'
 import { cuzk_typescript_serial, cuzk_typescript_web_workers, transpose_wgsl, smtvp_wgsl, smvp_wgsl } from '../submission/submission';
 import CSVExportButton from './CSVExportButton';
@@ -27,7 +28,6 @@ import { smvp } from '../submission/cuzk/smvp_wgsl';
 import { data_transfer_cost_benchmarks } from '../submission/data_transfer_cost_benchmarks'
 
 export const AllBenchmarks: React.FC = () => {
-  //const initialDefaultInputSize = 2
   const initialDefaultInputSize = 2 ** 16
   //const initialDefaultInputSize = 2 ** 16 //65536
   const [inputSize, setInputSize] = useState(initialDefaultInputSize);
@@ -141,6 +141,16 @@ export const AllBenchmarks: React.FC = () => {
         <CSVExportButton data={benchmarkResults} filename={'msm-benchmark'} />
       </div>
 
+      <Benchmark
+        name={'Scalar multiplication benchmarks'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={scalar_mul_benchmarks}
+        postResult={postResult}
+        bold={true}
+      />
       <Benchmark
         name={'cuZK in WebGPU'}
         disabled={disabledBenchmark}
