@@ -48,6 +48,8 @@ export const cuzk_gpu = async (
     baseAffinePoints: BigIntPoint[],
     scalars: bigint[]
 ): Promise<{x: bigint, y: bigint}> => {
+    // Determine the optimal window size dynamically based on a static analysis 
+    // of varying input sizes. This will be determined using a seperate function.   
     const input_size = scalars.length
     const num_subtasks = 20
     const word_size = 13
@@ -57,12 +59,6 @@ export const cuzk_gpu = async (
     // storage buffers can't be reused across compute passes
     const device = await get_device()
     const commandEncoder = device.createCommandEncoder()
-
-    // Determine the optimal window size dynamically based on a static analysis 
-    // of varying input sizes. This will be determined using a seperate function.   
-    const input_size = scalars.length
-    const num_subtasks = 20
-    const word_size = 13
 
     // Convert the affine points to Montgomery form in the GPU
     const { point_x_y_sb, point_t_z_sb } =
@@ -85,8 +81,7 @@ export const cuzk_gpu = async (
         false,
     )
 
-    for (let subtask_idx = 0; subtask_idx < 1; subtask_idx ++) {
-    // for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx ++) {
+     for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx ++) {
         // TODO: if debug is set to true in any invocations within a loop, the
         // sanity check will fail on the second iteration, because the
         // commandEncoder's finish() function has been used. To correctly
@@ -101,34 +96,33 @@ export const cuzk_gpu = async (
             input_size,
             num_rows,
             scalar_chunks_sb,
-            true,
+            false,
         )
-        break
 
-        // const {
-        //     new_point_x_y_sb,
-        //     new_point_t_z_sb,
-        // } = await pre_aggregation_stage_1_gpu(
-        //     device,
-        //     commandEncoder,
-        //     input_size,
-        //     point_x_y_sb,
-        //     point_t_z_sb,
-        //     new_point_indices_sb,
-        //     cluster_start_indices_sb,
-        //     cluster_end_indices_sb,
-        //     false,
-        // )
+         const {
+             new_point_x_y_sb,
+             new_point_t_z_sb,
+         } = await pre_aggregation_stage_1_gpu(
+             device,
+             commandEncoder,
+             input_size,
+             point_x_y_sb,
+             point_t_z_sb,
+             new_point_indices_sb,
+             cluster_start_indices_sb,
+             cluster_end_indices_sb,
+             false,
+         )
 
-        // const new_scalar_chunks_sb = await pre_aggregation_stage_2_gpu(
-        //     device,
-        //     commandEncoder,
-        //     input_size,
-        //     scalar_chunks_sb,
-        //     cluster_start_indices_sb,
-        //     new_point_indices_sb,
-        //     false,
-        // )
+         const new_scalar_chunks_sb = await pre_aggregation_stage_2_gpu(
+             device,
+             commandEncoder,
+             input_size,
+             scalar_chunks_sb,
+             cluster_start_indices_sb,
+             new_point_indices_sb,
+             false,
+         )
     }
     device.destroy()
 
@@ -304,13 +298,11 @@ const genConvertPointCoordsShaderCode = (
             two_pow_word_size,
             p_limbs,
             r_limbs,
-            m_limbs,
+            mu_limbs,
             w_mask: (1 << word_size) - 1,
             slack,
             num_words_mul_two: num_words * 2,
             num_words_plus_one: num_words + 1,
-            mask,
-            two_pow_word_size,
         },
         {
             structs,
