@@ -110,6 +110,11 @@ export const cuzk_gpu = async (
             new_point_indices_sb,
             false,
         )
+
+        // TODO: produce row_idx
+        // TODO: perform transposition
+        // TODO: perform SMVP
+        // TODO: final step
     }
 
     return { x: BigInt(1), y: BigInt(0) }
