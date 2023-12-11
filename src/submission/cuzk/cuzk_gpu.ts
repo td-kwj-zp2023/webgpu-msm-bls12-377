@@ -18,7 +18,6 @@ import {
     u8s_to_numbers,
     u8s_to_numbers_32,
     bigints_to_16_bit_words_for_gpu,
-    bigint_to_u8_for_gpu,
     bigints_to_u8_for_gpu,
     gen_barrett_domb_m_limbs,
     compute_misc_params,
