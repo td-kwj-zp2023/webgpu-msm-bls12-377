@@ -1,5 +1,6 @@
-import { BigIntPoint } from "../../reference/types";
 import mustache from 'mustache'
+import { BigIntPoint } from "../../reference/types";
+import transpose_serial_shader from '../wgsl/transpose_serial.wgsl'
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import { u8s_to_numbers_32, numbers_to_u8s_for_gpu } from '../utils'
 import {
@@ -245,50 +246,10 @@ const transpose_serial_gpu = async (
 
     // Serial transpose algo from
     // https://synergy.cs.vt.edu/pubs/papers/wang-transposition-ics16.pdf
-    const shaderCode = `
-@group(0) @binding(0)
-var<storage, read> csr_row_ptr: array<u32>;
-@group(0) @binding(1)
-var<storage, read> csr_col_idx: array<u32>;
-@group(0) @binding(2)
-var<storage, read_write> csc_col_ptr: array<u32>;
-@group(0) @binding(3)
-var<storage, read_write> csc_row_idx: array<u32>;
-@group(0) @binding(4)
-var<storage, read_write> csc_val_idxs: array<u32>;
-@group(0) @binding(5)
-var<storage, read_write> curr: array<u32>;
-
-@compute
-@workgroup_size(1)
-fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {    
-    let m = ${num_rows}u;
-    let n = ${num_cols}u;
-
-    for (var i = 0u; i < m; i ++) {
-        for (var j = csr_row_ptr[i]; j < csr_row_ptr[i + 1u]; j ++) {
-            csc_col_ptr[csr_col_idx[j] + 1u] += 1u;
-        }
-    }
-
-    // Prefix sum, aka cumulative/incremental sum
-    for (var i = 1u; i < n + 1u; i ++) {
-        csc_col_ptr[i] += csc_col_ptr[i - 1u];
-    }
-
-    var val = 0u;
-    for (var i = 0u; i < m; i ++) {
-        for (var j = csr_row_ptr[i]; j < csr_row_ptr[i + 1u]; j ++) {
-            let loc = csc_col_ptr[csr_col_idx[j]] + curr[csr_col_idx[j]];
-            csc_row_idx[loc] = i;
-            curr[csr_col_idx[j]] ++;
-            csc_val_idxs[loc] = val;
-            val ++;
-        }
-    }
-}
-`.trim()
-
+    const shaderCode = mustache.render(transpose_serial_shader,
+        { num_cols },
+        {},
+    )
     const computePipeline = await create_compute_pipeline(
         device,
         [bindGroupLayout],
