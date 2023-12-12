@@ -18,8 +18,8 @@ import {
 import {
     create_csr_wasm_precomputation_benchmark,
 } from '../submission/cuzk/create_csr_wasm'
+import { cuzk_gpu, cuzk_gpu_approach_d } from '../submission/cuzk/cuzk_gpu'
 import { scalar_mul_benchmarks } from '../submission/scalar_mul_benchmarks'
-import { cuzk_gpu } from '../submission/cuzk/cuzk_gpu'
 import { cuzk_typescript_serial, cuzk_typescript_web_workers, transpose_wgsl, smtvp_wgsl, smvp_wgsl } from '../submission/submission';
 import CSVExportButton from './CSVExportButton';
 import { TestCaseDropDown } from './TestCaseDropDown';
@@ -142,22 +142,32 @@ export const AllBenchmarks: React.FC = () => {
       </div>
 
       <Benchmark
-        name={'Scalar multiplication benchmarks'}
-        disabled={disabledBenchmark}
-        baseAffinePoints={baseAffineBigIntPoints}
-        scalars={bigIntScalars}
-        expectedResult={expectedResult}
-        msmFunc={scalar_mul_benchmarks}
-        postResult={postResult}
-        bold={true}
-      />
-      <Benchmark
         name={'cuZK in WebGPU'}
         disabled={disabledBenchmark}
         baseAffinePoints={baseAffineBigIntPoints}
         scalars={bigIntScalars}
         expectedResult={expectedResult}
         msmFunc={cuzk_gpu}
+        postResult={postResult}
+        bold={true}
+      />
+      <Benchmark
+        name={'Approach D'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={cuzk_gpu_approach_d}
+        postResult={postResult}
+        bold={true}
+      />
+      <Benchmark
+        name={'Scalar multiplication benchmarks'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={scalar_mul_benchmarks}
         postResult={postResult}
         bold={true}
       />
