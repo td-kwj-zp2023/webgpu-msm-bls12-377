@@ -216,8 +216,8 @@ export const all_precomputation = (
 
         row_ptr.push(row_ptr[row_ptr.length - 1] + num_non_zero)
 
-        const single_point_indices: any[] = []
-        const single_scalar_chunks: any[] = []
+        const single_point_indices: number[] = []
+        const single_scalar_chunks: number[] = []
 
         if (singles_start_idx.length !== 0) {
             for (let i = singles_start_idx[0]; i < new_point_indices.length; i ++) {
