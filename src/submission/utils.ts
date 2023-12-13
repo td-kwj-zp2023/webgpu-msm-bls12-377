@@ -219,17 +219,35 @@ export const bigint_to_u8_for_gpu = (
     return result
 }
 
+export const gen_wgsl_limbs_code = (
+    val: bigint,
+    var_name: string,
+    num_words: number,
+    word_size: number,
+): string => {
+    const limbs = to_words_le(val, num_words, word_size)
+    let r = ''
+    for (let i = 0; i < limbs.length; i ++) {
+        r += `    ${var_name}.limbs[${i}]` + ' \= ' + limbs[i].toString() + 'u;\n'
+    }
+    return r
+}
+
+export const gen_barrett_domb_m_limbs = (
+    m: bigint,
+    num_words: number,
+    word_size: number,
+): string => {
+    return gen_wgsl_limbs_code(m, 'm', num_words, word_size)
+}
+
+
 export const gen_p_limbs = (
     p: bigint,
     num_words: number,
     word_size: number,
 ): string => {
-    const p_limbs = to_words_le(p, num_words, word_size)
-    let r = ''
-    for (let i = 0; i < p_limbs.length; i ++) {
-        r += `    p.limbs[${i}]` + ' \= ' + p_limbs[i].toString() + 'u;\n'
-    }
-    return r
+    return gen_wgsl_limbs_code(p, 'p', num_words, word_size)
 }
 
 export const gen_r_limbs = (
@@ -237,12 +255,7 @@ export const gen_r_limbs = (
     num_words: number,
     word_size: number,
 ): string => {
-    const r_limbs = to_words_le(r, num_words, word_size)
-    let res = ''
-    for (let i = 0; i < r_limbs.length; i ++) {
-        res += `    r.limbs[${i}]` + ' \= ' + r_limbs[i].toString() + 'u;\n'
-    }
-    return res
+    return gen_wgsl_limbs_code(r, 'r', num_words, word_size)
 }
 
 export const gen_mu_limbs = (
@@ -259,12 +272,7 @@ export const gen_mu_limbs = (
     }
 
     const mu = (BigInt(4) ** x) / p
-    const mu_limbs = to_words_le(mu, num_words, word_size)
-    let r = ''
-    for (let i = 0; i < mu_limbs.length; i ++) {
-        r += `    mu.limbs[${i}]` + ' \= ' + mu_limbs[i].toString() + 'u;\n'
-    }
-    return r
+    return gen_wgsl_limbs_code(mu, 'mu', num_words, word_size)
 }
 
 export const to_words_le = (val: bigint, num_words: number, word_size: number): Uint16Array => {
@@ -325,6 +333,7 @@ export const compute_misc_params = (
         n0: bigint
         r: bigint
         rinv: bigint
+        barrett_domb_m: bigint,
 } => {
     const max_int_width = 32
     assert(word_size > 0)
@@ -363,7 +372,12 @@ export const compute_misc_params = (
     const neg_n_inv = r - pprime
     const n0 = neg_n_inv % (BigInt(2) ** BigInt(word_size))
 
-    return { num_words, max_terms, k, nsafe, n0, r: r % p, rinv}
+    // The Barrett-Domb m value
+    const z = num_words * word_size - p_width
+    const barrett_domb_m = BigInt(2 ** (2 * p_width + z)) / p
+    //m, _ = divmod(2 ** (2 * n + z), s)  # prime approximation, n + 1 bits
+
+    return { num_words, max_terms, k, nsafe, n0, r: r % p, rinv, barrett_domb_m }
 }
 
 export const genRandomFieldElement = (p: bigint): bigint => {

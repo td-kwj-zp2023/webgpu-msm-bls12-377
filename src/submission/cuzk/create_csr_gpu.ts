@@ -22,11 +22,14 @@ import ec_funcs from '../wgsl/curve/ec.template.wgsl'
 import montgomery_product_funcs from '../wgsl/montgomery/mont_pro_product.template.wgsl'
 import create_csr_shader from '../wgsl/create_csr.template.wgsl'
 import { all_precomputation, create_csr_cpu } from './create_csr'
-import * as wasm from 'csr-precompute'
+//import * as wasm from 'csr-precompute'
 
 const fieldMath = new FieldMath()
 
 export const create_csr_sms_gpu = async (
+    num_x_workgroups: number,
+    num_y_workgroups: number,
+    workgroup_size: number,
     points: ExtPointType[],
     decomposed_scalars: number[][],
     num_rows: number,
@@ -42,6 +45,8 @@ export const create_csr_sms_gpu = async (
     const shaderCode = mustache.render(
         create_csr_shader,
         {
+            num_y_workgroups,
+            workgroup_size,
             num_words,
             word_size,
             n0,
@@ -62,6 +67,7 @@ export const create_csr_sms_gpu = async (
     const csr_sms_gpu: CSRSparseMatrix[] = []
     for (const scalar_chunks of decomposed_scalars) {
         const csr_sm = await create_csr_gpu(
+            num_x_workgroups,
             points,
             scalar_chunks,
             num_rows,
@@ -81,6 +87,7 @@ export const create_csr_sms_gpu = async (
 }
 
 export const create_csr_gpu = async (
+    num_x_workgroups: number,
     points: ExtPointType[],
     scalar_chunks: number[],
     num_rows: number,
@@ -93,17 +100,24 @@ export const create_csr_gpu = async (
     num_words: number,
     word_size: number,
 ): Promise<CSRSparseMatrix> => {
-    const wasm_result = wasm.all_precomputation(
-        new Uint32Array(scalar_chunks),
-        num_rows,
-    )
-    const all_new_point_indices = Array.from(wasm_result.get_all_new_point_indices())
-    const all_cluster_start_indices = Array.from(wasm_result.get_all_cluster_start_indices())
-    const all_cluster_end_indices = Array.from(wasm_result.get_all_cluster_end_indices())
-    const all_single_point_indices = Array.from(wasm_result.get_all_single_point_indices())
-    const all_single_scalar_chunks = Array.from(wasm_result.get_all_single_scalar_chunks())
-    const row_ptr = Array.from(wasm_result.get_row_ptr())
-    const num_x_workgroups = 256
+    //const wasm_result = wasm.all_precomputation(
+        //new Uint32Array(scalar_chunks),
+        //num_rows,
+    //)
+    //const all_new_point_indices = Array.from(wasm_result.get_all_new_point_indices())
+    //const all_cluster_start_indices = Array.from(wasm_result.get_all_cluster_start_indices())
+    //const all_cluster_end_indices = Array.from(wasm_result.get_all_cluster_end_indices())
+    //const all_single_point_indices = Array.from(wasm_result.get_all_single_point_indices())
+    //const all_single_scalar_chunks = Array.from(wasm_result.get_all_single_scalar_chunks())
+    //const row_ptr = Array.from(wasm_result.get_row_ptr())
+    const {
+        all_new_point_indices,
+        all_cluster_start_indices,
+        all_cluster_end_indices,
+        all_single_point_indices,
+        all_single_scalar_chunks,
+        row_ptr,
+    } = all_precomputation(scalar_chunks, num_rows)
 
     const scalar_chunks_bytes = numbers_to_u8s_for_gpu(scalar_chunks)
     const new_point_indices_bytes = numbers_to_u8s_for_gpu(all_new_point_indices)
@@ -277,8 +291,8 @@ export async function create_csr_precomputation_benchmark(
     scalars: bigint[],
 ): Promise<{x: bigint, y: bigint}> {
     const num_rows = 16
-    const num_words = 20
-    const word_size = 13
+    const num_words = 16
+    const word_size = 16
 
     const start_decomposed = Date.now()
     const decomposed_scalars = decompose_scalars(scalars, num_words, word_size)
@@ -310,6 +324,10 @@ export async function create_csr_sparse_matrices_from_points(
     scalars: bigint[],
     num_rows: number,
 ): Promise<CSRSparseMatrix[]> {
+    const num_x_workgroups = 256
+    const workgroup_size = 256
+    const num_y_workgroups = points.length / workgroup_size / num_x_workgroups
+
     // The number of threads is the number of rows of the matrix
     // As such the number of threads should divide the number of points
     assert(points.length % num_rows === 0)
@@ -365,6 +383,9 @@ export async function create_csr_sparse_matrices_from_points(
     device.queue.writeBuffer(points_storage_buffer, 0, points_bytes);
 
     const csr_sms_gpu = await create_csr_sms_gpu(
+        num_x_workgroups,
+        num_y_workgroups,
+        workgroup_size,
         points,
         decomposed_scalars,
         num_rows,
@@ -396,6 +417,7 @@ export async function create_csr_sparse_matrices_from_points(
             }
         } catch {
             console.log('assert fail at', i)
+            debugger
             break
         }
     }

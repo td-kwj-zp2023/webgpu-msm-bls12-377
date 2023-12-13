@@ -7,7 +7,9 @@ import { convert_inputs_into_mont_benchmark } from '../submission/convert_inputs
 import { convert_bigints_to_bytes_benchmark } from '../submission/convert_bigints_to_bytes_benchmark'
 import { mont_mul_benchmarks } from '../submission/mont_mul_benchmarks';
 import { barrett_mul_benchmarks } from '../submission/barrett_mul_benchmarks';
+import { barrett_domb_mul_benchmarks } from '../submission/barrett_domb_mul_benchmarks';
 import { add_points_benchmarks } from '../submission/add_points_benchmarks';
+import { smtvp } from '../submission/cuzk/smtvp_wgsl';
 import { decompose_scalars_ts_benchmark } from '../submission/decompose_scalars_benchmark';
 import {
     create_csr_precomputation_benchmark,
@@ -21,8 +23,11 @@ import { cuzk_typescript_serial, cuzk_typescript_web_workers, transpose_wgsl, sm
 import CSVExportButton from './CSVExportButton';
 import { TestCaseDropDown } from './TestCaseDropDown';
 import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
+import { smvp } from '../submission/cuzk/smvp_wgsl';
+import { data_transfer_cost_benchmarks } from '../submission/data_transfer_cost_benchmarks'
 
 export const AllBenchmarks: React.FC = () => {
+  //const initialDefaultInputSize = 2
   const initialDefaultInputSize = 2 ** 16
   //const initialDefaultInputSize = 2 ** 16 //65536
   const [inputSize, setInputSize] = useState(initialDefaultInputSize);
@@ -101,9 +106,8 @@ export const AllBenchmarks: React.FC = () => {
         }});
       setU32Points(newU32Points);
 
-      const newScalars = generateRandomFields(inputSize);
+      //const newScalars = generateRandomFields(inputSize);
     
-    /*
       // Use constants instead of random field elements just for testing
       const newScalars: bigint[] = []
       for (let i = 0; i < inputSize; i ++) {
@@ -111,6 +115,7 @@ export const AllBenchmarks: React.FC = () => {
           const x = BigInt('1111111111111111111111111111111111111111111111111111111111111111111111111111')
           newScalars.push((x * BigInt(i) % p))
       }
+    /*
      */
         
       setBigIntScalars(newScalars);
@@ -146,7 +151,16 @@ export const AllBenchmarks: React.FC = () => {
         postResult={postResult}
         bold={true}
       />
-      
+      <Benchmark
+        name={'Data transfer cost benchmarks'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={data_transfer_cost_benchmarks}
+        postResult={postResult}
+        bold={true}
+      />
       <Benchmark
         name={'Pippenger WebGPU MSM'}
         disabled={disabledBenchmark}
@@ -223,6 +237,16 @@ export const AllBenchmarks: React.FC = () => {
         scalars={bigIntScalars}
         expectedResult={expectedResult}
         msmFunc={barrett_mul_benchmarks}
+        postResult={postResult}
+        bold={true}
+      />
+      <Benchmark
+        name={'Barrett-Domb reduction benchmarks'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={barrett_domb_mul_benchmarks}
         postResult={postResult}
         bold={true}
       />
