@@ -21,7 +21,7 @@ var<storage, read_write> new_scalar_chunks: array<u32>;
 
 @compute
 @workgroup_size({{ workgroup_size }})
-fn stage_1(@builtin(global_invocation_id) global_id: vec3<u32>) {
+fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     /*new_points[global_id.x] = points[global_id.x];*/
 
     let gidx = global_id.x; 
@@ -36,14 +36,5 @@ fn stage_1(@builtin(global_invocation_id) global_id: vec3<u32>) {
     }
 
     new_points[id] = acc;
-}
-
-@compute
-@workgroup_size({{ workgroup_size }})
-fn stage_2(@builtin(global_invocation_id) global_id: vec3<u32>) {
-    let gidx = global_id.x; 
-    let gidy = global_id.y; 
-    let id = gidx * {{ num_y_workgroups }} + gidy;
-    var start_idx = cluster_start_indices[id];
     new_scalar_chunks[id] = scalar_chunks[new_point_indices[start_idx]];
 }
