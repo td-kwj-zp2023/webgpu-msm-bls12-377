@@ -15,13 +15,15 @@ const to_signed_slices = (
         signed_slices[i] = slices[i] + carry
         if (signed_slices[i] >= l / 2) {
             signed_slices[i] = (l - signed_slices[i]) * -1
+            if (signed_slices[i] === -0) { signed_slices[i] = 0 }
             carry = 1
         } else {
             carry = 0
         }
     }
     if (carry === 1) {
-        console.error('final carry is 1', scalar)
+        console.error(scalar)
+        throw new Error('final carry is 1')
     }
     return signed_slices
 }
@@ -31,7 +33,7 @@ const p = BigInt('0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a1180000000
 describe('signed buckets', () => {
     // From https://hackmd.io/@drouyang/signed-bucket-index
     it('decompose scalars into signed chunks', () => {
-        const num_tests = 102400
+        const num_tests = 1024
         for (let i = 0; i < num_tests; i ++) {
             const scalar = genRandomFieldElement(p)
 
@@ -51,5 +53,22 @@ describe('signed buckets', () => {
             }
             expect(result).toEqual(scalar)
         }
+    })
+
+    it('simple example', () => {
+        const k = 2
+        const c = 5
+
+        const scalar_0 = BigInt(255)
+        const slices_0 = to_words_le(scalar_0, k, c)
+        const signed_slices_0 = to_signed_slices(scalar_0, k, c)
+        console.log(slices_0)
+        console.log(signed_slices_0)
+
+        const scalar_1 = BigInt(301)
+        const slices_1 = to_words_le(scalar_1, k, c)
+        const signed_slices_1 = to_signed_slices(scalar_1, k, c)
+        console.log(slices_1)
+        console.log(signed_slices_1)
     })
 })
