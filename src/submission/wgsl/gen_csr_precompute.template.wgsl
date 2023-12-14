@@ -11,6 +11,12 @@ var<storage, read_write> cluster_start_indices: array<u32>;
 var<storage, read_write> cluster_end_indices: array<u32>;
 @group(0) @binding(4)
 var<storage, read_write> map: array<array<u32, {{ max_cluster_size }}>, {{ max_chunk_val }}>;
+@group(0) @binding(5)
+var<storage, read_write> overflow: array<u32, {{ overflow_size }}>;
+@group(0) @binding(6)
+var<storage, read_write> overflow_size: array<u32, {{ overflow_size }}>;
+@group(0) @binding(7)
+var<storage, read_write> keys: array<u32, {{ max_chunk_val }}>;
 
 @compute
 @workgroup_size({{ workgroup_size }})
@@ -25,18 +31,14 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     // Max cluster size
     let m = {{ max_cluster_size }}u; 
-    
-    // The keys to the map
-    var keys: array<u32, {{ max_chunk_val }}>;
 
     // The number of keys
     var num_keys = 0u;
 
-    // The overflow array
-    var overflow: array<u32, {{ overflow_size }}>;
-    var overflow_size: array<u32, {{ overflow_size }}>;
+    // The overflow array size
     var num_overflow = 0u;
 
+    // Row size
     let row_size = {{ row_size }}u;
 
     // For each scalar chunk in the row
