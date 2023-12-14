@@ -13,6 +13,7 @@ import {
     points_to_u8s_for_gpu,
     numbers_to_u8s_for_gpu,
     calc_num_words,
+    are_point_arr_equal,
 } from './utils'
 import {
     create_sb,
@@ -603,24 +604,4 @@ const run_in_gpu = async(
     device.destroy()
 
     return results_points
-}
-
-const are_point_arr_equal = (
-    a: ExtPointType[],
-    b: ExtPointType[],
-): boolean => {
-    if (a.length !== b.length) {
-        return false
-    }
-
-    for (let i = 0; i < a.length; i ++) {
-        const aa = a[i].toAffine()
-        const ba = b[i].toAffine()
-        if (aa.x !== ba.x || aa.y !== ba.y) {
-            console.log(`mismatch at ${i}`)
-            return false
-        }
-    }
-
-    return true
 }

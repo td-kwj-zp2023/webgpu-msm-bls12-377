@@ -26,6 +26,7 @@ import { TestCaseDropDown } from './TestCaseDropDown';
 import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
 import { smvp } from '../submission/cuzk/smvp_wgsl';
 import { data_transfer_cost_benchmarks } from '../submission/data_transfer_cost_benchmarks'
+import { bucket_points_reduction } from '../submission/bucket_points_reduction_benchmark'
 
 export const AllBenchmarks: React.FC = () => {
   const initialDefaultInputSize = 2 ** 16
@@ -158,6 +159,16 @@ export const AllBenchmarks: React.FC = () => {
         scalars={bigIntScalars}
         expectedResult={expectedResult}
         msmFunc={cuzk_gpu_approach_d}
+        postResult={postResult}
+        bold={true}
+      />
+      <Benchmark
+        name={'Bucket points reduction'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={bucket_points_reduction}
         postResult={postResult}
         bold={true}
       />
