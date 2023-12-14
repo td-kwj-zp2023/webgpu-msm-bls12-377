@@ -2,6 +2,95 @@ import assert from 'assert'
 import { CSRSparseMatrix } from '../matrices/matrices'; 
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 
+export const precompute_with_gpu_simulated = (
+    scalar_chunks: number[],
+    row_idx: number,
+    num_rows: number,
+) => {
+    assert(scalar_chunks.length % num_rows === 0)
+    const num_cols = scalar_chunks.length / num_rows
+
+    // Max cluster size
+    const m = 2
+
+    // Initialise the 2D array
+    const map = Array(scalar_chunks.length).fill(0)
+    for (let i = 0; i < map.length; i ++) {
+        const c = Array(m + 1).fill(0)
+        map[i] = c
+    }
+
+    const keys = Array(scalar_chunks.length).fill(0)
+    let num_keys = 0
+
+    for (let i = 0; i < num_cols; i ++ ) {
+        const pt_idx = row_idx * num_cols + i
+        const chunk = scalar_chunks[pt_idx]
+
+        // skip 0s
+        if (chunk === 0) {
+            continue
+        }
+
+        if (map[chunk][0] === 0) {
+            keys[num_keys] = chunk
+            num_keys ++
+        }
+
+        const cluster_current_size = map[chunk][0]
+        map[chunk][cluster_current_size + 1] = pt_idx
+        map[chunk][0] += 1
+    }
+
+    let cluster_start_indices: number[] = [0]
+    let cluster_end_indices: number[] = []
+    let new_point_indices: number[] = []
+    const s: number[] = []
+
+    for (let i = 0; i < map.length; i ++) {
+        if (map[i] === 1) {
+            s.push(map[i][1])
+        }
+        for (let j = 0; j < map[i][0]; j ++) {
+            new_point_indices.push(map[i][j + 1])
+        }
+    }
+    // append single-item clusters
+    new_point_indices = new_point_indices.concat(s)
+
+    // populate cluster_start_indices and cluster_end_indices
+    let prev_chunk = scalar_chunks[new_point_indices[0]]
+    for (let i = 1; i < new_point_indices.length; i ++) {
+        const s = scalar_chunks[new_point_indices[i]]
+        if (prev_chunk != scalar_chunks[new_point_indices[i]]) {
+            cluster_end_indices.push(i)
+            cluster_start_indices.push(i)
+        }
+        prev_chunk = s
+    }
+
+    // the final cluster_end_index
+    cluster_end_indices.push(new_point_indices.length)
+
+    let i = 0
+    while (i < cluster_start_indices.length) {
+        if (cluster_start_indices[i] + 1 === cluster_end_indices[i]) {
+            break
+        }
+        i ++
+    }
+
+    const num_non_zero = cluster_start_indices.length
+    const singles_start_idx = i < cluster_start_indices.length ? [cluster_start_indices[i]] : []
+
+    cluster_start_indices = cluster_start_indices.slice(0, i)
+    cluster_end_indices = cluster_end_indices.slice(0, i)
+
+    return { new_point_indices, cluster_start_indices, cluster_end_indices, singles_start_idx, num_non_zero }
+
+    console.log(map)
+}
+
 export const precompute_with_cluster_method = (
     scalar_chunks: number[],
     row_idx: number,
