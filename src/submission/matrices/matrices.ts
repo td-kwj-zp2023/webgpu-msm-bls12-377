@@ -252,6 +252,7 @@ export class CSRSparseMatrix implements Interface.CSRSparseMatrix {
     }
 
     // See https://stackoverflow.com/questions/49395986/compressed-sparse-row-transpose
+    // and https://synergy.cs.vt.edu/pubs/papers/wang-transposition-ics16.pdf
     async transpose(): Promise<CSRSparseMatrix> {
         // Number of rows, columns, non-zero elements
         const n = this.row_ptr.length - 1
@@ -271,7 +272,7 @@ export class CSRSparseMatrix implements Interface.CSRSparseMatrix {
         const col_idx = Array(nz).fill(0);
         const row_ptr = Array(m + 2).fill(0);
 
-        // Calculate count per columns
+        // Calculate the count per columns
         for (let i = 0; i < nz; i++) {
             row_ptr[Number(this.col_idx[i]) + 2] += 1
         }
@@ -282,7 +283,7 @@ export class CSRSparseMatrix implements Interface.CSRSparseMatrix {
             row_ptr[i] += row_ptr[i - 1]
         }
 
-        // Perform the main part
+        // Perform the "main part"
         for (let i = 0; i < n; i++) {
             for (let j = this.row_ptr[i]; j < this.row_ptr[i + 1]; j++) {
                 // Calculate index to transposed matrix at which we should place current element,
