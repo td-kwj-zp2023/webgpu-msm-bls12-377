@@ -76,4 +76,3 @@ fn field_mul(a: ptr<function, BigInt>, b: ptr<function, BigInt>) -> BigInt {
     }
     return fr_reduce(&r);
 }
-
