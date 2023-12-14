@@ -65,6 +65,8 @@ export const cuzk_gpu_approach_d = async (
             device,
             commandEncoder,
             baseAffinePoints,
+            num_subtasks, 
+            word_size,
             false,
         )
 
@@ -74,7 +76,8 @@ export const cuzk_gpu_approach_d = async (
         commandEncoder,
         scalars,
         num_subtasks,
-        false,
+        word_size,
+        false
     )
 
     // Read the scalar chunks from scalar_chunks_sb
@@ -224,7 +227,7 @@ export const cuzk_gpu = async (
         false,
     )
 
-     for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx ++) {
+     for (let subtask_idx = 0; subtask_idx < 1; subtask_idx ++) {
         // TODO: if debug is set to true in any invocations within a loop, the
         // sanity check will fail on the second iteration, because the
         // commandEncoder's finish() function has been used. To correctly
@@ -239,35 +242,35 @@ export const cuzk_gpu = async (
             input_size,
             num_rows,
             scalar_chunks_sb,
-            false,
+            true,
         )
 
-         const {
-             new_point_x_y_sb,
-             new_point_t_z_sb,
-         } = await pre_aggregation_stage_1_gpu(
-             device,
-             commandEncoder,
-             input_size,
-             point_x_y_sb,
-             point_t_z_sb,
-             new_point_indices_sb,
-             cluster_start_indices_sb,
-             cluster_end_indices_sb,
-             false,
-         )
+        // const {
+        //     new_point_x_y_sb,
+        //     new_point_t_z_sb,
+        // } = await pre_aggregation_stage_1_gpu(
+        //     device,
+        //     commandEncoder,
+        //     input_size,
+        //     point_x_y_sb,
+        //     point_t_z_sb,
+        //     new_point_indices_sb,
+        //     cluster_start_indices_sb,
+        //     cluster_end_indices_sb,
+        //     false,
+        // )
 
-         const new_scalar_chunks_sb = await pre_aggregation_stage_2_gpu(
-             device,
-             commandEncoder,
-             input_size,
-             scalar_chunks_sb,
-             cluster_start_indices_sb,
-             new_point_indices_sb,
-             false,
-         )
+        // const new_scalar_chunks_sb = await pre_aggregation_stage_2_gpu(
+        //     device,
+        //     commandEncoder,
+        //     input_size,
+        //     scalar_chunks_sb,
+        //     cluster_start_indices_sb,
+        //     new_point_indices_sb,
+        //     false,
+        // )
     }
-    device.destroy()
+    // device.destroy()
 
     return { x: BigInt(1), y: BigInt(0) }
 }
@@ -312,8 +315,6 @@ const convert_point_coords_to_mont_gpu = async (
 
     // Convert points to bytes (performs ~2x faster than `bigints_to_16_bit_words_for_gpu`)
     const x_y_coords_bytes = bigints_to_u8_for_gpu(x_y_coords, num_subtasks, word_size)
-
-    const words = u8s_to_bigints(x_y_coords_bytes, num_subtasks, word_size);
 
     // Input buffers
     const x_y_coords_sb = create_and_write_sb(device, x_y_coords_bytes)
@@ -369,28 +370,13 @@ const convert_point_coords_to_mont_gpu = async (
             [point_x_y_sb, point_t_z_sb],
         )
         
-        // Check point_x data
         const computed_x_y_coords = u8s_to_bigints(data[0], num_words, word_size)
         const computed_t_z_coords = u8s_to_bigints(data[1], num_words, word_size)
 
-        console.log("computed_x_y_coords is: ", computed_x_y_coords)
-        console.log("computed_t_z_coords is: ", computed_t_z_coords)
-
-        const expected_x = baseAffinePoints[0].x * r % p
-        const expected_y = baseAffinePoints[0].y * r % p
-        const expected_t = (baseAffinePoints[0].x * baseAffinePoints[0].y * r) % p
-        const expected_z = r % p
-
-        // console.log("expected_x is: ", expected_x)
-        // console.log("expected_y is: ", expected_y)
-        // console.log("expected_t is: ", expected_t)
-        // console.log("expected_z is: ", expected_z)
-
-
-        for (let i = 0; i < input_size; i++) {
+        for (let i = 0; i < input_size; i ++) {
             const expected_x = baseAffinePoints[i].x * r % p
             const expected_y = baseAffinePoints[i].y * r % p
-            const expected_t = (BigInt(baseAffinePoints[i].x) * baseAffinePoints[i].y * r) % p
+            const expected_t = (baseAffinePoints[i].x * baseAffinePoints[i].y * r) % p
             const expected_z = r % p
 
             if (!(
@@ -400,11 +386,10 @@ const convert_point_coords_to_mont_gpu = async (
                 && expected_z === computed_t_z_coords[i * 2 + 1]
             )) {
                 console.log('mismatch at', i)
-                // debugger
-                // break
+                debugger
+                break
             }
         }
-        console.log("montgomery conversion assertion checks pass!")
     }
 
     return { point_x_y_sb, point_t_z_sb }
@@ -471,7 +456,7 @@ const decompose_scalars_gpu = async (
     const chunk_size = Math.ceil(256 / num_subtasks)
 
     // Convert scalars to bytes
-    const scalars_bytes = bigints_to_u8_for_gpu(scalars, num_subtasks, word_size)
+    const scalars_bytes = bigints_to_16_bit_words_for_gpu(scalars)
 
     // Input buffers
     const scalars_sb = create_and_write_sb(device, scalars_bytes)
@@ -589,7 +574,7 @@ const csr_precompute_gpu = async (
     const num_x_workgroups = 1
     const num_y_workgroups = 1 
     const max_cluster_size = 4
-	const max_chunk_val = 2 ** 3
+	const max_chunk_val = 2 ** 13
     const overflow_size = max_chunk_val - max_cluster_size
 
     // Output buffers
@@ -598,10 +583,13 @@ const csr_precompute_gpu = async (
     const cluster_start_indices_sb = create_sb(device, input_size * 4)
     const cluster_end_indices_sb = create_sb(device, input_size * 4)
     const map_sb = create_sb(device, max_cluster_size * max_chunk_val * 4)
+    const overflow_sb = create_sb(device, overflow_size * 4)
+    const overflow_size_sb = create_sb(device, overflow_size * 4)
+    const keys_sb = create_sb(device, max_chunk_val * 4)
 
     const bindGroupLayout = create_bind_group_layout(
         device,
-        ['read-only-storage', 'storage', 'storage', 'storage', 'storage']
+        ['read-only-storage', 'storage', 'storage', 'storage', 'storage', 'storage', 'storage', 'storage']
     )
 
     // Reuse the output buffer from the scalar decomp step as one of the input buffers
@@ -614,6 +602,9 @@ const csr_precompute_gpu = async (
             cluster_start_indices_sb,
             cluster_end_indices_sb,
             map_sb,
+            overflow_sb,
+            overflow_size_sb,
+            keys_sb
         ],
     )
 
