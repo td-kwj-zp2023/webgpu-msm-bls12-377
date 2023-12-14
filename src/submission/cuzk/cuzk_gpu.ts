@@ -227,7 +227,7 @@ export const cuzk_gpu = async (
         false,
     )
 
-     for (let subtask_idx = 0; subtask_idx < 1; subtask_idx ++) {
+    for (let subtask_idx = 0; subtask_idx < 1; subtask_idx ++) {
         // TODO: if debug is set to true in any invocations within a loop, the
         // sanity check will fail on the second iteration, because the
         // commandEncoder's finish() function has been used. To correctly
@@ -519,7 +519,7 @@ const decompose_scalars_gpu = async (
             throw Error('output size mismatch')
         }
 
-        for (let j = 0; j < decompose_scalars_originl.length - 1; j++) {
+        for (let j = 0; j < decompose_scalars_originl.length; j++) {
             let z = 0;
             for (let i = j * 65536; i < (j + 1) * 65536; i++) {
                 if (computed_chunks[i] !== decompose_scalars_originl[j][z]) {
