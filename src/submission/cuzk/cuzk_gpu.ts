@@ -20,7 +20,6 @@ import {
     u8s_to_numbers_32,
     bigints_to_16_bit_words_for_gpu,
     numbers_to_u8s_for_gpu,
-    bigint_to_u8_for_gpu,
     bigints_to_u8_for_gpu,
     gen_barrett_domb_m_limbs,
     compute_misc_params,
@@ -242,35 +241,40 @@ export const cuzk_gpu = async (
             input_size,
             num_rows,
             scalar_chunks_sb,
-            true,
+            false,
         )
 
-        // const {
-        //     new_point_x_y_sb,
-        //     new_point_t_z_sb,
-        // } = await pre_aggregation_stage_1_gpu(
-        //     device,
-        //     commandEncoder,
-        //     input_size,
-        //     point_x_y_sb,
-        //     point_t_z_sb,
-        //     new_point_indices_sb,
-        //     cluster_start_indices_sb,
-        //     cluster_end_indices_sb,
-        //     false,
-        // )
+         const {
+             new_point_x_y_sb,
+             new_point_t_z_sb,
+         } = await pre_aggregation_stage_1_gpu(
+             device,
+             commandEncoder,
+             input_size,
+             point_x_y_sb,
+             point_t_z_sb,
+             new_point_indices_sb,
+             cluster_start_indices_sb,
+             cluster_end_indices_sb,
+             false,
+         )
 
-        // const new_scalar_chunks_sb = await pre_aggregation_stage_2_gpu(
-        //     device,
-        //     commandEncoder,
-        //     input_size,
-        //     scalar_chunks_sb,
-        //     cluster_start_indices_sb,
-        //     new_point_indices_sb,
-        //     false,
-        // )
+        const new_scalar_chunks_sb = await pre_aggregation_stage_2_gpu(
+            device,
+            commandEncoder,
+            input_size,
+            scalar_chunks_sb,
+            cluster_start_indices_sb,
+            new_point_indices_sb,
+            false,
+        )
+
+        // TODO: produce row_idx
+        // TODO: perform transposition
+        // TODO: perform SMVP
+        // TODO: final step
     }
-    // device.destroy()
+    device.destroy()
 
     return { x: BigInt(1), y: BigInt(0) }
 }
