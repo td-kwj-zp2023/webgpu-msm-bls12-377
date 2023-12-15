@@ -335,7 +335,7 @@ export const decompose_scalars_gpu = async (
         [scalars_sb, chunks_sb],
     )
 
-    const workgroup_size = 256
+    const workgroup_size = 64
     const num_x_workgroups = 256
     const num_y_workgroups = input_size / workgroup_size / num_x_workgroups
 
@@ -343,7 +343,8 @@ export const decompose_scalars_gpu = async (
         workgroup_size,
         num_y_workgroups,
         num_subtasks,
-        chunk_size
+        chunk_size, 
+        input_size
     )
 
     const computePipeline = await create_compute_pipeline(
@@ -356,7 +357,7 @@ export const decompose_scalars_gpu = async (
     const passEncoder = commandEncoder.beginComputePass()
     passEncoder.setPipeline(computePipeline)
     passEncoder.setBindGroup(0, bindGroup)
-    passEncoder.dispatchWorkgroups(num_x_workgroups)
+    passEncoder.dispatchWorkgroups(num_x_workgroups, num_y_workgroups, 1)
     passEncoder.end()
 
     if (debug) {
@@ -380,28 +381,21 @@ export const decompose_scalars_gpu = async (
                 expected[j * chunk_size + i] = all_chunks[j][i]
             }
         }
-        const decompose_scalars_original = decompose_scalars(scalars, num_subtasks, chunk_size).flat()
+        const decompose_scalars_original = decompose_scalars(scalars, num_subtasks, chunk_size)
 
-        debugger
-        for (let i = 0; i < decompose_scalars_original.length; i ++) {
-            assert(computed_chunks[i] === decompose_scalars_original[i], `mismatch at ${i}`)
+        if (computed_chunks.length !== expected.length) {
+            throw Error('output size mismatch')
         }
 
-        //debugger
-
-        //if (computed_chunks.length !== expected.length) {
-            //throw Error('output size mismatch')
-        //}
-
-        //for (let j = 0; j < decompose_scalars_original.length; j++) {
-            //let z = 0
-            //for (let i = j * 65536; i < (j + 1) * 65536; i++) {
-                //if (computed_chunks[i] !== decompose_scalars_original[j][z]) {
-                    //throw Error(`scalar decomp mismatch at ${i}`)
-                //}
-                //z ++
-            //}
-        //}
+        for (let j = 0; j < decompose_scalars_original.length; j++) {
+            let z = 0;
+            for (let i = j * input_size; i < (j + 1) * input_size; i++) {
+                if (computed_chunks[i] !== decompose_scalars_original[j][z]) {
+                    throw Error(`scalar decomp mismatch at ${i}`)
+                }
+                z++;
+            }
+        }
     }
 
     return chunks_sb
@@ -412,6 +406,7 @@ const genDecomposeScalarsShaderCode = (
     num_y_workgroups: number,
     num_subtasks: number,
     chunk_size: number,
+    input_size: number
 ) => {
     const shaderCode = mustache.render(
         decompose_scalars_shader,
@@ -420,6 +415,7 @@ const genDecomposeScalarsShaderCode = (
             num_y_workgroups,
             num_subtasks,
             chunk_size,
+            input_size,
         },
         {
             extract_word_from_bytes_le_funcs,
