@@ -204,6 +204,7 @@ export const all_precomputation = (
     let all_single_scalar_chunks: number[] = []
 
     const row_ptr: number[] = [0]
+    debugger
 
     for (let row_idx = 0; row_idx < num_rows; row_idx ++) {
         const { 
