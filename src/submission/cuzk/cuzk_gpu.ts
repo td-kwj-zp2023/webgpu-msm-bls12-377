@@ -520,7 +520,7 @@ const decompose_scalars_gpu = async (
             }
         }
 
-        const decompose_scalars_original = decompose_scalars(scalars, num_subtasks, word_size)
+        const decompose_scalars_original = decompose_scalars(scalars, num_subtasks, chunk_size)
 
         if (computed_chunks.length !== expected.length) {
             throw Error('output size mismatch')
