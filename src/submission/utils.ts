@@ -397,6 +397,26 @@ export const genRandomFieldElement = (p: bigint): bigint => {
     return rand % p
 }
 
+export const are_point_arr_equal = (
+    a: ExtPointType[],
+    b: ExtPointType[],
+): boolean => {
+    if (a.length !== b.length) {
+        return false
+    }
+
+    for (let i = 0; i < a.length; i ++) {
+        const aa = a[i].toAffine()
+        const ba = b[i].toAffine()
+        if (aa.x !== ba.x || aa.y !== ba.y) {
+            console.log(`mismatch at ${i}`)
+            return false
+        }
+    }
+
+    return true
+}
+
 // Copied from src/reference/webgpu/utils.ts
 // TODO: rewrite them?
 
