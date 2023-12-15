@@ -131,13 +131,13 @@ export const execute_pipeline = async (
     computePipeline: GPUComputePipeline,
     bindGroup: GPUBindGroup,
     num_x_workgroups: number,
-    num_y_workgroups: number,
-    num_z_workgroups: number,
+    num_y_workgroups = 1,
+    num_z_workgroups = 1,
 ) => {
     const passEncoder = commandEncoder.beginComputePass()
     passEncoder.setPipeline(computePipeline)
     passEncoder.setBindGroup(0, bindGroup)
-    passEncoder.dispatchWorkgroups(num_x_workgroups, num_y_workgroups, 1)
+    passEncoder.dispatchWorkgroups(num_x_workgroups, num_y_workgroups, num_z_workgroups)
     passEncoder.end()
 }
  
