@@ -377,6 +377,7 @@ export const decompose_scalars_gpu = async (
                 expected[j * chunk_size + i] = all_chunks[j][i]
             }
         }
+
         const decompose_scalars_original = decompose_scalars(scalars, num_subtasks, chunk_size)
 
         if (computed_chunks.length !== expected.length) {
