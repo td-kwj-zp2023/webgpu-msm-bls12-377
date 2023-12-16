@@ -1,5 +1,7 @@
 import mustache from 'mustache'
 import { BigIntPoint } from "../../reference/types"
+import { ExtPointType } from "@noble/curves/abstract/edwards";
+import { FieldMath } from "../reference/utils/FieldMath";
 import {
     get_device,
     create_and_write_sb,
@@ -41,9 +43,12 @@ import preaggregation_stage_2_shader from '../wgsl/preaggregation_stage_2.templa
 
 // Hardcode params for word_size = 13
 const p = BigInt('8444461749428370424248824938781546531375899335154063827935233455917409239041')
-const r = BigInt('3336304672246003866643098545847835280997800251509046313505217280697450888997')
 const word_size = 13
-const num_words = 20
+const params = compute_misc_params(p, word_size)
+const n0 = params.n0
+const num_words = params.num_words
+const r = params.r
+const rinv = params.rinv
 
 /*
  * End-to-end implementation of the cuZK MSM algorithm.
@@ -124,8 +129,9 @@ export const cuzk_gpu = async (
             new_point_indices_sb,
             cluster_start_indices_sb,
             cluster_end_indices_sb,
-            false,
+            true,
         )
+        break
 
         const new_scalar_chunks_sb = await pre_aggregation_stage_2_gpu(
             device,
@@ -142,6 +148,8 @@ export const cuzk_gpu = async (
         // TODO: perform SMVP
         // TODO: final step
     }
+    */
+
     device.destroy()
 
     return { x: BigInt(1), y: BigInt(0) }
@@ -270,11 +278,7 @@ export const convert_point_coords_to_mont_gpu = async (
 const genConvertPointCoordsShaderCode = (
     workgroup_size: number,
 ) => {
-    const misc_params = compute_misc_params(p, word_size)
-    const num_words = misc_params.num_words
-    const n0 = misc_params.n0
     const mask = BigInt(2) ** BigInt(word_size) - BigInt(1)
-    const r = misc_params.r
     const two_pow_word_size = 2 ** word_size
     const p_limbs = gen_p_limbs(p, num_words, word_size)
     const r_limbs = gen_r_limbs(r, num_words, word_size)
@@ -758,18 +762,65 @@ export const pre_aggregation_stage_1_gpu = async (
             device,
             commandEncoder,
             [
+                point_x_y_sb,
+                point_t_z_sb,
+                new_point_indices_sb,
+                cluster_start_indices_sb,
+                cluster_end_indices_sb,
                 new_point_x_y_sb,
                 new_point_t_z_sb,
             ],
         )
 
-        const x_y_coords = u8s_to_bigints(data[0], num_words, word_size)
-        const t_z_coords = u8s_to_bigints(data[1], num_words, word_size)
-        console.log(x_y_coords)
-        console.log(t_z_coords)
+        const point_x_y = u8s_to_bigints(data[0], num_words, word_size)
+        const point_t_z = u8s_to_bigints(data[1], num_words, word_size)
+        const new_point_indices = u8s_to_numbers(data[2])
+        const cluster_start_indices = u8s_to_numbers(data[3])
+        const cluster_end_indices = u8s_to_numbers(data[4])
+        const new_point_x_y = u8s_to_bigints(data[5], num_words, word_size)
+        const new_point_t_z = u8s_to_bigints(data[6], num_words, word_size)
+
+        verify_preagg_stage_1(
+            point_x_y,
+            point_t_z,
+            new_point_indices,
+            cluster_start_indices,
+            cluster_end_indices,
+            new_point_x_y,
+            new_point_t_z,
+        )
     }
 
     return { new_point_x_y_sb, new_point_t_z_sb }
+}
+
+const verify_preagg_stage_1 = (
+    point_x_y: bigint[],
+    point_t_z: bigint[],
+    new_point_indices: number[],
+    cluster_start_indices: number[],
+    cluster_end_indices: number[],
+    new_point_x_y: bigint[],
+    new_point_t_z: bigint[],
+) => {
+    const fieldMath = new FieldMath()
+    const construct_points = (x_y_coords: bigint[], t_z_coords: bigint[]) => {
+        assert(x_y_coords.length === t_z_coords.length)
+        const points: ExtPointType[] = []
+        for (let i = 0; i < x_y_coords.length; i += 2) {
+            points.push(fieldMath.createPoint(
+                fieldMath.Fp.mul(x_y_coords[i], rinv),
+                fieldMath.Fp.mul(x_y_coords[i + 1], rinv),
+                fieldMath.Fp.mul(t_z_coords[i], rinv),
+                fieldMath.Fp.mul(t_z_coords[i + 1], rinv),
+            ))
+        }
+        return points
+    }
+
+    const points = construct_points(point_x_y, point_t_z)
+    const new_points = construct_points(new_point_x_y, new_point_t_z)
+    debugger
 }
 
 const genPreaggregationStage1ShaderCode = (
