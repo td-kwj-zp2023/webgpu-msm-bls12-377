@@ -55,8 +55,8 @@ export const cuzk_gpu = async (
     // Determine the optimal window size dynamically based on a static analysis 
     // of varying input sizes. This will be determined using a seperate function.   
     const input_size = scalars.length
-    const num_subtasks = 16
-    const chunk_size = Math.ceil(256 / num_subtasks)
+    const chunk_size = 16
+    const num_subtasks = Math.ceil(256 / chunk_size)
 
     // Each pass must use the same GPUDevice and GPUCommandEncoder, or else
     // storage buffers can't be reused across compute passes
@@ -85,6 +85,9 @@ export const cuzk_gpu = async (
     )
 
     for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx ++) {
+        // use debug_idx to debug any particular subtask_idx
+        //const debug_idx = subtask_idx === 2
+
         // TODO: if debug is set to true in any invocations within a loop, the
         // sanity check will fail on the second iteration, because the
         // commandEncoder's finish() function has been used. To correctly
@@ -102,7 +105,12 @@ export const cuzk_gpu = async (
             chunk_size,
             scalar_chunks_sb,
             false,
+            //debug_idx,
         )
+
+        //if (debug_idx) {
+            //break
+        //}
 
         const {
             new_point_x_y_sb,
@@ -439,18 +447,19 @@ export const csr_precompute_gpu = async (
     // Test values
     const test_scalar_chunks = 
         [
-            0, 1, 1, 1, 1, 1, 6, 7,
-            0, 0, 0, 0, 4, 4, 6, 7,
+            1, 1, 1, 1, 0, 1, 6, 7, 1, 1, 1, 1, 4, 4, 6, 7,
+            1, 1, 1, 1, 0, 1, 6, 7, 1, 1, 1, 1, 4, 4, 6, 7,
         ]
     const test_scalar_chunks_bytes = numbers_to_u8s_for_gpu(test_scalar_chunks)
     scalar_chunks_sb = create_and_write_sb(device, test_scalar_chunks_bytes)
     input_size = test_scalar_chunks.length
-    num_subtasks = 1
-    subtask_idx = 0
+    num_subtasks = 2
+    subtask_idx = 1
+
+    const test_scalar_chunks_bytes = numbers_to_u8s_for_gpu(TEST_CHUNKS)
+    scalar_chunks_sb = create_and_write_sb(device, test_scalar_chunks_bytes)
+    subtask_idx = 1
     */
-    //const test_scalar_chunks_bytes = numbers_to_u8s_for_gpu(TEST_CHUNKS)
-    //scalar_chunks_sb = create_and_write_sb(device, test_scalar_chunks_bytes)
-    //subtask_idx = 1
 
     // This is a serial operation, so only 1 shader should be used
     const num_x_workgroups = 1
@@ -458,8 +467,13 @@ export const csr_precompute_gpu = async (
 
     const num_chunks = input_size / num_subtasks
 
-    // TODO: adjust max_cluster_size based on the input size
-    const max_cluster_size = 4
+    // Adjust max_cluster_size based on the input size
+    let max_cluster_size = 4
+    if (input_size >= 2 ** 20) {
+        max_cluster_size = 2
+    } else if (input_size >= 2 ** 16) {
+        max_cluster_size = 3
+    }
     const max_chunk_val = 2 ** chunk_size
     const overflow_size = num_chunks - max_cluster_size
 
@@ -561,6 +575,13 @@ const verify_gpu_precompute_output = (
     cluster_end_indices: number[],
 ) => {
     const num_chunks = input_size / num_subtasks
+
+    // During testing
+    if (scalar_chunks.length < input_size) {
+        const pad = Array(subtask_idx * num_chunks).fill(0)
+        scalar_chunks = pad.concat(scalar_chunks)
+    }
+
     const scalar_chunks_for_this_subtask = scalar_chunks.slice(
         subtask_idx * num_chunks,
         subtask_idx * num_chunks + num_chunks,
@@ -571,6 +592,9 @@ const verify_gpu_precompute_output = (
     const reconstructed = Array(num_chunks).fill(0)
 
     for (let i = 0; i < num_chunks; i ++) {
+        if (i > 0 && new_point_indices[i] === 0) {
+            break
+        }
         reconstructed[i] = scalar_chunks[new_point_indices[i]]
     }
 
@@ -579,10 +603,14 @@ const verify_gpu_precompute_output = (
     sc_copy.sort((a, b) => a - b)
     r_copy.sort((a, b) => a - b)
 
-    if (sc_copy.toString() !== r_copy.toString()) {
-        debugger
-        assert(false)
-    }
+    //console.log('chunks:', scalar_chunks_for_this_subtask.toString())
+    //console.log('reconstructed:', reconstructed.toString())
+    //console.log('sc_copy:', sc_copy.toString())
+    //console.log('r_copy:', r_copy.toString())
+    //if (sc_copy.toString() !== r_copy.toString()) {
+        //debugger
+        //assert(false)
+    //}
     assert(sc_copy.toString() === r_copy.toString(), 'new_point_indices invalid')
 
     // Ensure that cluster_start_indices and cluster_end_indices have
@@ -606,7 +634,7 @@ const verify_gpu_precompute_output = (
     // that uses preaggregation first
     const random_points: bigint[] = []
     for (let i = 0; i < input_size; i ++) {
-        //const r = BigInt(Math.floor(Math.random() * 100000))
+        //const r = BigInt(Math.floor(Math.random() * 100000000))
         const r = BigInt(1)
         random_points.push(r)
     }
@@ -618,7 +646,7 @@ const verify_gpu_precompute_output = (
         lc_result += BigInt(prod)
     }
 
-    // Calcualte the linear combination with preaggregation
+    // Calculate the linear combination with preaggregation
     let preagg_result = BigInt(0)
     for (let i = 0; i < cluster_start_indices.length; i ++) {
         const start_idx = cluster_start_indices[i]
@@ -630,12 +658,13 @@ const verify_gpu_precompute_output = (
 
         let point = BigInt(random_points[new_point_indices[start_idx]])
 
-        for (let j = cluster_start_indices[i] + 1; j < end_idx; j ++) {
-            point += BigInt(random_points[new_point_indices[j]])
+        for (let idx = cluster_start_indices[i] + 1; idx < end_idx; idx ++) {
+            point += BigInt(random_points[new_point_indices[idx]])
         }
 
         preagg_result += point * BigInt(scalar_chunks[new_point_indices[start_idx]])
     }
+
     assert(preagg_result === lc_result, 'result mismatch')
 }
 
