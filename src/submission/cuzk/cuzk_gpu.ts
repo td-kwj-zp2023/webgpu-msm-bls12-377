@@ -69,10 +69,11 @@ export const cuzk_gpu = async (
             device,
             commandEncoder,
             baseAffinePoints,
-            num_subtasks, 
+            num_words, 
             word_size,
-            false,
+            true,
         )
+    return { x: BigInt(1), y: BigInt(0) }
 
     // Decompose the scalars
     const scalar_chunks_sb = await decompose_scalars_gpu(
@@ -169,7 +170,7 @@ export const convert_point_coords_to_mont_gpu = async (
     device: GPUDevice,
     commandEncoder: GPUCommandEncoder,
     baseAffinePoints: BigIntPoint[],
-    num_subtasks: number,
+    num_words: number,
     word_size: number,
     debug = false,
 ): Promise<{
@@ -186,7 +187,7 @@ export const convert_point_coords_to_mont_gpu = async (
     }
 
     // Convert points to bytes (performs ~2x faster than `bigints_to_16_bit_words_for_gpu`)
-    const x_y_coords_bytes = bigints_to_u8_for_gpu(x_y_coords, num_subtasks, word_size)
+    const x_y_coords_bytes = bigints_to_u8_for_gpu(x_y_coords, num_words, word_size)
 
     // Input buffers
     const x_y_coords_sb = create_and_write_sb(device, x_y_coords_bytes)
@@ -213,11 +214,13 @@ export const convert_point_coords_to_mont_gpu = async (
         ],
     )
 
-    const workgroup_size = 256
+    const workgroup_size = 64
     const num_x_workgroups = 256
+    const num_y_workgroups = baseAffinePoints.length / num_x_workgroups / workgroup_size
 
     const shaderCode = genConvertPointCoordsShaderCode(
         workgroup_size,
+        num_y_workgroups,
     )
 
     const computePipeline = await create_compute_pipeline(
@@ -227,13 +230,7 @@ export const convert_point_coords_to_mont_gpu = async (
         'main',
     )
 
-    // execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1);
-
-    const passEncoder = commandEncoder.beginComputePass()
-    passEncoder.setPipeline(computePipeline)
-    passEncoder.setBindGroup(0, bindGroup)
-    passEncoder.dispatchWorkgroups(num_x_workgroups)
-    passEncoder.end()
+    execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1);
 
     if (debug) {
         const data = await read_from_gpu(
@@ -269,6 +266,7 @@ export const convert_point_coords_to_mont_gpu = async (
 
 const genConvertPointCoordsShaderCode = (
     workgroup_size: number,
+    num_y_workgroups: number,
 ) => {
     const misc_params = compute_misc_params(p, word_size)
     const num_words = misc_params.num_words
@@ -285,6 +283,7 @@ const genConvertPointCoordsShaderCode = (
         convert_point_coords_shader,
         {
             workgroup_size,
+            num_y_workgroups,
             num_words,
             word_size,
             n0,
