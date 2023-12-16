@@ -1,7 +1,7 @@
 import mustache from 'mustache'
 import { BigIntPoint } from "../../reference/types"
 import { ExtPointType } from "@noble/curves/abstract/edwards";
-import { FieldMath } from "../reference/utils/FieldMath";
+import { FieldMath } from "../../reference/utils/FieldMath";
 import {
     get_device,
     create_and_write_sb,
@@ -41,6 +41,8 @@ import gen_csr_precompute_shader from '../wgsl/gen_csr_precompute.template.wgsl'
 import preaggregation_stage_1_shader from '../wgsl/preaggregation_stage_1.template.wgsl'
 import preaggregation_stage_2_shader from '../wgsl/preaggregation_stage_2.template.wgsl'
 
+const fieldMath = new FieldMath()
+
 // Hardcode params for word_size = 13
 const p = BigInt('8444461749428370424248824938781546531375899335154063827935233455917409239041')
 const word_size = 13
@@ -74,7 +76,7 @@ export const cuzk_gpu = async (
             device,
             commandEncoder,
             baseAffinePoints,
-            num_subtasks, 
+            num_words, 
             word_size,
             false,
         )
@@ -148,7 +150,6 @@ export const cuzk_gpu = async (
         // TODO: perform SMVP
         // TODO: final step
     }
-    */
 
     device.destroy()
 
@@ -177,7 +178,7 @@ export const convert_point_coords_to_mont_gpu = async (
     device: GPUDevice,
     commandEncoder: GPUCommandEncoder,
     baseAffinePoints: BigIntPoint[],
-    num_subtasks: number,
+    num_words: number,
     word_size: number,
     debug = false,
 ): Promise<{
@@ -194,7 +195,7 @@ export const convert_point_coords_to_mont_gpu = async (
     }
 
     // Convert points to bytes (performs ~2x faster than `bigints_to_16_bit_words_for_gpu`)
-    const x_y_coords_bytes = bigints_to_u8_for_gpu(x_y_coords, num_subtasks, word_size)
+    const x_y_coords_bytes = bigints_to_u8_for_gpu(x_y_coords, num_words, word_size)
 
     // Input buffers
     const x_y_coords_sb = create_and_write_sb(device, x_y_coords_bytes)
@@ -247,7 +248,10 @@ export const convert_point_coords_to_mont_gpu = async (
         const data = await read_from_gpu(
             device,
             commandEncoder,
-            [point_x_y_sb, point_t_z_sb],
+            [
+                point_x_y_sb,
+                point_t_z_sb,
+            ],
         )
         
         const computed_x_y_coords = u8s_to_bigints(data[0], num_words, word_size)
@@ -803,24 +807,13 @@ const verify_preagg_stage_1 = (
     new_point_x_y: bigint[],
     new_point_t_z: bigint[],
 ) => {
-    const fieldMath = new FieldMath()
-    const construct_points = (x_y_coords: bigint[], t_z_coords: bigint[]) => {
-        assert(x_y_coords.length === t_z_coords.length)
-        const points: ExtPointType[] = []
-        for (let i = 0; i < x_y_coords.length; i += 2) {
-            points.push(fieldMath.createPoint(
-                fieldMath.Fp.mul(x_y_coords[i], rinv),
-                fieldMath.Fp.mul(x_y_coords[i + 1], rinv),
-                fieldMath.Fp.mul(t_z_coords[i], rinv),
-                fieldMath.Fp.mul(t_z_coords[i + 1], rinv),
-            ))
-        }
-        return points
-    }
+    assert(point_x_y.length === point_t_z.length)
+    assert(new_point_x_y.length === new_point_t_z.length)
+    assert(cluster_start_indices.length === cluster_end_indices.length)
+    assert(new_point_indices.length === cluster_end_indices.length)
 
     const points = construct_points(point_x_y, point_t_z)
     const new_points = construct_points(new_point_x_y, new_point_t_z)
-    debugger
 }
 
 const genPreaggregationStage1ShaderCode = (
@@ -950,4 +943,19 @@ const genPreaggregationStage2ShaderCode = (
         },
     )
     return shaderCode
+}
+
+const construct_points = (x_y_coords: bigint[], t_z_coords: bigint[]) => {
+    const points: ExtPointType[] = []
+    for (let i = 0; i < x_y_coords.length; i += 2) {
+        const pt = fieldMath.createPoint(
+            fieldMath.Fp.mul(x_y_coords[i], rinv),
+            fieldMath.Fp.mul(x_y_coords[i + 1], rinv),
+            fieldMath.Fp.mul(t_z_coords[i], rinv),
+            fieldMath.Fp.mul(t_z_coords[i + 1], rinv),
+        )
+        pt.assertValidity()
+        points.push(pt)
+    }
+    return points
 }
