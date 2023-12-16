@@ -30,7 +30,7 @@ import { data_transfer_cost_benchmarks } from '../submission/data_transfer_cost_
 import { bucket_points_reduction } from '../submission/bucket_points_reduction_benchmark'
 
 export const AllBenchmarks: React.FC = () => {
-  const initialDefaultInputSize = 2 ** 20
+  const initialDefaultInputSize = 2 ** 16
   //const initialDefaultInputSize = 2 ** 16 //65536
   const [inputSize, setInputSize] = useState(initialDefaultInputSize);
   const [power, setPower] = useState<string>('2^0');
