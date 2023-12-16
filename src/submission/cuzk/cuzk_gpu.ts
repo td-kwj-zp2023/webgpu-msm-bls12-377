@@ -78,9 +78,8 @@ export const cuzk_gpu = async (
             baseAffinePoints,
             num_words, 
             word_size,
-            true,
+            false,
         )
-    return { x: BigInt(1), y: BigInt(0) }
 
     // Decompose the scalars
     const scalar_chunks_sb = await decompose_scalars_gpu(
@@ -132,9 +131,8 @@ export const cuzk_gpu = async (
             new_point_indices_sb,
             cluster_start_indices_sb,
             cluster_end_indices_sb,
-            true,
+            false,
         )
-        break
 
         const new_scalar_chunks_sb = await pre_aggregation_stage_2_gpu(
             device,
@@ -812,20 +810,35 @@ const verify_preagg_stage_1 = (
     assert(new_point_indices.length === cluster_end_indices.length)
 
     const points = construct_points(point_x_y, point_t_z)
+
+    const expected: ExtPointType[] = []
+    for (let i = 0; i < cluster_start_indices.length; i ++) {
+        const start = cluster_start_indices[i]
+        const end = cluster_end_indices[i]
+        let acc = points[new_point_indices[start]]
+        for (let j = start + 1; j < end; j ++) {
+            acc = acc.add(points[new_point_indices[j]])
+        }
+        expected.push(acc)
+    }
+
     const new_points = construct_points(new_point_x_y, new_point_t_z)
+    for (let i = 0; i < expected.length; i ++) {
+        const n = new_points[i].toAffine()
+        const m = expected[i].toAffine()
+        assert(n.x === m.x && n.y === m.y, `mismatch at ${i}`)
+    }
 }
 
 const genPreaggregationStage1ShaderCode = (
     num_y_workgroups: number,
     workgroup_size: number,
 ) => {
-    const num_runs = 1
     const misc_params = compute_misc_params(p, word_size)
     const num_words = misc_params.num_words
     const n0 = misc_params.n0
     const mask = BigInt(2) ** BigInt(word_size) - BigInt(1)
     const r = misc_params.r
-    const two_pow_word_size = 2 ** word_size
     const p_limbs = gen_p_limbs(p, num_words, word_size)
     const r_limbs = gen_r_limbs(r, num_words, word_size)
     const mu_limbs = gen_mu_limbs(p, num_words, word_size)
