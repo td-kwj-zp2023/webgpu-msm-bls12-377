@@ -78,8 +78,9 @@ export const cuzk_gpu = async (
             baseAffinePoints,
             num_words, 
             word_size,
-            false,
+            true,
         )
+    return { x: BigInt(1), y: BigInt(0) }
 
     // Decompose the scalars
     const scalar_chunks_sb = await decompose_scalars_gpu(
@@ -222,11 +223,13 @@ export const convert_point_coords_to_mont_gpu = async (
         ],
     )
 
-    const workgroup_size = 256
+    const workgroup_size = 64
     const num_x_workgroups = 256
+    const num_y_workgroups = baseAffinePoints.length / num_x_workgroups / workgroup_size
 
     const shaderCode = genConvertPointCoordsShaderCode(
         workgroup_size,
+        num_y_workgroups,
     )
 
     const computePipeline = await create_compute_pipeline(
@@ -236,13 +239,7 @@ export const convert_point_coords_to_mont_gpu = async (
         'main',
     )
 
-    // execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1);
-
-    const passEncoder = commandEncoder.beginComputePass()
-    passEncoder.setPipeline(computePipeline)
-    passEncoder.setBindGroup(0, bindGroup)
-    passEncoder.dispatchWorkgroups(num_x_workgroups)
-    passEncoder.end()
+    execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1);
 
     if (debug) {
         const data = await read_from_gpu(
@@ -281,6 +278,7 @@ export const convert_point_coords_to_mont_gpu = async (
 
 const genConvertPointCoordsShaderCode = (
     workgroup_size: number,
+    num_y_workgroups: number,
 ) => {
     const mask = BigInt(2) ** BigInt(word_size) - BigInt(1)
     const two_pow_word_size = 2 ** word_size
@@ -293,6 +291,7 @@ const genConvertPointCoordsShaderCode = (
         convert_point_coords_shader,
         {
             workgroup_size,
+            num_y_workgroups,
             num_words,
             word_size,
             n0,
