@@ -52,6 +52,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
             continue;
         }
 
+        // The cluster size counter. We need this to ensure that we know how
+        // many values have been inserted to the cluster.
         let cluster_size = map[chunk][0];
 
         // If this chunk has not been seen, update the keys array
@@ -65,7 +67,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
             overflow[num_overflow] = pt_idx;
             num_overflow ++;
 		} else {
-            // Otherwise, store pt_idx in the map
+            // Otherwise, store pt_idx in the map and increment the cluster size
+            // counter
             map[chunk][cluster_size + 1u] = pt_idx;
             map[chunk][0] = cluster_size + 1u;
         }
@@ -73,22 +76,21 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     // Populate new_point_indices, cluster_start_indices and
     // cluster_end_indices
-
-    // cluster_idx tracks the values set in cluster_start_indices and
-    // cluster_end_indices as we iterate over the keys
     var cluster_idx = 0u;
-    var k = 0u;
+    var npi_idx = 0u;
     for (var i = 0u; i < num_keys; i ++) {
         let chunk = keys[i];
         let cluster_size = map[chunk][0];
 
-        // Rearrange the point indices
+        // Record the new point indices, which are used to look up the points
+        // during preaggregation
         for (var j = 1u; j < cluster_size + 1u; j ++) {
-            new_point_indices[k] = map[chunk][j];
-            k ++;
+            new_point_indices[npi_idx] = map[chunk][j];
+            npi_idx ++;
         }
 
-        // Set cluster indices
+        // Set cluster indices using cluster_idx, which tracks the values set
+        // in cluster_start_indices and cluster_end_indices
         cluster_start_indices[i] = cluster_idx;
         cluster_idx += cluster_size;
         cluster_end_indices[i] = cluster_idx;
@@ -97,71 +99,12 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Handle overflow
     for (var i = 0u; i < num_overflow; i ++) {
         let pt_idx = overflow[i];
-        new_point_indices[k] = pt_idx;
-        k ++;
+        new_point_indices[npi_idx] = pt_idx;
+        npi_idx ++;
 
         let cidx = num_keys + i;
         cluster_start_indices[cidx] = cluster_idx;
         cluster_idx ++;
         cluster_end_indices[cidx] = cluster_idx;
     }
-
-    /*// For each scalar chunk in the row*/
-    /*for (var i = 0u; i < row_size; i++) {*/
-        /*let pt_idx = subtask_idx * row_size + i;*/
-        /*let chunk = scalar_chunks[pt_idx];*/
-
-        /*// Ignore 0s*/
-        /*if (chunk == 0u) {*/
-            /*continue;*/
-        /*}*/
-
-        /*// If this chunk has not been seen, store it in keys*/
-        /*if (map[chunk][0] == 0u) {*/
-            /*keys[num_keys] = chunk;*/
-            /*num_keys ++;*/
-        /*}*/
-
-        /*// If the chunk has been seen at least max_cluster_size times, place it in the*/
-        /*// overflow array*/
-        /*let cluster_current_size = map[chunk][0];*/
-        /*if (cluster_current_size + 1u > max_cluster_size - 1u) {*/
-            /*overflow[num_overflow] = pt_idx;*/
-            /*overflow_size[num_overflow] = (cluster_current_size + 1u) - (max_cluster_size - 1u);*/
-            /*num_overflow ++;*/
-		/*} else {*/
-            /*// Otherwise, store it in the map*/
-            /*map[chunk][cluster_current_size + 1u] = pt_idx;*/
-            /*map[chunk][0] = cluster_current_size + 1u;*/
-        /*}*/
-    /*}*/
-
-    /*var k = 0u;*/
-    /*for (var i = 0u; i < num_keys; i++) {*/
-        /*let chunk = keys[i];*/
-        /*let chunk_len = map[chunk][0];*/
-        /*let start = k;*/
-        /*for (var j = 1u; j < chunk_len; j ++) {*/
-            /*new_point_indices[subtask_idx * row_size + k] = map[chunk][j];*/
-            /*k ++;*/
-        /*}*/
-        /*cluster_start_indices[subtask_idx * row_size + i] = start;*/
-        /*cluster_end_indices[subtask_idx * row_size + i] = start + chunk_len;*/
-    /*}*/
-    
-    /*var last_cluster_start_index = cluster_start_indices[subtask_idx * row_size + num_keys - 1];*/
-
-    /*// Handle overflow*/
-    /*for (var i = 0u; i < num_overflow; i ++) {*/
-        /*var pt_idx = overflow[i];*/
-        /*new_point_indices[subtask_idx * row_size + k + i] = pt_idx;*/
-
-        /*last_cluster_start_index ++;*/
-
-        /*cluster_start_indices[subtask_idx * row_size + num_keys + i] = */
-            /*last_cluster_start_index + overflow_size[i] + 1;*/
-
-        /*cluster_end_indices[subtask_idx * row_size + num_keys + i] =*/
-            /*last_cluster_start_index + overflow_size[i] + 1;*/
-    /*}*/
 }
