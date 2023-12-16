@@ -115,9 +115,7 @@ export const cuzk_gpu = async (
             //debug_idx,
         )
 
-        //if (debug_idx) {
-            //break
-        //}
+        //if (debug_idx) { break }
 
         const {
             new_point_x_y_sb,
@@ -144,11 +142,42 @@ export const cuzk_gpu = async (
             false,
         )
 
-        // TODO: produce row_idx
+        // TODO: produce col_idx and row_ptr
+        //
+        // col_idx is the scalar chunk associated with each point
+        // row_ptr is the running sum of points per row
+        // inputs:
+        //   - new_points (x, y, t, z)
+        //   - scalar_chunks
+        //   - new_point_indices
+        //   - input_size
+        //   - num_subtasks
+        //
+        // Each row has a maximum of input_size / num_subtasks points
+        // Example 1:
+        //   - new_points: [P0, P1, P2, P3]
+        //   - scalar_chunks: [4, 8, 12, 16]
+        //   - new_point_indices: [0, 1, 2, 3] (no change)
+        //   - num_subtasks: 2
+        //   - max_row_size = 2
+        //   - row_ptr: [0, 2, 4]
+        //
+        // Example 2:
+        //   - new_points: [P0, P1, P2]
+        //   - scalar_chunks: [4, 8, 4, 0]
+        //   - new_point_indices: [0, 2, 1, 0]
+        //   - num_subtasks: 2
+        //   - max_row_size = 2
+        //   - row_ptr: [0, 2, 3]
+        // 
+        // Assuming that new_point_indices always starts with 0, the shader
+        // needs to stop at the first 0 value whose index is greater than 0.
+        //
         // TODO: perform transposition
         // TODO: perform SMVP
-        // TODO: final step
+        // TODO: perform bucket aggregation
     }
+    // TODO: perform Horner's rule
 
     device.destroy()
 
