@@ -9,10 +9,6 @@ var<storage, read_write> row_ptr: array<u32>;
 @compute
 @workgroup_size({{ workgroup_size }})
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
-    /*let gidx = global_id.x; */
-    /*let gidy = global_id.y; */
-    /*let id = gidx * {{ num_y_workgroups }} + gidy;*/
-
     // col_idx is the scalar chunk associated with each point
     // row_ptr is the running sum of points per row
     // inputs:
@@ -46,12 +42,13 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     //   - num_chunks = 8
     //   - num_rows = 4
     //   - max_row_size = 8 / 4 = 2
-    //   - row_ptr = [0, 2, 4]
+    //   - row_ptr = [0, 2, 4, 6, 7]
     //   
     // Assuming that new_point_indices always starts with 0, the shader
     // needs to stop at the first 0 value whose index is greater than 0.
     let max_row_size = {{ max_row_size }}u;
     let num_chunks = {{ num_chunks }}u;
+
     row_ptr[0] = 0u;
     var k = 1u;
     for (var i = 0u; i < num_chunks; i += max_row_size) {
@@ -65,7 +62,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
                break;
            }
        }
-       row_ptr[k] = j;
+       row_ptr[k] = row_ptr[k - 1u] + j;
        k ++;
-   }
+    }
 }

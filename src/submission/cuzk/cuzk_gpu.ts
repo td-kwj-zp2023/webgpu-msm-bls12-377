@@ -95,7 +95,7 @@ export const cuzk_gpu = async (
 
     for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx ++) {
         // use debug_idx to debug any particular subtask_idx
-        //const debug_idx = subtask_idx === 2
+        //const debug_idx = subtask_idx === 0
 
         // TODO: if debug is set to true in any invocations within a loop, the
         // sanity check will fail on the second iteration, because the
@@ -114,10 +114,7 @@ export const cuzk_gpu = async (
             chunk_size,
             scalar_chunks_sb,
             false,
-            //debug_idx,
         )
-
-        //if (debug_idx) { break }
 
         const {
             new_point_x_y_sb,
@@ -152,8 +149,9 @@ export const cuzk_gpu = async (
             num_rows_per_subtask,
             new_point_indices_sb,
             false,
+            //debug_idx
         )
-        //break
+        //if (debug_idx) { break }
         // TODO: perform transposition
         // TODO: perform SMVP
         // TODO: perform bucket aggregation
@@ -978,6 +976,14 @@ const compute_row_ptr = async (
     new_point_indices_sb: GPUBuffer,
     debug = false,
 ) => {
+    /*
+    const test_new_point_indices = [0, 2, 1, 3, 4, 5, 6, 0]
+    new_point_indices_sb = create_and_write_sb(device, numbers_to_u8s_for_gpu(test_new_point_indices))
+    input_size = test_new_point_indices.length
+    num_subtasks = 1
+    num_rows_per_subtask = 4
+    */
+
     const row_ptr_sb = create_sb(device, (num_rows_per_subtask + 1) * 4)
     const num_chunks = input_size / num_subtasks
     const max_row_size = num_chunks / num_rows_per_subtask
@@ -998,16 +1004,17 @@ const compute_row_ptr = async (
             row_ptr_sb,
         ],
     )
+
     const workgroup_size = 1
     const num_x_workgroups = 1
     const num_y_workgroups = 1
+
     const shaderCode = genComputeRowPtrShaderCode(
         num_y_workgroups,
         workgroup_size,
         num_chunks,
         max_row_size,
     )
-    console.log({ num_chunks, max_row_size })
 
     const computePipeline = await create_compute_pipeline(
         device,
@@ -1028,9 +1035,21 @@ const compute_row_ptr = async (
         const new_point_indices = u8s_to_numbers(data[0])
         const row_ptr = u8s_to_numbers(data[1])
 
-        // TODO: verify
-        console.log(new_point_indices)
-        console.log(row_ptr)
+        // Verify
+        const expected: number[] = [0]
+        for (let i = 0; i < new_point_indices.length; i += max_row_size) {
+            let j = 0
+            if (i === 0) {
+                j = 1
+            }
+            for (; j < max_row_size; j ++) {
+                if (new_point_indices[i + j] === 0) {
+                    break
+                }
+            }
+            expected.push(expected[expected.length - 1] + j)
+        }
+        assert(row_ptr.toString() === expected.toString(), 'row_ptr mismatch')
     }
 }
 
