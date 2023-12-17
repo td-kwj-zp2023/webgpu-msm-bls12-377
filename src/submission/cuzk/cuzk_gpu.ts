@@ -975,7 +975,7 @@ const compute_row_ptr = async (
     num_rows_per_subtask: number,
     new_point_indices_sb: GPUBuffer,
     debug = false,
-) => {
+): Promise<GPUBuffer> => {
     /*
     const test_new_point_indices = [0, 2, 1, 3, 4, 5, 6, 0]
     new_point_indices_sb = create_and_write_sb(device, numbers_to_u8s_for_gpu(test_new_point_indices))
@@ -1051,6 +1051,7 @@ const compute_row_ptr = async (
         }
         assert(row_ptr.toString() === expected.toString(), 'row_ptr mismatch')
     }
+    return row_ptr_sb
 }
 
 const genComputeRowPtrShaderCode = (
