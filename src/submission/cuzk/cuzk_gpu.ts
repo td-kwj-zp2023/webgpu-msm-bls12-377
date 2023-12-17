@@ -811,10 +811,6 @@ export const pre_aggregation_stage_1_gpu = async (
         )
     }
 
-    // Destroy unused buffers
-    point_x_y_sb.destroy()
-    point_t_z_sb.destroy()
-
     return { new_point_x_y_sb, new_point_t_z_sb }
 }
 
