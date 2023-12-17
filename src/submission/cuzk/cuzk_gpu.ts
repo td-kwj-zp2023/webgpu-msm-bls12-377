@@ -40,6 +40,7 @@ import decompose_scalars_shader from '../wgsl/decompose_scalars.template.wgsl'
 import gen_csr_precompute_shader from '../wgsl/gen_csr_precompute.template.wgsl'
 import preaggregation_stage_1_shader from '../wgsl/preaggregation_stage_1.template.wgsl'
 import preaggregation_stage_2_shader from '../wgsl/preaggregation_stage_2.template.wgsl'
+import compute_row_ptr_shader from '../wgsl/compute_row_ptr_shader.template.wgsl'
 
 const fieldMath = new FieldMath()
 
@@ -64,6 +65,7 @@ export const cuzk_gpu = async (
     const input_size = scalars.length
     const chunk_size = 16
     const num_subtasks = Math.ceil(256 / chunk_size)
+    const num_rows_per_subtask = 16
 
     // Each pass must use the same GPUDevice and GPUCommandEncoder, or else
     // storage buffers can't be reused across compute passes
@@ -142,37 +144,16 @@ export const cuzk_gpu = async (
             false,
         )
 
-        // TODO: produce col_idx and row_ptr
-        //
-        // col_idx is the scalar chunk associated with each point
-        // row_ptr is the running sum of points per row
-        // inputs:
-        //   - new_points (x, y, t, z)
-        //   - scalar_chunks
-        //   - new_point_indices
-        //   - input_size
-        //   - num_subtasks
-        //
-        // Each row has a maximum of input_size / num_subtasks points
-        // Example 1:
-        //   - new_points: [P0, P1, P2, P3]
-        //   - scalar_chunks: [4, 8, 12, 16]
-        //   - new_point_indices: [0, 1, 2, 3] (no change)
-        //   - num_subtasks: 2
-        //   - max_row_size = 2
-        //   - row_ptr: [0, 2, 4]
-        //
-        // Example 2:
-        //   - new_points: [P0, P1, P2]
-        //   - scalar_chunks: [4, 8, 4, 0]
-        //   - new_point_indices: [0, 2, 1, 0]
-        //   - num_subtasks: 2
-        //   - max_row_size = 2
-        //   - row_ptr: [0, 2, 3]
-        // 
-        // Assuming that new_point_indices always starts with 0, the shader
-        // needs to stop at the first 0 value whose index is greater than 0.
-        //
+        const row_ptr_sb = await compute_row_ptr(
+            device,
+            commandEncoder,
+            input_size,
+            num_subtasks,
+            num_rows_per_subtask,
+            new_point_indices_sb,
+            false,
+        )
+        //break
         // TODO: perform transposition
         // TODO: perform SMVP
         // TODO: perform bucket aggregation
@@ -981,6 +962,91 @@ const genPreaggregationStage2ShaderCode = (
         {
             num_y_workgroups,
             workgroup_size,
+        },
+        {
+        },
+    )
+    return shaderCode
+}
+
+const compute_row_ptr = async (
+    device: GPUDevice,
+    commandEncoder: GPUCommandEncoder,
+    input_size: number,
+    num_subtasks: number,
+    num_rows_per_subtask: number,
+    new_point_indices_sb: GPUBuffer,
+    debug = false,
+) => {
+    const row_ptr_sb = create_sb(device, (num_rows_per_subtask + 1) * 4)
+    const num_chunks = input_size / num_subtasks
+    const max_row_size = num_chunks / num_rows_per_subtask
+
+    const bindGroupLayout = create_bind_group_layout(
+        device,
+        [
+            'read-only-storage',
+            'storage',
+        ],
+    )
+
+    const bindGroup = create_bind_group(
+        device,
+        bindGroupLayout,
+        [
+            new_point_indices_sb,
+            row_ptr_sb,
+        ],
+    )
+    const workgroup_size = 1
+    const num_x_workgroups = 1
+    const num_y_workgroups = 1
+    const shaderCode = genComputeRowPtrShaderCode(
+        num_y_workgroups,
+        workgroup_size,
+        num_chunks,
+        max_row_size,
+    )
+    console.log({ num_chunks, max_row_size })
+
+    const computePipeline = await create_compute_pipeline(
+        device,
+        [bindGroupLayout],
+        shaderCode,
+        'main',
+    )
+
+    execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1);
+
+    if (debug) {
+        const data = await read_from_gpu(
+            device,
+            commandEncoder,
+            [ new_point_indices_sb, row_ptr_sb ],
+        )
+        
+        const new_point_indices = u8s_to_numbers(data[0])
+        const row_ptr = u8s_to_numbers(data[1])
+
+        // TODO: verify
+        console.log(new_point_indices)
+        console.log(row_ptr)
+    }
+}
+
+const genComputeRowPtrShaderCode = (
+    num_y_workgroups: number,
+    workgroup_size: number,
+    num_chunks: number,
+    max_row_size: number,
+) => {
+    const shaderCode = mustache.render(
+        compute_row_ptr_shader,
+        {
+            num_y_workgroups,
+            workgroup_size,
+            num_chunks,
+            max_row_size,
         },
         {
         },
