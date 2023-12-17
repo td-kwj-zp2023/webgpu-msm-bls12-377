@@ -280,6 +280,9 @@ export const convert_point_coords_to_mont_gpu = async (
         }
     }
 
+    // Destroy unused buffers
+    x_y_coords_sb.destroy()
+
     return { point_x_y_sb, point_t_z_sb }
 }
 
@@ -373,11 +376,7 @@ export const decompose_scalars_gpu = async (
         'main',
     )
 
-    const passEncoder = commandEncoder.beginComputePass()
-    passEncoder.setPipeline(computePipeline)
-    passEncoder.setBindGroup(0, bindGroup)
-    passEncoder.dispatchWorkgroups(num_x_workgroups, num_y_workgroups, 1)
-    passEncoder.end()
+    execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1)
 
     if (debug) {
         const data = await read_from_gpu(
@@ -417,6 +416,9 @@ export const decompose_scalars_gpu = async (
             }
         }
     }
+
+    // Destroy unused buffers
+    scalars_sb.destroy()
 
     return chunks_sb
 }
@@ -575,6 +577,13 @@ export const csr_precompute_gpu = async (
             cluster_end_indices,
         )
     }
+
+    // Destroy unused buffers
+    subtask_idx_sb.destroy()
+    map_sb.destroy()
+    overflow_sb.destroy()
+    keys_sb.destroy()
+
     return { new_point_indices_sb, cluster_start_indices_sb, cluster_end_indices_sb }
 }
 
@@ -801,6 +810,10 @@ export const pre_aggregation_stage_1_gpu = async (
             new_point_t_z,
         )
     }
+
+    // Destroy unused buffers
+    point_x_y_sb.destroy()
+    point_t_z_sb.destroy()
 
     return { new_point_x_y_sb, new_point_t_z_sb }
 }
