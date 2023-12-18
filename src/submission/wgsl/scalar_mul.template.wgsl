@@ -20,7 +20,7 @@ fn get_paf() -> Point {
     return result;
 }
 
-// Double-and-add algo from the ZPrize test harness
+// Double-and-add algo adapted from the ZPrize test harness
 fn double_and_add(point: Point, scalar: u32) -> Point {
     // Set result to the point at infinity
     var result: Point = get_paf();
