@@ -34,7 +34,7 @@ import structs from '../wgsl/struct/structs.template.wgsl'
 import bigint_funcs from '../wgsl/bigint/bigint.template.wgsl'
 import field_funcs from '../wgsl/field/field.template.wgsl'
 import ec_funcs from '../wgsl/curve/ec.template.wgsl'
-import barrett_functions from '../wgsl/barrett.template.wgsl'
+import barrett_funcs from '../wgsl/barrett.template.wgsl'
 import montgomery_product_funcs from '../wgsl/montgomery/mont_pro_product.template.wgsl'
 import decompose_scalars_shader from '../wgsl/decompose_scalars.template.wgsl'
 import gen_csr_precompute_shader from '../wgsl/gen_csr_precompute.template.wgsl'
@@ -193,8 +193,9 @@ export const convert_point_coords_to_mont_gpu = async (
         x_y_coords[i * 2 + 1] = baseAffinePoints[i].y
     }
 
-    // Convert points to bytes (performs ~2x faster than `bigints_to_16_bit_words_for_gpu`)
-    const x_y_coords_bytes = bigints_to_u8_for_gpu(x_y_coords, num_words, word_size)
+    // Convert points to bytes (performs ~2x faster than
+    // `bigints_to_16_bit_words_for_gpu`)
+    const x_y_coords_bytes = bigints_to_u8_for_gpu(x_y_coords, 16, 16)
 
     // Input buffers
     const x_y_coords_sb = create_and_write_sb(device, x_y_coords_bytes)
@@ -307,8 +308,9 @@ const genConvertPointCoordsShaderCode = (
             structs,
             bigint_funcs,
             field_funcs,
-            barrett_functions,
+            barrett_funcs,
             montgomery_product_funcs,
+            extract_word_from_bytes_le_funcs,
         },
     )
     return shaderCode
