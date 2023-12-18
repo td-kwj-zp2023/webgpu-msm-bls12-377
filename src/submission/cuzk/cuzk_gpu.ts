@@ -40,6 +40,7 @@ import decompose_scalars_shader from '../wgsl/decompose_scalars.template.wgsl'
 import gen_csr_precompute_shader from '../wgsl/gen_csr_precompute.template.wgsl'
 import preaggregation_stage_1_shader from '../wgsl/preaggregation_stage_1.template.wgsl'
 import preaggregation_stage_2_shader from '../wgsl/preaggregation_stage_2.template.wgsl'
+import compute_row_ptr_shader from '../wgsl/compute_row_ptr_shader.template.wgsl'
 
 const fieldMath = new FieldMath()
 
@@ -64,6 +65,7 @@ export const cuzk_gpu = async (
     const input_size = scalars.length
     const chunk_size = 16
     const num_subtasks = Math.ceil(256 / chunk_size)
+    const num_rows_per_subtask = 16
 
     // Each pass must use the same GPUDevice and GPUCommandEncoder, or else
     // storage buffers can't be reused across compute passes
@@ -93,7 +95,7 @@ export const cuzk_gpu = async (
 
     for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx ++) {
         // use debug_idx to debug any particular subtask_idx
-        //const debug_idx = subtask_idx === 2
+        //const debug_idx = subtask_idx === 0
 
         // TODO: if debug is set to true in any invocations within a loop, the
         // sanity check will fail on the second iteration, because the
@@ -112,12 +114,7 @@ export const cuzk_gpu = async (
             chunk_size,
             scalar_chunks_sb,
             false,
-            //debug_idx,
         )
-
-        //if (debug_idx) {
-            //break
-        //}
 
         const {
             new_point_x_y_sb,
@@ -144,11 +141,22 @@ export const cuzk_gpu = async (
             false,
         )
 
-        // TODO: produce row_idx
+        const row_ptr_sb = await compute_row_ptr(
+            device,
+            commandEncoder,
+            input_size,
+            num_subtasks,
+            num_rows_per_subtask,
+            new_point_indices_sb,
+            false,
+            //debug_idx
+        )
+        //if (debug_idx) { break }
         // TODO: perform transposition
         // TODO: perform SMVP
-        // TODO: final step
+        // TODO: perform bucket aggregation
     }
+    // TODO: perform Horner's rule
 
     device.destroy()
 
@@ -952,6 +960,113 @@ const genPreaggregationStage2ShaderCode = (
         {
             num_y_workgroups,
             workgroup_size,
+        },
+        {
+        },
+    )
+    return shaderCode
+}
+
+const compute_row_ptr = async (
+    device: GPUDevice,
+    commandEncoder: GPUCommandEncoder,
+    input_size: number,
+    num_subtasks: number,
+    num_rows_per_subtask: number,
+    new_point_indices_sb: GPUBuffer,
+    debug = false,
+): Promise<GPUBuffer> => {
+    /*
+    const test_new_point_indices = [0, 2, 1, 3, 4, 5, 6, 0]
+    new_point_indices_sb = create_and_write_sb(device, numbers_to_u8s_for_gpu(test_new_point_indices))
+    input_size = test_new_point_indices.length
+    num_subtasks = 1
+    num_rows_per_subtask = 4
+    */
+
+    const row_ptr_sb = create_sb(device, (num_rows_per_subtask + 1) * 4)
+    const num_chunks = input_size / num_subtasks
+    const max_row_size = num_chunks / num_rows_per_subtask
+
+    const bindGroupLayout = create_bind_group_layout(
+        device,
+        [
+            'read-only-storage',
+            'storage',
+        ],
+    )
+
+    const bindGroup = create_bind_group(
+        device,
+        bindGroupLayout,
+        [
+            new_point_indices_sb,
+            row_ptr_sb,
+        ],
+    )
+
+    const workgroup_size = 1
+    const num_x_workgroups = 1
+    const num_y_workgroups = 1
+
+    const shaderCode = genComputeRowPtrShaderCode(
+        num_y_workgroups,
+        workgroup_size,
+        num_chunks,
+        max_row_size,
+    )
+
+    const computePipeline = await create_compute_pipeline(
+        device,
+        [bindGroupLayout],
+        shaderCode,
+        'main',
+    )
+
+    execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1);
+
+    if (debug) {
+        const data = await read_from_gpu(
+            device,
+            commandEncoder,
+            [ new_point_indices_sb, row_ptr_sb ],
+        )
+        
+        const new_point_indices = u8s_to_numbers(data[0])
+        const row_ptr = u8s_to_numbers(data[1])
+
+        // Verify
+        const expected: number[] = [0]
+        for (let i = 0; i < new_point_indices.length; i += max_row_size) {
+            let j = 0
+            if (i === 0) {
+                j = 1
+            }
+            for (; j < max_row_size; j ++) {
+                if (new_point_indices[i + j] === 0) {
+                    break
+                }
+            }
+            expected.push(expected[expected.length - 1] + j)
+        }
+        assert(row_ptr.toString() === expected.toString(), 'row_ptr mismatch')
+    }
+    return row_ptr_sb
+}
+
+const genComputeRowPtrShaderCode = (
+    num_y_workgroups: number,
+    workgroup_size: number,
+    num_chunks: number,
+    max_row_size: number,
+) => {
+    const shaderCode = mustache.render(
+        compute_row_ptr_shader,
+        {
+            num_y_workgroups,
+            workgroup_size,
+            num_chunks,
+            max_row_size,
         },
         {
         },
