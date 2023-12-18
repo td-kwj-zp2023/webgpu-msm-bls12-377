@@ -24,20 +24,23 @@ fn get_r() -> BigInt {
 @workgroup_size({{ workgroup_size }})
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let gidx = global_id.x; 
-    var a: BigInt = x_y_coords[gidx * 2u];
-    var b: BigInt = x_y_coords[(gidx * 2u) + 1u];
+    let gidy = global_id.y; 
+    let id = gidx * {{ num_y_workgroups }} + gidy;
+
+    var a: BigInt = x_y_coords[id * 2u];
+    var b: BigInt = x_y_coords[id * 2u + 1u];
     var r = get_r();
     
     // Convert x and y coordinates to Montgomery form
     var xr = field_mul(&a, &r);
     var yr = field_mul(&b, &r);
-    point_x_y[gidx * 2u] = xr;
-    point_x_y[(gidx * 2u) + 1u] = yr;
+    point_x_y[id * 2u] = xr;
+    point_x_y[id * 2u + 1u] = yr;
 
     // Compute t
     let tr = montgomery_product(&xr, &yr);
-    point_t_z[gidx * 2u] = tr;
+    point_t_z[id * 2u] = tr;
 
     // Store z
-    point_t_z[(gidx * 2u) + 1u] = r;
+    point_t_z[id * 2u + 1u] = r;
 }
