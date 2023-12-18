@@ -1,5 +1,7 @@
 import mustache from 'mustache'
 import { BigIntPoint } from "../../reference/types"
+import { ExtPointType } from "@noble/curves/abstract/edwards";
+import { FieldMath } from "../../reference/utils/FieldMath";
 import {
     get_device,
     create_and_write_sb,
@@ -39,11 +41,16 @@ import gen_csr_precompute_shader from '../wgsl/gen_csr_precompute.template.wgsl'
 import preaggregation_stage_1_shader from '../wgsl/preaggregation_stage_1.template.wgsl'
 import preaggregation_stage_2_shader from '../wgsl/preaggregation_stage_2.template.wgsl'
 
+const fieldMath = new FieldMath()
+
 // Hardcode params for word_size = 13
 const p = BigInt('8444461749428370424248824938781546531375899335154063827935233455917409239041')
-const r = BigInt('3336304672246003866643098545847835280997800251509046313505217280697450888997')
 const word_size = 13
-const num_words = 20
+const params = compute_misc_params(p, word_size)
+const n0 = params.n0
+const num_words = params.num_words
+const r = params.r
+const rinv = params.rinv
 
 /*
  * End-to-end implementation of the cuZK MSM algorithm.
@@ -71,9 +78,8 @@ export const cuzk_gpu = async (
             baseAffinePoints,
             num_words, 
             word_size,
-            true,
+            false,
         )
-    return { x: BigInt(1), y: BigInt(0) }
 
     // Decompose the scalars
     const scalar_chunks_sb = await decompose_scalars_gpu(
@@ -143,6 +149,7 @@ export const cuzk_gpu = async (
         // TODO: perform SMVP
         // TODO: final step
     }
+
     device.destroy()
 
     return { x: BigInt(1), y: BigInt(0) }
@@ -236,7 +243,10 @@ export const convert_point_coords_to_mont_gpu = async (
         const data = await read_from_gpu(
             device,
             commandEncoder,
-            [point_x_y_sb, point_t_z_sb],
+            [
+                point_x_y_sb,
+                point_t_z_sb,
+            ],
         )
         
         const computed_x_y_coords = u8s_to_bigints(data[0], num_words, word_size)
@@ -268,11 +278,7 @@ const genConvertPointCoordsShaderCode = (
     workgroup_size: number,
     num_y_workgroups: number,
 ) => {
-    const misc_params = compute_misc_params(p, word_size)
-    const num_words = misc_params.num_words
-    const n0 = misc_params.n0
     const mask = BigInt(2) ** BigInt(word_size) - BigInt(1)
-    const r = misc_params.r
     const two_pow_word_size = 2 ** word_size
     const p_limbs = gen_p_limbs(p, num_words, word_size)
     const r_limbs = gen_r_limbs(r, num_words, word_size)
@@ -757,31 +763,82 @@ export const pre_aggregation_stage_1_gpu = async (
             device,
             commandEncoder,
             [
+                point_x_y_sb,
+                point_t_z_sb,
+                new_point_indices_sb,
+                cluster_start_indices_sb,
+                cluster_end_indices_sb,
                 new_point_x_y_sb,
                 new_point_t_z_sb,
             ],
         )
 
-        const x_y_coords = u8s_to_bigints(data[0], num_words, word_size)
-        const t_z_coords = u8s_to_bigints(data[1], num_words, word_size)
-        console.log(x_y_coords)
-        console.log(t_z_coords)
+        const point_x_y = u8s_to_bigints(data[0], num_words, word_size)
+        const point_t_z = u8s_to_bigints(data[1], num_words, word_size)
+        const new_point_indices = u8s_to_numbers(data[2])
+        const cluster_start_indices = u8s_to_numbers(data[3])
+        const cluster_end_indices = u8s_to_numbers(data[4])
+        const new_point_x_y = u8s_to_bigints(data[5], num_words, word_size)
+        const new_point_t_z = u8s_to_bigints(data[6], num_words, word_size)
+
+        verify_preagg_stage_1(
+            point_x_y,
+            point_t_z,
+            new_point_indices,
+            cluster_start_indices,
+            cluster_end_indices,
+            new_point_x_y,
+            new_point_t_z,
+        )
     }
 
     return { new_point_x_y_sb, new_point_t_z_sb }
+}
+
+const verify_preagg_stage_1 = (
+    point_x_y: bigint[],
+    point_t_z: bigint[],
+    new_point_indices: number[],
+    cluster_start_indices: number[],
+    cluster_end_indices: number[],
+    new_point_x_y: bigint[],
+    new_point_t_z: bigint[],
+) => {
+    assert(point_x_y.length === point_t_z.length)
+    assert(new_point_x_y.length === new_point_t_z.length)
+    assert(cluster_start_indices.length === cluster_end_indices.length)
+    assert(new_point_indices.length === cluster_end_indices.length)
+
+    const points = construct_points(point_x_y, point_t_z)
+
+    const expected: ExtPointType[] = []
+    for (let i = 0; i < cluster_start_indices.length; i ++) {
+        const start = cluster_start_indices[i]
+        const end = cluster_end_indices[i]
+        let acc = points[new_point_indices[start]]
+        for (let j = start + 1; j < end; j ++) {
+            acc = acc.add(points[new_point_indices[j]])
+        }
+        expected.push(acc)
+    }
+
+    const new_points = construct_points(new_point_x_y, new_point_t_z)
+    for (let i = 0; i < expected.length; i ++) {
+        const n = new_points[i].toAffine()
+        const m = expected[i].toAffine()
+        assert(n.x === m.x && n.y === m.y, `mismatch at ${i}`)
+    }
 }
 
 const genPreaggregationStage1ShaderCode = (
     num_y_workgroups: number,
     workgroup_size: number,
 ) => {
-    const num_runs = 1
     const misc_params = compute_misc_params(p, word_size)
     const num_words = misc_params.num_words
     const n0 = misc_params.n0
     const mask = BigInt(2) ** BigInt(word_size) - BigInt(1)
     const r = misc_params.r
-    const two_pow_word_size = 2 ** word_size
     const p_limbs = gen_p_limbs(p, num_words, word_size)
     const r_limbs = gen_r_limbs(r, num_words, word_size)
     const mu_limbs = gen_mu_limbs(p, num_words, word_size)
@@ -898,4 +955,19 @@ const genPreaggregationStage2ShaderCode = (
         },
     )
     return shaderCode
+}
+
+const construct_points = (x_y_coords: bigint[], t_z_coords: bigint[]) => {
+    const points: ExtPointType[] = []
+    for (let i = 0; i < x_y_coords.length; i += 2) {
+        const pt = fieldMath.createPoint(
+            fieldMath.Fp.mul(x_y_coords[i], rinv),
+            fieldMath.Fp.mul(x_y_coords[i + 1], rinv),
+            fieldMath.Fp.mul(t_z_coords[i], rinv),
+            fieldMath.Fp.mul(t_z_coords[i + 1], rinv),
+        )
+        pt.assertValidity()
+        points.push(pt)
+    }
+    return points
 }
