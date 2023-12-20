@@ -649,8 +649,7 @@ const verify_gpu_precompute_output = (
     // that uses preaggregation first
     const random_points: bigint[] = []
     for (let i = 0; i < input_size; i ++) {
-        //const r = BigInt(Math.floor(Math.random() * 100000000))
-        const r = BigInt(1)
+        const r = BigInt(Math.floor(Math.random() * 100000000))
         random_points.push(r)
     }
 
