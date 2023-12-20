@@ -41,6 +41,7 @@ import gen_csr_precompute_shader from '../wgsl/gen_csr_precompute.template.wgsl'
 import preaggregation_stage_1_shader from '../wgsl/preaggregation_stage_1.template.wgsl'
 import preaggregation_stage_2_shader from '../wgsl/preaggregation_stage_2.template.wgsl'
 import compute_row_ptr_shader from '../wgsl/compute_row_ptr_shader.template.wgsl'
+import transpose_serial_shader from '../wgsl/transpose_serial.wgsl'
 
 const fieldMath = new FieldMath()
 
@@ -67,6 +68,9 @@ export const cuzk_gpu = async (
     const num_subtasks = Math.ceil(256 / chunk_size)
     const num_rows_per_subtask = 16
 
+    // Q. What's the right number of columns?
+    const num_cols = (2 ** 20) / num_rows_per_subtask
+
     // Each pass must use the same GPUDevice and GPUCommandEncoder, or else
     // storage buffers can't be reused across compute passes
     const device = await get_device()
@@ -92,8 +96,8 @@ export const cuzk_gpu = async (
         chunk_size,
         false,
     )
-
-    for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx ++) {
+    
+    for (let subtask_idx = 0; subtask_idx < 1; subtask_idx ++) {
         // use debug_idx to debug any particular subtask_idx
         //const debug_idx = subtask_idx === 0
 
@@ -149,14 +153,22 @@ export const cuzk_gpu = async (
             num_rows_per_subtask,
             new_point_indices_sb,
             false,
-            //debug_idx
         )
+
+        const transpose_sb = await transpose_gpu(
+            device,
+            commandEncoder,
+            num_rows_per_subtask,
+            num_cols,
+            row_ptr_sb,
+            new_scalar_chunks_sb,
+            true,
+        )
+
         //if (debug_idx) { break }
-        // TODO: perform transposition
         // TODO: perform SMVP
         // TODO: perform bucket aggregation
     }
-    // TODO: perform Horner's rule
 
     device.destroy()
 
@@ -279,9 +291,6 @@ export const convert_point_coords_to_mont_gpu = async (
             }
         }
     }
-
-    // Destroy unused buffers
-    x_y_coords_sb.destroy()
 
     return { point_x_y_sb, point_t_z_sb }
 }
@@ -416,9 +425,6 @@ export const decompose_scalars_gpu = async (
             }
         }
     }
-
-    // Destroy unused buffers
-    scalars_sb.destroy()
 
     return chunks_sb
 }
@@ -577,13 +583,6 @@ export const csr_precompute_gpu = async (
             cluster_end_indices,
         )
     }
-
-    // Destroy unused buffers
-    subtask_idx_sb.destroy()
-    map_sb.destroy()
-    overflow_sb.destroy()
-    keys_sb.destroy()
-
     return { new_point_indices_sb, cluster_start_indices_sb, cluster_end_indices_sb }
 }
 
@@ -984,7 +983,7 @@ const compute_row_ptr = async (
     num_rows_per_subtask: number,
     new_point_indices_sb: GPUBuffer,
     debug = false,
-) => {
+): Promise<GPUBuffer> => {
     /*
     const test_new_point_indices = [0, 2, 1, 3, 4, 5, 6, 0]
     new_point_indices_sb = create_and_write_sb(device, numbers_to_u8s_for_gpu(test_new_point_indices))
@@ -1044,6 +1043,8 @@ const compute_row_ptr = async (
         const new_point_indices = u8s_to_numbers(data[0])
         const row_ptr = u8s_to_numbers(data[1])
 
+        console.log("row_ptr is: ", row_ptr)
+
         // Verify
         const expected: number[] = [0]
         for (let i = 0; i < new_point_indices.length; i += max_row_size) {
@@ -1060,6 +1061,8 @@ const compute_row_ptr = async (
         }
         assert(row_ptr.toString() === expected.toString(), 'row_ptr mismatch')
     }
+
+    return row_ptr_sb
 }
 
 const genComputeRowPtrShaderCode = (
@@ -1095,4 +1098,105 @@ const construct_points = (x_y_coords: bigint[], t_z_coords: bigint[]) => {
         points.push(pt)
     }
     return points
+}
+
+export const transpose_gpu = async (
+    device: GPUDevice,
+    commandEncoder: GPUCommandEncoder,
+    num_rows: number,
+    num_cols: number,
+    csr_row_ptr_sb: GPUBuffer,
+    scalar_chunks_sb: GPUBuffer,
+    debug = true,
+): Promise<any> => {
+    // col_idx == num_columns
+    const csc_col_ptr_sb = create_sb(device, (num_cols + 1) * 4)
+    const csc_row_idx_sb = create_sb(device, (scalar_chunks_sb.size / num_rows) * 4)
+    const csc_val_idxs_sb = create_sb(device, (scalar_chunks_sb.size / num_rows) * 4)
+
+    const output = await transpose_serial_gpu(
+        device,
+        commandEncoder,
+        num_cols,
+        num_rows,
+        csr_row_ptr_sb,
+        scalar_chunks_sb, 
+        csc_col_ptr_sb,
+        csc_row_idx_sb,
+        csc_val_idxs_sb,
+    )
+
+    if (debug) {
+        const data = await read_from_gpu(
+            device,
+            commandEncoder,
+            [csc_col_ptr_sb, csc_row_idx_sb, csc_val_idxs_sb],
+        )
+    
+        const csc_col_ptr_result = u8s_to_numbers_32(data[0])
+        const csc_row_idx_result = u8s_to_numbers_32(data[1])
+        const csc_val_idxs_result = u8s_to_numbers_32(data[2])
+    }
+}
+
+const transpose_serial_gpu = async (
+    device: GPUDevice,
+    commandEncoder: GPUCommandEncoder,
+    num_cols: number,
+    num_rows: number,
+    csr_row_ptr_sb: GPUBuffer,
+    csr_col_idx_sb: GPUBuffer,
+    csc_col_ptr_sb: GPUBuffer,
+    csc_row_idx_sb: GPUBuffer,
+    csc_val_idxs_sb: GPUBuffer,
+): Promise<GPUBuffer> => {
+    const curr_sb = create_sb(device, csc_col_ptr_sb.size - 4)
+    const bindGroupLayout = create_bind_group_layout(
+        device,
+        [
+            'read-only-storage',
+            'read-only-storage',
+            'storage',
+            'storage',
+            'storage',
+            'storage',
+        ],
+    )
+
+    const bindGroup = create_bind_group(
+        device,
+        bindGroupLayout,
+        [
+            csr_row_ptr_sb,
+            csr_col_idx_sb,
+            csc_col_ptr_sb,
+            csc_row_idx_sb,
+            csc_val_idxs_sb,
+            curr_sb,
+        ],
+    )
+
+    const num_x_workgroups = 1
+    const num_y_workgroups = 1
+
+    // Serial transpose algo from
+    // https://synergy.cs.vt.edu/pubs/papers/wang-transposition-ics16.pdf
+    const shaderCode = mustache.render(transpose_serial_shader,
+        { num_cols },
+        {},
+    )
+    const computePipeline = await create_compute_pipeline(
+        device,
+        [bindGroupLayout],
+        shaderCode,
+        'main',
+    )
+
+    const passEncoder = commandEncoder.beginComputePass()
+    passEncoder.setPipeline(computePipeline)
+    passEncoder.setBindGroup(0, bindGroup)
+    passEncoder.dispatchWorkgroups(num_x_workgroups, num_y_workgroups, 1)
+    passEncoder.end()
+
+    return curr_sb
 }
