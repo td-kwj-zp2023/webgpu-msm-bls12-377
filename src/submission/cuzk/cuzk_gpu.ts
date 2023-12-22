@@ -43,6 +43,7 @@ import preaggregation_stage_1_shader from '../wgsl/preaggregation_stage_1.templa
 import preaggregation_stage_2_shader from '../wgsl/preaggregation_stage_2.template.wgsl'
 import compute_row_ptr_shader from '../wgsl/compute_row_ptr_shader.template.wgsl'
 import transpose_serial_shader from '../wgsl/transpose_serial.wgsl'
+import smvp_shader from '../wgsl/smvp.template.wgsl'
 
 const fieldMath = new FieldMath()
 
@@ -68,7 +69,7 @@ export const cuzk_gpu = async (
     // TODO: determine the optimal chunk (window) size dynamically based on a
     // static analysis of varying input sizes. This will be determined using a
     // seperate function.
-    const chunk_size = 8
+    const chunk_size = 16
 
     // The number of sparse matrices.
     const num_subtasks = Math.ceil(256 / chunk_size)
@@ -167,7 +168,11 @@ export const cuzk_gpu = async (
             false,
         )
 
-        const transpose_sb = await transpose_gpu(
+        const {
+            csc_col_ptr_sb,
+            csc_row_idx_sb,
+            csc_val_idxs_sb,
+        } = await transpose_gpu(
             device,
             commandEncoder,
             num_rows_per_subtask,
@@ -175,9 +180,22 @@ export const cuzk_gpu = async (
             row_ptr_sb,
             new_scalar_chunks_sb,
             //debug_idx === subtask_idx,
-            false,
+            true,
         )
-        //if (debug_idx === subtask_idx) { break }
+
+        const {
+            bucket_sum_x_y_sb,
+            bucket_sum_t_z_sb,
+        } = await smvp_gpu(
+            device,
+            commandEncoder,
+            csc_col_ptr_sb,
+            new_point_x_y_sb,
+            new_point_t_z_sb,
+            false
+        )
+
+        if (debug_idx === subtask_idx) { break }
 
         // TODO: perform SMVP
         // TODO: perform bucket aggregation
@@ -1132,7 +1150,11 @@ export const transpose_gpu = async (
     csr_row_ptr_sb: GPUBuffer,
     new_scalar_chunks_sb: GPUBuffer,
     debug = true,
-): Promise<any> => {
+): Promise<{
+    csc_col_ptr_sb: GPUBuffer,
+    csc_row_idx_sb: GPUBuffer,
+    csc_val_idxs_sb: GPUBuffer,
+}> => {
     /*
      * n = width
      * m = height
@@ -1146,17 +1168,12 @@ export const transpose_gpu = async (
      *   - csc_row_idx (nnz)
      *   - csc_col_ptr (n + 1)
      *   - csc_vals (nnz)
-     *
-     * num_inputs = 65536
-     * num_subtasks = 16
-     * new_scalar_chunks_sb = 4096
-     * num_rows_per_subtask = 16
      */
     const csc_col_ptr_sb = create_sb(device, (num_cols + 1) * 4)
     const csc_row_idx_sb = create_sb(device, new_scalar_chunks_sb.size)
     const csc_val_idxs_sb = create_sb(device, new_scalar_chunks_sb.size)
-
     const curr_sb = create_sb(device, num_cols * 4)
+
     const bindGroupLayout = create_bind_group_layout(
         device,
         [
@@ -1218,4 +1235,24 @@ export const transpose_gpu = async (
         assert(expected.csc_col_ptr.toString() === csc_col_ptr_result.toString())
         assert(expected.csc_row_idx.toString() === csc_row_idx_result.toString())
     }
+
+    return {
+        csc_col_ptr_sb,
+        csc_row_idx_sb,
+        csc_val_idxs_sb,
+    }
+}
+
+export const smvp_gpu = async (
+    device: GPUDevice,
+    commandEncoder: GPUCommandEncoder,
+    csc_col_ptr_sb: GPUBuffer,
+    new_point_x_y_sb: GPUBuffer,
+    new_point_t_z_sb: GPUBuffer,
+    debug = true,
+): Promise<{
+    bucket_sum_x_y_sb: GPUBuffer,
+    bucket_sum_t_z_sb: GPUBuffer,
+}> => {
+    const bucket_sum_x_y_sb = create_sb(device,  //TODO
 }
