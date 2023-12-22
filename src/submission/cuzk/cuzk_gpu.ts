@@ -68,7 +68,7 @@ export const cuzk_gpu = async (
     // TODO: determine the optimal chunk (window) size dynamically based on a
     // static analysis of varying input sizes. This will be determined using a
     // seperate function.
-    const chunk_size = 8
+    const chunk_size = 16
 
     // The number of sparse matrices.
     const num_subtasks = Math.ceil(256 / chunk_size)
