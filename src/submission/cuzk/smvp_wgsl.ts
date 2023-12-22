@@ -12,7 +12,7 @@ import {
     execute_pipeline,
 } from '../gpu'
 import { CSRSparseMatrix, ELLSparseMatrix, fieldMath } from '../matrices/matrices';
-import smvp_shader from '../wgsl/cuzk/smvp.template.wgsl'
+import smvp_shader from '../wgsl/cuzk/smvp_benchmark.template.wgsl'
 import structs from '../wgsl/struct/structs.template.wgsl'
 import bigint_functions from '../wgsl/bigint/bigint.template.wgsl'
 import field_functions from '../wgsl/field/field.template.wgsl'
@@ -215,6 +215,7 @@ export async function smvp_gpu(
     const commandEncoder = device.createCommandEncoder();
 
     const output_buffer_length = NUM_ROWS * num_words * 4 * 4
+    console.log(output_buffer_length)
 
     const start = Date.now()
     const output_storage_buffer = create_sb(device, output_buffer_length)
