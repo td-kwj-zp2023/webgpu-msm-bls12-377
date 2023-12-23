@@ -1,19 +1,27 @@
+// Input buffers
 @group(0) @binding(0)
 var<storage, read> csr_row_ptr: array<u32>;
 @group(0) @binding(1)
 var<storage, read> csr_col_idx: array<u32>;
+
+// Output buffers
 @group(0) @binding(2)
 var<storage, read_write> csc_col_ptr: array<u32>;
 @group(0) @binding(3)
 var<storage, read_write> csc_row_idx: array<u32>;
 @group(0) @binding(4)
 var<storage, read_write> csc_val_idxs: array<u32>;
+
+// Intermediate buffer
 @group(0) @binding(5)
 var<storage, read_write> curr: array<u32>;
 
 @compute
 @workgroup_size(1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {    
+    // Serial transpose algo from
+    // https://synergy.cs.vt.edu/pubs/papers/wang-transposition-ics16.pdf
+
     // Number of rows
     let m = arrayLength(&csr_row_ptr) - 1u;
 
