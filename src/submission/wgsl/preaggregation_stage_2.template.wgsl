@@ -18,5 +18,11 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let id = gidx * {{ num_y_workgroups }} + gidy;
 
     let start_idx = cluster_start_indices[id];
+
     new_scalar_chunks[id] = scalar_chunks[new_point_indices[start_idx]];
+
+    // When cluster_start_indices terminates
+    if (id > 0u && start_idx == 0u) {
+        new_scalar_chunks[id] = 0u;
+    }
 }
