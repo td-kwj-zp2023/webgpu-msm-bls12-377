@@ -179,14 +179,14 @@ export const cuzk_gpu = async (
             false,
         )
 
-        const smvp_sb = await smvp_gpu(
-            device,
-            commandEncoder,
-            transpose_sb,
-            new_point_x_y_sb,
-            new_point_t_z_sb,
-            true,
-        )
+        //const smvp_sb = await smvp_gpu(
+            //device,
+            //commandEncoder,
+            //transpose_sb,
+            //new_point_x_y_sb,
+            //new_point_t_z_sb,
+            //true,
+        //)
 
         //if (debug_idx === subtask_idx) { break }
 
@@ -1232,99 +1232,99 @@ export const transpose_gpu = async (
     return csr_row_ptr_sb
 }
 
-export const smvp_gpu = async (
-    device: GPUDevice,
-    commandEncoder: GPUCommandEncoder,
-    row_ptr_sb: GPUBuffer,
-    new_point_x_y_sb: GPUBuffer,
-    new_point_t_z_sb: GPUBuffer,
-    debug = true,
-): Promise<any> => {
-    const NUM_ROWS = (row_ptr_sb.size / 4) - 1
+//export const smvp_gpu = async (
+    //device: GPUDevice,
+    //commandEncoder: GPUCommandEncoder,
+    //row_ptr_sb: GPUBuffer,
+    //new_point_x_y_sb: GPUBuffer,
+    //new_point_t_z_sb: GPUBuffer,
+    //debug = true,
+//): Promise<any> => {
+    //const NUM_ROWS = (row_ptr_sb.size / 4) - 1
 
-    let NUM_ROWS_GPU = 0
-    let numBlocks = 1
-    if (NUM_ROWS < 256) {
-        NUM_ROWS_GPU = NUM_ROWS
-    }
-    else {
-        const blockSize = 256;
-        const totalThreads = NUM_ROWS
-        numBlocks = Math.floor((totalThreads + blockSize - 1) / blockSize)
-        NUM_ROWS_GPU = blockSize
-    }
+    //let NUM_ROWS_GPU = 0
+    //let numBlocks = 1
+    //if (NUM_ROWS < 256) {
+        //NUM_ROWS_GPU = NUM_ROWS
+    //}
+    //else {
+        //const blockSize = 256;
+        //const totalThreads = NUM_ROWS
+        //numBlocks = Math.floor((totalThreads + blockSize - 1) / blockSize)
+        //NUM_ROWS_GPU = blockSize
+    //}
 
-    // Define number of workgroups
-    const num_x_workgroups = numBlocks; 
-    const num_y_workgroups = 1; 
+    //// Define number of workgroups
+    //const num_x_workgroups = numBlocks; 
+    //const num_y_workgroups = 1; 
 
-    // Create buffered memory accessible by the GPU memory space
-    const output_buffer_length = NUM_ROWS * num_words * 4 * 4
+    //// Create buffered memory accessible by the GPU memory space
+    //const output_buffer_length = NUM_ROWS * num_words * 4 * 4
 
-    const output_storage_buffer = create_sb(device, output_buffer_length)
+    //const output_storage_buffer = create_sb(device, output_buffer_length)
 
-    const bindGroupLayout = create_bind_group_layout(
-        device,
-        [
-            'storage',
-            'read-only-storage',
-            'read-only-storage',
-            'read-only-storage',
-        ],
-    )
+    //const bindGroupLayout = create_bind_group_layout(
+        //device,
+        //[
+            //'storage',
+            //'read-only-storage',
+            //'read-only-storage',
+            //'read-only-storage',
+        //],
+    //)
 
-    const bindGroup = create_bind_group(
-        device,
-        bindGroupLayout,
-        [
-            output_storage_buffer,
-            row_ptr_sb,
-            new_point_x_y_sb,
-            new_point_t_z_sb,
-        ],
-    )
+    //const bindGroup = create_bind_group(
+        //device,
+        //bindGroupLayout,
+        //[
+            //output_storage_buffer,
+            //row_ptr_sb,
+            //new_point_x_y_sb,
+            //new_point_t_z_sb,
+        //],
+    //)
 
-    const p_limbs = gen_p_limbs(p, num_words, word_size)
-    const shaderCode = mustache.render(
-        smvp_shader,
-        {
-            word_size,
-            num_words,
-            n0,
-            p_limbs,
-            mask: BigInt(2) ** BigInt(word_size) - BigInt(1),
-            two_pow_word_size: BigInt(2) ** BigInt(word_size),
-            NUM_ROWS_GPU,
-        },
-        {
-            structs,
-            bigint_funcs,
-            field_funcs,
-            barrett_funcs,
-            montgomery_product_funcs,
-            extract_word_from_bytes_le_funcs,
-        },
-    )
+    //const p_limbs = gen_p_limbs(p, num_words, word_size)
+    //const shaderCode = mustache.render(
+        //smvp_shader,
+        //{
+            //word_size,
+            //num_words,
+            //n0,
+            //p_limbs,
+            //mask: BigInt(2) ** BigInt(word_size) - BigInt(1),
+            //two_pow_word_size: BigInt(2) ** BigInt(word_size),
+            //NUM_ROWS_GPU,
+        //},
+        //{
+            //structs,
+            //bigint_funcs,
+            //field_funcs,
+            //barrett_funcs,
+            //montgomery_product_funcs,
+            //extract_word_from_bytes_le_funcs,
+        //},
+    //)
 
-    const computePipeline = await create_compute_pipeline(
-        device,
-        [bindGroupLayout],
-        shaderCode,
-        'main',
-    )
+    //const computePipeline = await create_compute_pipeline(
+        //device,
+        //[bindGroupLayout],
+        //shaderCode,
+        //'main',
+    //)
 
-    execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1)
+    //execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1)
 
-    if (debug) {
-        const data = await read_from_gpu(
-            device,
-            commandEncoder,
-            [output_storage_buffer],
-        )
+    //if (debug) {
+        //const data = await read_from_gpu(
+            //device,
+            //commandEncoder,
+            //[output_storage_buffer],
+        //)
     
-        const output_storage_buffer_result = u8s_to_numbers_32(data[0])
+        //const output_storage_buffer_result = u8s_to_numbers_32(data[0])
 
-        console.log("output_storage_buffer_result is: ", output_storage_buffer_result)
-    }
+        //console.log("output_storage_buffer_result is: ", output_storage_buffer_result)
+    //}
 
-}
+//}
