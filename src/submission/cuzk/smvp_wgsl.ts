@@ -61,7 +61,7 @@ export async function smvp(
     )
 
     // WGSL Shader invocations
-    for (let i = 0; i < csr_sparse_matrices.length; i ++) {
+    for (let i = 0; i < 2; i ++) {
         console.log('CSR matrix:', i)
         // Perform Sparse-Matrix Tranpose and SMVP
         await smvp_gpu(device, csr_sparse_matrices[i], num_words, word_size, p, n0, params.r, params.rinv)
@@ -144,12 +144,17 @@ export async function smvp_gpu(
     r: bigint,
     rinv: bigint,
 ) {
+    console.log("regular csr_sm: ", csr_sm)
+
     const csr_sparse_matrix_transposed = await csr_sm.transpose()
+    console.log("csr_sparse_matrix_transposed: ", csr_sparse_matrix_transposed)
 
     const start_1 = Date.now()
     
     const vector_smvp: bigint[] = Array(csr_sparse_matrix_transposed.row_ptr.length - 1).fill(BigInt(1));
     const buckets_svmp: ExtPointType[] = await csr_sparse_matrix_transposed.smvp(vector_smvp)
+
+    console.log("buckets_svmp is: ", buckets_svmp)
     
     const elapsed_1 = Date.now() - start_1
     const output_points_non_mont_and_affine_cpu = buckets_svmp.map((x) => x.toAffine())
@@ -215,7 +220,7 @@ export async function smvp_gpu(
     const commandEncoder = device.createCommandEncoder();
 
     const output_buffer_length = NUM_ROWS * num_words * 4 * 4
-    console.log(output_buffer_length)
+    console.log("output_buffer_length: ", output_buffer_length)
 
     const start = Date.now()
     const output_storage_buffer = create_sb(device, output_buffer_length)
@@ -282,10 +287,58 @@ export async function smvp_gpu(
     // Convert output_points_non_mont into affine
     const output_points_non_mont_and_affine_gpu = output_points_non_mont.map((x) => x.toAffine())
 
+    console.log("output_points_non_mont_and_affine_gpu is: ", output_points_non_mont_and_affine_gpu)
+    console.log("output_points_non_mont_and_affine_cpu is: ", output_points_non_mont_and_affine_cpu)
+
     for (let i = 0; i < output_points_non_mont_and_affine_gpu.length; i ++) {
         assert(output_points_non_mont_and_affine_gpu[i].x === output_points_non_mont_and_affine_cpu[i].x)
         assert(output_points_non_mont_and_affine_gpu[i].y === output_points_non_mont_and_affine_cpu[i].y)
     }
 
     console.log("passed assertion checks!")
+}
+
+export const cpu_smvp = (
+    csc_col_ptr_sb: number[],
+    new_point_x_y_sb: bigint[],
+    new_point_t_z_sb: bigint[]
+) => {
+    console.log("Entered CPU SMVP")
+    console.log("csc_col_ptr_sb.length is: ", csc_col_ptr_sb.length)
+
+    // Convert points
+    const s: ExtPointType[] = [];
+    for (let i = 0; i < csc_col_ptr_sb.length - 1; i++) {
+        s.push(fieldMath.createPoint(
+            new_point_x_y_sb[i * 2], 
+            new_point_x_y_sb[i * 2 + 1], 
+            new_point_t_z_sb[i * 2],
+            new_point_t_z_sb[i * 2 + 1]
+        ))
+    }
+
+    const currentSum = fieldMath.customEdwards.ExtendedPoint.ZERO;
+
+    const result: ExtPointType[] = [];
+    for (let i = 0; i < csc_col_ptr_sb.length - 1; i++) {
+        result.push(currentSum)
+    }
+
+    for (let i = 0; i < csc_col_ptr_sb.length - 1; i++) {
+        const row_begin = csc_col_ptr_sb[i];
+        const row_end = csc_col_ptr_sb[i + 1];
+        let sum = currentSum;
+        for (let j = row_begin; j < row_end; j++) {
+            const x = new_point_x_y_sb[i * 2];
+            const y = new_point_x_y_sb[i * 2 + 1];
+            const t = new_point_t_z_sb[i * 2];
+            const z = new_point_t_z_sb[i * 2 + 1];
+            const point = fieldMath.createPoint(x, y, t, z)
+            sum = sum.add(point)
+        }
+
+        result[i] = sum
+    }
+
+    return result
 }

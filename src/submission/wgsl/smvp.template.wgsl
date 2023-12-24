@@ -1,9 +1,9 @@
 {{> structs }}
 {{> montgomery_product_funcs }}
-{{> field_functions }}
-{{> bigint_functions }}
+{{> field_funcs }}
+{{> bigint_funcs }}
 {{> curve_parameters }}
-{{> curve_functions }}
+{{> ec_funcs }}
 
 @group(0) @binding(0)
 var<storage, read> row_ptr: array<u32>;
@@ -17,9 +17,8 @@ var<storage, read_write> bucket_sum_x_y: array<BigInt>;
 @group(0) @binding(4)
 var<storage, read_write> bucket_sum_t_z: array<BigInt>;
 
-
 @compute
-@workgroup_size(64)
+@workgroup_size(256)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {    
     let gidx = global_id.x; 
     let gidy = global_id.y; 
