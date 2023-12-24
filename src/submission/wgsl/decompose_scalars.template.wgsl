@@ -12,6 +12,7 @@ const INPUT_SIZE = {{ input_size }};
 @compute
 @workgroup_size({{ workgroup_size }})
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
+    var f = 2u;
     let gidx = global_id.x; 
     let gidy = global_id.y; 
     let id = gidx * {{ num_y_workgroups }} + gidy;
