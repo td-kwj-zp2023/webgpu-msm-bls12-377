@@ -416,11 +416,3 @@ export const are_point_arr_equal = (
 
     return true
 }
-
-// Copied from src/reference/webgpu/utils.ts
-// TODO: rewrite them?
-
-export interface gpuU32Inputs {
-  u32Inputs: Uint32Array;
-  individualInputSize: number;
-}
