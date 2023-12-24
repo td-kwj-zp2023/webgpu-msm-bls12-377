@@ -28,6 +28,7 @@ import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
 import { smvp } from '../submission/cuzk/smvp_wgsl';
 import { data_transfer_cost_benchmarks } from '../submission/data_transfer_cost_benchmarks'
 import { bucket_points_reduction } from '../submission/bucket_points_reduction_benchmark'
+import { horners_rule_benchmark } from '../submission/horners_rule_benchmark'
 
 export const AllBenchmarks: React.FC = () => {
   const initialDefaultInputSize = 2 ** 16
@@ -154,12 +155,12 @@ export const AllBenchmarks: React.FC = () => {
         bold={true}
       />
       <Benchmark
-        name={'Approach D'}
+        name={'Horner\s Rule'}
         disabled={disabledBenchmark}
         baseAffinePoints={baseAffineBigIntPoints}
         scalars={bigIntScalars}
         expectedResult={expectedResult}
-        msmFunc={cuzk_gpu_approach_d}
+        msmFunc={horners_rule_benchmark}
         postResult={postResult}
         bold={true}
       />
@@ -190,6 +191,16 @@ export const AllBenchmarks: React.FC = () => {
         scalars={bigIntScalars}
         expectedResult={expectedResult}
         msmFunc={data_transfer_cost_benchmarks}
+        postResult={postResult}
+        bold={true}
+      />
+      <Benchmark
+        name={'Approach D'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={cuzk_gpu_approach_d}
         postResult={postResult}
         bold={true}
       />
