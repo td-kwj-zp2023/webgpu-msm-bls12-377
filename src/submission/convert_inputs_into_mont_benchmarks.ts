@@ -186,6 +186,7 @@ export const convert_inputs_into_mont_benchmark = async(
             assert(points_from_gpu[i].t === converted_t[i])
             assert(points_from_gpu[i].z === converted_z[i])
         }
+        device.destroy()
     }
 
     console.log('Using Sampriti\'s (msm-webgpu) Barrett impl:')
