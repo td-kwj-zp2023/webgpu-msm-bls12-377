@@ -206,5 +206,7 @@ export const barrett_mul_benchmarks = async(
         }
     }
 
+    device.destroy()
+
     return { x: BigInt(0), y: BigInt(0) }
 }

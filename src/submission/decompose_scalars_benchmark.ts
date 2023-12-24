@@ -230,4 +230,6 @@ const decompose_scalars_gpu = async (
             assert(e === s)
         }
     }
+
+    device.destroy()
 }
