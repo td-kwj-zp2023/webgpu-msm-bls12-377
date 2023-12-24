@@ -47,6 +47,8 @@ import preaggregation_stage_2_shader from '../wgsl/preaggregation_stage_2.templa
 import compute_row_ptr_shader from '../wgsl/compute_row_ptr_shader.template.wgsl'
 import transpose_serial_shader from '../wgsl/transpose_serial.wgsl'
 import smvp_shader from '../wgsl/smvp.template.wgsl'
+import { smvp_wgsl } from '../submission';
+
 
 const fieldMath = new FieldMath()
 
@@ -691,8 +693,7 @@ const verify_gpu_precompute_output = (
     // that uses preaggregation first
     const random_points: bigint[] = []
     for (let i = 0; i < input_size; i ++) {
-        //const r = BigInt(Math.floor(Math.random() * 100000000))
-        const r = BigInt(1)
+        const r = BigInt(Math.floor(Math.random() * 100000000))
         random_points.push(r)
     }
 
@@ -1157,7 +1158,7 @@ export const transpose_gpu = async (
     num_cols: number,
     csr_row_ptr_sb: GPUBuffer,
     new_scalar_chunks_sb: GPUBuffer,
-    debug = true,
+    debug = false,
 ): Promise<{
     csc_col_ptr_sb: GPUBuffer,
     csc_row_idx_sb: GPUBuffer,
