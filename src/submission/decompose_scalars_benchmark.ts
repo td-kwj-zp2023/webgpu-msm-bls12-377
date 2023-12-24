@@ -7,7 +7,7 @@ import {
     u8s_to_numbers,
     decompose_scalars,
     compute_misc_params,
-    bigints_to_16_bit_words_for_gpu,
+    bigints_to_u8_for_gpu,
 } from './utils'
 import {
     get_device,
@@ -148,7 +148,7 @@ const decompose_scalars_gpu = async (
     word_size: number,
 ) => {
     // Convert scalars to bytes
-    const scalar_bytes = bigints_to_16_bit_words_for_gpu(scalars)
+    const scalar_bytes = bigints_to_u8_for_gpu(scalars, 16, 16)
 
     // Calculate expected decomposed scalars
     const expected: number[][] = []
