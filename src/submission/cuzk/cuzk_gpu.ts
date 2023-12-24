@@ -185,11 +185,10 @@ export const cuzk_gpu = async (
             false,
         )
 
-        // const {
-        //     bucket_sum_x_y_sb,
-        //     bucket_sum_t_z_sb,
-        // } = await smvp_gpu(
-        await smvp_gpu(
+        const {
+            bucket_sum_x_y_sb,
+            bucket_sum_t_z_sb,
+        } = await smvp_gpu(
             device,
             commandEncoder,
             csc_col_ptr_sb,
@@ -199,7 +198,6 @@ export const cuzk_gpu = async (
         )
 
         // if (debug_idx === subtask_idx) { break }
-
         // TODO: perform bucket aggregation
     }
 
@@ -1263,25 +1261,16 @@ export const smvp_gpu = async (
     new_point_t_z_sb: GPUBuffer,
     debug = true,
 ) => {
-    console.log("Entered smvp_gpu!")
-
     const NUM_ROWS = (csc_col_ptr_sb.size / 4) - 1
     const BLOCK_SIZE = 256
     const numBlocks = Math.floor((NUM_ROWS + BLOCK_SIZE - 1) / BLOCK_SIZE)
-
-    console.log("NUM_ROWS is: ", NUM_ROWS)
-    console.log("numBlocks is: ", numBlocks)
 
     // Define number of workgroups
     const num_x_workgroups = numBlocks; 
     const num_y_workgroups = 1; 
 
     // Create buffered memory accessible by the GPU memory space
-    console.log("NUM_ROWS is: ", NUM_ROWS)
-    console.log("num_words is: ", num_words)
-
     const output_buffer_length = NUM_ROWS * num_words * 4 * 4
-    console.log("output_buffer_length is: ", output_buffer_length)
 
     const bucket_sum_x_y_sb = create_sb(device, output_buffer_length)
     const bucket_sum_t_z_sb = create_sb(device, output_buffer_length)
@@ -1353,17 +1342,10 @@ export const smvp_gpu = async (
         const bucket_sum_x_y_sb_result = u8s_to_bigints(data[3], num_words, word_size)
         const bucket_sum_t_z_sb_result = u8s_to_bigints(data[4], num_words, word_size)
 
-        console.log("csc_col_ptr_sb_result is: ", csc_col_ptr_sb_result)
-        console.log("new_point_x_y_sb_result is: ", new_point_x_y_sb_result)
-        console.log("new_point_t_z_sb_result is: ", new_point_t_z_sb_result)
-        console.log("bucket_sum_x_y_sb_result is: ", bucket_sum_x_y_sb_result)
-        console.log("bucket_sum_t_z_sb_result is: ", bucket_sum_t_z_sb_result)
-
+        // Convert GPU output out of Montgomery coordinates
         const bigIntPointToExtPointType = (bip: BigIntPoint): ExtPointType => {
             return fieldMath.createPoint(bip.x, bip.y, bip.t, bip.z)
         }
-
-        // Convert output_points out of Montgomery coords
         const output_points_gpu: ExtPointType[] = []
         for (let i = 0; i < NUM_ROWS; i++) {
             const non = {
@@ -1375,13 +1357,22 @@ export const smvp_gpu = async (
             output_points_gpu.push(bigIntPointToExtPointType(non))
         }
 
-        // Convert output_points_non_mont into affine
-        const output_points_affine_gpu = output_points_gpu.map((x) => x.toAffine())
-
         // Calculate SMVP in CPU 
         const output_points_cpu: ExtPointType[] = cpu_smvp(csc_col_ptr_sb_result, new_point_x_y_sb_result, new_point_t_z_sb_result)
+       
+        // Transform results into affine representation
         const output_points_affine_cpu = output_points_cpu.map((x) => x.toAffine())
+        const output_points_affine_gpu = output_points_gpu.map((x) => x.toAffine())
 
-        // Verify output of CPU and GPU shaders
+        // Assert CPU and GPU output
+        for (let i = 0; i < output_points_affine_gpu.length; i ++) {
+            assert(output_points_affine_gpu[i].x === output_points_affine_cpu[i].x)
+            assert(output_points_affine_gpu[i].y === output_points_affine_cpu[i].y)
+        }
+    }
+
+    return {
+        bucket_sum_x_y_sb,
+        bucket_sum_t_z_sb
     }
 }
