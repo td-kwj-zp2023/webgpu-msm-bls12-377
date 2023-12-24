@@ -1,4 +1,7 @@
-import { gpuU32Inputs } from '../utils'
+export interface gpuU32Inputs {
+  u32Inputs: Uint32Array;
+  individualInputSize: number;
+}
 
 export const entry = async(
   inputData: gpuU32Inputs[],
