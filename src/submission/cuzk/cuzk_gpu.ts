@@ -89,29 +89,6 @@ export const cuzk_gpu = async (
     const device = await get_device()
     const commandEncoder = device.createCommandEncoder()
 
-    /*
-    // Convert the affine points to Montgomery form in the GPU
-    const { point_x_y_sb, point_t_z_sb } =
-        await convert_point_coords_to_mont_gpu(
-            device,
-            commandEncoder,
-            baseAffinePoints,
-            num_words, 
-            word_size,
-            false,
-        )
-
-    // Decompose the scalars
-    const scalar_chunks_sb = await decompose_scalars_gpu(
-        device,
-        commandEncoder,
-        scalars,
-        num_subtasks,
-        chunk_size,
-        false,
-    )
-    */
-
     // Convert the affine points to Montgomery form and decompose the scalars
     // using a single shader
     const { point_x_y_sb, point_t_z_sb, scalar_chunks_sb } =
@@ -126,6 +103,9 @@ export const cuzk_gpu = async (
             chunk_size,
             false,
         )
+    device.destroy()
+
+    return { x: BigInt(1), y: BigInt(0) }
 
     for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx ++) {
         // use debug_idx to debug any particular subtask_idx
