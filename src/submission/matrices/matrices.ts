@@ -181,11 +181,6 @@ export class CSRSparseMatrix implements Interface.CSRSparseMatrix {
 
     // Perform SMVP. See https://ieeexplore.ieee.org/document/7097920, Figure 2a. 
     async smvp(vec: bigint[]): Promise<ExtPointType[]> {
-        console.log("vec length is: ", vec.length)
-        console.log("row_ptr length is: ", this.row_ptr.length)
-        console.log("row_ptr is: ", this.row_ptr)
-        console.log("data: ", this.data)
-
         const currentSum = fieldMath.customEdwards.ExtendedPoint.ZERO;
         
         // Convert points
@@ -194,8 +189,6 @@ export class CSRSparseMatrix implements Interface.CSRSparseMatrix {
             s.push(fieldMath.createPoint(this.data[i].x, this.data[i].y, this.data[i].t, this.data[i].z))
         }
         
-        console.log("points: ", s)
-
         const result: ExtPointType[] = [];
         for (let i = 0; i < vec.length; i++) {
             result.push(currentSum)

@@ -49,8 +49,6 @@ export async function smvp(
     const device = await get_device()
     const limits = device.limits
 
-    console.log("limits is: ", limits)
-
     // Generate CSR sparse matrices
     const csr_sparse_matrices = await gen_csr_sparse_matrices(
         baseAffinePoints,
@@ -144,17 +142,12 @@ export async function smvp_gpu(
     r: bigint,
     rinv: bigint,
 ) {
-    console.log("regular csr_sm: ", csr_sm)
-
     const csr_sparse_matrix_transposed = await csr_sm.transpose()
-    console.log("csr_sparse_matrix_transposed: ", csr_sparse_matrix_transposed)
 
     const start_1 = Date.now()
     
     const vector_smvp: bigint[] = Array(csr_sparse_matrix_transposed.row_ptr.length - 1).fill(BigInt(1));
     const buckets_svmp: ExtPointType[] = await csr_sparse_matrix_transposed.smvp(vector_smvp)
-
-    console.log("buckets_svmp is: ", buckets_svmp)
     
     const elapsed_1 = Date.now() - start_1
     const output_points_non_mont_and_affine_cpu = buckets_svmp.map((x) => x.toAffine())
@@ -188,7 +181,6 @@ export async function smvp_gpu(
         numBlocks = Math.floor((totalThreads + blockSize - 1) / blockSize)
         NUM_ROWS_GPU = blockSize
     }
-    console.log(`NUM_ROWS_GPU: ${NUM_ROWS_GPU}`)
 
     // Define number of workgroups
     const num_x_workgroups = numBlocks; 
@@ -220,7 +212,6 @@ export async function smvp_gpu(
     const commandEncoder = device.createCommandEncoder();
 
     const output_buffer_length = NUM_ROWS * num_words * 4 * 4
-    console.log("output_buffer_length: ", output_buffer_length)
 
     const start = Date.now()
     const output_storage_buffer = create_sb(device, output_buffer_length)
@@ -287,15 +278,10 @@ export async function smvp_gpu(
     // Convert output_points_non_mont into affine
     const output_points_non_mont_and_affine_gpu = output_points_non_mont.map((x) => x.toAffine())
 
-    console.log("output_points_non_mont_and_affine_gpu is: ", output_points_non_mont_and_affine_gpu)
-    console.log("output_points_non_mont_and_affine_cpu is: ", output_points_non_mont_and_affine_cpu)
-
     for (let i = 0; i < output_points_non_mont_and_affine_gpu.length; i ++) {
         assert(output_points_non_mont_and_affine_gpu[i].x === output_points_non_mont_and_affine_cpu[i].x)
         assert(output_points_non_mont_and_affine_gpu[i].y === output_points_non_mont_and_affine_cpu[i].y)
     }
-
-    console.log("passed assertion checks!")
 }
 
 export const cpu_smvp = (
@@ -303,9 +289,6 @@ export const cpu_smvp = (
     new_point_x_y_sb: bigint[],
     new_point_t_z_sb: bigint[]
 ) => {
-    console.log("Entered CPU SMVP")
-    console.log("csc_col_ptr_sb.length is: ", csc_col_ptr_sb.length)
-
     // Convert points
     const s: ExtPointType[] = [];
     for (let i = 0; i < csc_col_ptr_sb.length - 1; i++) {
