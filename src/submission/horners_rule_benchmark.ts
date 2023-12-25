@@ -143,5 +143,7 @@ export const horners_rule_benchmark = async (
     //console.log('expected.isAffine():', expected.toAffine())
     assert(are_point_arr_equal([result], [expected]))
 
+    device.destroy()
+
     return { x: BigInt(0), y: BigInt(0) }
 }

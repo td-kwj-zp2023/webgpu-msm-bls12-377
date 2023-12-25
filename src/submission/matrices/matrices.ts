@@ -260,11 +260,12 @@ export class CSRSparseMatrix implements Interface.CSRSparseMatrix {
         let m = 0
         for (const i of this.col_idx) {
             if (i > m) {
-                m = i
+                m = Number(i)
             }
         }
 
-        m += 1
+        m ++
+
         const nz = this.data.length
 
         // Initialize data for transposed sparse matrix

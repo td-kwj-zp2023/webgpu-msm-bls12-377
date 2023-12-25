@@ -2,20 +2,31 @@
 {{> bigint_funcs }}
 {{> field_funcs }}
 {{> barrett_funcs }}
-{{> montgomery_product_funcs }}
 
-const CHUNK_SIZE = {{ word_size }}u;
+// Bitwidth of each limb of the point coordinates
+/*const WORD_SIZE = {{ word_size }}u;*/
+{{> montgomery_product_funcs }}
 {{ > extract_word_from_bytes_le_funcs }}
 
 // Input buffers
 @group(0) @binding(0)
 var<storage, read> x_y_coords: array<u32>;
+@group(0) @binding(1)
+var<storage, read> scalars: array<u32>;
 
 // Output buffers
-@group(0) @binding(1)
-var<storage, read_write> point_x_y: array<BigInt>;
 @group(0) @binding(2)
+var<storage, read_write> point_x_y: array<BigInt>;
+@group(0) @binding(3)
 var<storage, read_write> point_t_z: array<BigInt>;
+@group(0) @binding(4)
+var<storage, read_write> chunks: array<u32>;
+
+const NUM_SUBTASKS = {{ num_subtasks }}u;
+
+// Scalar chunk bitwidth
+const CHUNK_SIZE = {{ chunk_size }}u;
+const INPUT_SIZE = {{ input_size }};
 
 fn get_r() -> BigInt {
     var r: BigInt;
@@ -42,8 +53,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     var x_bigint: BigInt;
     var y_bigint: BigInt;
     for (var i = 0u; i < NUM_WORDS - 1u; i ++) {
-        x_bigint.limbs[i] = extract_word_from_bytes_le(x_bytes, i);
-        y_bigint.limbs[i] = extract_word_from_bytes_le(y_bytes, i);
+        x_bigint.limbs[i] = extract_word_from_bytes_le(x_bytes, i, WORD_SIZE);
+        y_bigint.limbs[i] = extract_word_from_bytes_le(y_bytes, i, WORD_SIZE);
     }
 
     let shift = (((NUM_WORDS * WORD_SIZE - 256u) + 16u) - WORD_SIZE);
@@ -63,4 +74,17 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     // Store z
     point_t_z[id * 2u + 1u] = r;
+
+    // Decompose scalars
+    var scalar_bytes: array<u32, 16>;
+    for (var i = 0u; i < 16u; i++) {
+        scalar_bytes[15u - i] = scalars[id * 16 + i];
+    }
+
+    for (var i = 0u; i < NUM_SUBTASKS; i++) {
+        let offset = i * INPUT_SIZE;
+        chunks[id + offset] = extract_word_from_bytes_le(scalar_bytes, i, CHUNK_SIZE);
+    }
+
+    chunks[id + (NUM_SUBTASKS - 1) * INPUT_SIZE] = scalar_bytes[0] >> (((NUM_SUBTASKS * CHUNK_SIZE - 256u) + 16u) - CHUNK_SIZE);
 }
