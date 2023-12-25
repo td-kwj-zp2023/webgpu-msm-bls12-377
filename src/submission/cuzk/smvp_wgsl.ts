@@ -55,6 +55,7 @@ export async function smvp(
         // Perform Sparse-Matrix Tranpose and SMVP
         await smvp_gpu(device, csr_sparse_matrices[i], num_words, word_size, p, n0, params.r, params.rinv)
     }
+    device.destroy()
     return { x: BigInt(1), y: BigInt(0) }
 }
 

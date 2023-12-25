@@ -151,6 +151,8 @@ export const smtvp = async (
         console.log(`GPU took an average of ${gpu_average}ms per CSR sparse matrix. Benchmark ignores the first)`)
     }
 
+    device.destroy()
+
     return { x: BigInt(1), y: BigInt(0) }
 }
 
