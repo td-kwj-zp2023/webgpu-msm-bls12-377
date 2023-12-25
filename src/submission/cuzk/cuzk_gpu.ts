@@ -182,15 +182,16 @@ export const cuzk_gpu = async (
         } = await smvp_gpu(
             device,
             commandEncoder,
+            num_cols,
             csc_col_ptr_sb,
             new_point_x_y_sb,
             new_point_t_z_sb,
             false,
+            //debug_idx === subtask_idx,
         )
 
-        break;
-
         //if (debug_idx === subtask_idx) { break }
+ 
         // TODO: perform bucket aggregation
     }
 
@@ -1166,21 +1167,18 @@ export const transpose_gpu = async (
 export const smvp_gpu = async (
     device: GPUDevice,
     commandEncoder: GPUCommandEncoder,
+    num_cols: number,
     csc_col_ptr_sb: GPUBuffer,
     new_point_x_y_sb: GPUBuffer,
     new_point_t_z_sb: GPUBuffer,
     debug = false,
 ) => {
-    const NUM_ROWS = (csc_col_ptr_sb.size / 4) - 1
-    const BLOCK_SIZE = 256
-    const numBlocks = Math.floor((NUM_ROWS + BLOCK_SIZE - 1) / BLOCK_SIZE)
-
-    // Define number of workgroups
-    const num_x_workgroups = numBlocks; 
-    const num_y_workgroups = 1; 
+    const num_workgroups = 256
+    const num_x_workgroups = Math.floor((num_cols + num_workgroups - 1) / num_workgroups)
+    const num_y_workgroups = 1
 
     // Create buffered memory accessible by the GPU memory space
-    const output_buffer_length = NUM_ROWS * num_words * 4 * 2 // change
+    const output_buffer_length = num_cols * num_words * 4 * 2
 
     const bucket_sum_x_y_sb = create_sb(device, output_buffer_length)
     const bucket_sum_t_z_sb = create_sb(device, output_buffer_length)
@@ -1257,7 +1255,7 @@ export const smvp_gpu = async (
             return fieldMath.createPoint(bip.x, bip.y, bip.t, bip.z)
         }
         const output_points_gpu: ExtPointType[] = []
-        for (let i = 0; i < NUM_ROWS; i++) {
+        for (let i = 0; i < num_cols; i++) {
             const non = {
                 x: fieldMath.Fp.mul(bucket_sum_x_y_sb_result[i * 2], rinv),
                 y: fieldMath.Fp.mul(bucket_sum_x_y_sb_result[i * 2 + 1], rinv),
@@ -1269,7 +1267,7 @@ export const smvp_gpu = async (
 
         // Convert CPU output out of Montgomery coordinates
         const output_points_cpu_out_of_mont: ExtPointType[] = []
-        for (let i = 0; i < NUM_ROWS; i++) {
+        for (let i = 0; i < num_cols; i++) {
             const non = {
                 x: fieldMath.Fp.mul(new_point_x_y_sb_result[i * 2], rinv),
                 y: fieldMath.Fp.mul(new_point_x_y_sb_result[i * 2 + 1], rinv),
