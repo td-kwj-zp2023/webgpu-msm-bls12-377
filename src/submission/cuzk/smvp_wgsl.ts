@@ -145,9 +145,12 @@ export async function smvp_gpu(
     const csr_sparse_matrix_transposed = await csr_sm.transpose()
 
     const start_1 = Date.now()
-    
+
+    console.log("sparse matrix before transpose", csr_sm)
     const vector_smvp: bigint[] = Array(csr_sparse_matrix_transposed.row_ptr.length - 1).fill(BigInt(1));
+    console.log("csr_sparse_matrix_transposed: ", csr_sparse_matrix_transposed)
     const buckets_svmp: ExtPointType[] = await csr_sparse_matrix_transposed.smvp(vector_smvp)
+    console.log("csr_sparse_matrix_transposed after smvp: ", buckets_svmp)
     
     const elapsed_1 = Date.now() - start_1
     const output_points_non_mont_and_affine_cpu = buckets_svmp.map((x) => x.toAffine())
@@ -286,20 +289,8 @@ export async function smvp_gpu(
 
 export const cpu_smvp = (
     csc_col_ptr_sb: number[],
-    new_point_x_y_sb: bigint[],
-    new_point_t_z_sb: bigint[]
+    points: ExtPointType[],
 ) => {
-    // Convert points
-    const s: ExtPointType[] = [];
-    for (let i = 0; i < csc_col_ptr_sb.length - 1; i++) {
-        s.push(fieldMath.createPoint(
-            new_point_x_y_sb[i * 2], 
-            new_point_x_y_sb[i * 2 + 1], 
-            new_point_t_z_sb[i * 2],
-            new_point_t_z_sb[i * 2 + 1]
-        ))
-    }
-
     const currentSum = fieldMath.customEdwards.ExtendedPoint.ZERO;
 
     const result: ExtPointType[] = [];
@@ -312,14 +303,8 @@ export const cpu_smvp = (
         const row_end = csc_col_ptr_sb[i + 1];
         let sum = currentSum;
         for (let j = row_begin; j < row_end; j++) {
-            const x = new_point_x_y_sb[i * 2];
-            const y = new_point_x_y_sb[i * 2 + 1];
-            const t = new_point_t_z_sb[i * 2];
-            const z = new_point_t_z_sb[i * 2 + 1];
-            const point = fieldMath.createPoint(x, y, t, z)
-            sum = sum.add(point)
+            sum = sum.add(points[j])
         }
-
         result[i] = sum
     }
 

@@ -11,7 +11,6 @@ var<storage, read> row_ptr: array<u32>;
 var<storage, read> new_point_x_y: array<BigInt>;
 @group(0) @binding(2)
 var<storage, read> new_point_t_z: array<BigInt>;
-
 @group(0) @binding(3)
 var<storage, read_write> bucket_sum_x_y: array<BigInt>;
 @group(0) @binding(4)
@@ -34,10 +33,10 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         let row_end = row_ptr[id + 1u];
         var sum = inf;
         for (var j = row_begin; j < row_end; j++) {
-            let x = new_point_x_y[id * 2u];
-            let y = new_point_x_y[id * 2u + 1u];
-            let t = new_point_t_z[id * 2u];
-            let z = new_point_t_z[id * 2u + 1u];
+            let x = new_point_x_y[j * 2u];
+            let y = new_point_x_y[j * 2u + 1u];
+            let t = new_point_t_z[j * 2u];
+            let z = new_point_t_z[j * 2u + 1u];
             let pt = Point(x, y, t, z);
             sum = add_points(sum, pt);
         }
