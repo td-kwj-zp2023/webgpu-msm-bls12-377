@@ -188,7 +188,7 @@ export class CSRSparseMatrix implements Interface.CSRSparseMatrix {
         for (let i = 0; i < this.data.length; i++) {
             s.push(fieldMath.createPoint(this.data[i].x, this.data[i].y, this.data[i].t, this.data[i].z))
         }
-
+        
         const result: ExtPointType[] = [];
         for (let i = 0; i < vec.length; i++) {
             result.push(currentSum)
