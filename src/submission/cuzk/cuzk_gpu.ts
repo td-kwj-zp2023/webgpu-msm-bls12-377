@@ -105,7 +105,6 @@ export const cuzk_gpu = async (
             chunk_size,
             false,
         )
-    device.destroy()
 
     for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx ++) {
         // use debug_idx to debug any particular subtask_idx
@@ -188,10 +187,11 @@ export const cuzk_gpu = async (
             csc_col_ptr_sb,
             new_point_x_y_sb,
             new_point_t_z_sb,
+            //debug_idx === subtask_idx,
             false,
         )
 
-        // if (debug_idx === subtask_idx) { break }
+        //if (debug_idx === subtask_idx) { break }
         // TODO: perform bucket aggregation
     }
 
