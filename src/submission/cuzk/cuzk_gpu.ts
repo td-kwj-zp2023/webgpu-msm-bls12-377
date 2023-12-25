@@ -22,14 +22,13 @@ import {
     u8s_to_numbers,
     u8s_to_numbers_32,
     numbers_to_u8s_for_gpu,
-    bigints_to_16_bit_words_for_gpu,
     bigints_to_u8_for_gpu,
     compute_misc_params,
     decompose_scalars,
 } from '../utils'
 import assert from 'assert'
 
-import convert_point_coords_shader from '../wgsl/convert_point_coords.template.wgsl'
+import convert_point_coords_and_decompose_scalars from '../wgsl/convert_point_coords_and_decompose_scalars.template.wgsl'
 import extract_word_from_bytes_le_funcs from '../wgsl/extract_word_from_bytes_le.template.wgsl'
 import structs from '../wgsl/struct/structs.template.wgsl'
 import bigint_funcs from '../wgsl/bigint/bigint.template.wgsl'
@@ -37,7 +36,6 @@ import field_funcs from '../wgsl/field/field.template.wgsl'
 import ec_funcs from '../wgsl/curve/ec.template.wgsl'
 import barrett_funcs from '../wgsl/barrett.template.wgsl'
 import montgomery_product_funcs from '../wgsl/montgomery/mont_pro_product.template.wgsl'
-import decompose_scalars_shader from '../wgsl/decompose_scalars.template.wgsl'
 import gen_csr_precompute_shader from '../wgsl/gen_csr_precompute.template.wgsl'
 import preaggregation_stage_1_shader from '../wgsl/preaggregation_stage_1.template.wgsl'
 import preaggregation_stage_2_shader from '../wgsl/preaggregation_stage_2.template.wgsl'
@@ -90,27 +88,24 @@ export const cuzk_gpu = async (
     const device = await get_device()
     const commandEncoder = device.createCommandEncoder()
 
-    // Convert the affine points to Montgomery form in the GPU
-    const { point_x_y_sb, point_t_z_sb } =
-        await convert_point_coords_to_mont_gpu(
+    // Convert the affine points to Montgomery form and decompose the scalars
+    // using a single shader
+    const { point_x_y_sb, point_t_z_sb, scalar_chunks_sb } =
+        await convert_point_coords_and_decompose_shaders(
             device,
             commandEncoder,
             baseAffinePoints,
             num_words, 
             word_size,
+            scalars,
+            num_subtasks,
+            chunk_size,
             false,
         )
+    device.destroy()
 
-    // Decompose the scalars
-    const scalar_chunks_sb = await decompose_scalars_gpu(
-        device,
-        commandEncoder,
-        scalars,
-        num_subtasks,
-        chunk_size,
-        false,
-    )
-    
+    return { x: BigInt(1), y: BigInt(0) }
+
     for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx ++) {
         // use debug_idx to debug any particular subtask_idx
         const debug_idx = 0
@@ -200,7 +195,8 @@ export const cuzk_gpu = async (
 }
 
 /*
- * Convert the affine points to Montgomery form
+ * Convert the affine points to Montgomery form, and decompose scalars into
+ * chunk_size windows.
 
  * ASSUMPTION: the vast majority of WebGPU-enabled consumer devices have a
  * maximum buffer size of at least 268435456 bytes.
@@ -217,17 +213,18 @@ export const cuzk_gpu = async (
  * up to 2^20. The evaluation will be using input randomly sampled from size
  * 2^16 ~ 2^20."
 */
-export const convert_point_coords_to_mont_gpu = async (
+export const convert_point_coords_and_decompose_shaders = async (
     device: GPUDevice,
     commandEncoder: GPUCommandEncoder,
     baseAffinePoints: BigIntPoint[],
     num_words: number,
     word_size: number,
+    scalars: bigint[],
+    num_subtasks: number,
+    chunk_size: number,
     debug = false,
-): Promise<{
-    point_x_y_sb: GPUBuffer,
-    point_t_z_sb: GPUBuffer,
-}> => {
+) => {
+    assert(num_subtasks * chunk_size === 256)
     const input_size = baseAffinePoints.length
 
     // An affine point only contains X and Y points.
@@ -241,17 +238,24 @@ export const convert_point_coords_to_mont_gpu = async (
     // `bigints_to_16_bit_words_for_gpu`)
     const x_y_coords_bytes = bigints_to_u8_for_gpu(x_y_coords, 16, 16)
 
+    // Convert scalars to bytes
+    const scalars_bytes = bigints_to_u8_for_gpu(scalars, 16, 16)
+
     // Input buffers
     const x_y_coords_sb = create_and_write_sb(device, x_y_coords_bytes)
+    const scalars_sb = create_and_write_sb(device, scalars_bytes)
 
     // Output buffers
     const point_x_y_sb = create_sb(device, input_size * 2 * num_words * 4)
     const point_t_z_sb = create_sb(device, input_size * 2 * num_words * 4)
+    const scalar_chunks_sb = create_sb(device, input_size * num_subtasks * 4)
 
     const bindGroupLayout = create_bind_group_layout(
         device,
         [
             'read-only-storage',
+            'read-only-storage',
+            'storage',
             'storage',
             'storage',
         ],
@@ -261,140 +265,18 @@ export const convert_point_coords_to_mont_gpu = async (
         bindGroupLayout,
         [
             x_y_coords_sb,
+            scalars_sb,
             point_x_y_sb,
             point_t_z_sb,
+            scalar_chunks_sb,
         ],
-    )
-
-    const workgroup_size = 64
-    const num_x_workgroups = 256
-    const num_y_workgroups = baseAffinePoints.length / num_x_workgroups / workgroup_size
-
-    const shaderCode = genConvertPointCoordsShaderCode(
-        workgroup_size,
-        num_y_workgroups,
-    )
-
-    const computePipeline = await create_compute_pipeline(
-        device,
-        [bindGroupLayout],
-        shaderCode,
-        'main',
-    )
-
-    execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1);
-
-    if (debug) {
-        const data = await read_from_gpu(
-            device,
-            commandEncoder,
-            [
-                point_x_y_sb,
-                point_t_z_sb,
-            ],
-        )
-        
-        const computed_x_y_coords = u8s_to_bigints(data[0], num_words, word_size)
-        const computed_t_z_coords = u8s_to_bigints(data[1], num_words, word_size)
-
-        for (let i = 0; i < input_size; i ++) {
-            const expected_x = baseAffinePoints[i].x * r % p
-            const expected_y = baseAffinePoints[i].y * r % p
-            const expected_t = (baseAffinePoints[i].x * baseAffinePoints[i].y * r) % p
-            const expected_z = r % p
-
-            if (!(
-                expected_x === computed_x_y_coords[i * 2] 
-                && expected_y === computed_x_y_coords[i * 2 + 1] 
-                && expected_t === computed_t_z_coords[i * 2] 
-                && expected_z === computed_t_z_coords[i * 2 + 1]
-            )) {
-                console.log('mismatch at', i)
-                debugger
-                break
-            }
-        }
-    }
-
-    return { point_x_y_sb, point_t_z_sb }
-}
-
-const genConvertPointCoordsShaderCode = (
-    workgroup_size: number,
-    num_y_workgroups: number,
-) => {
-    const mask = BigInt(2) ** BigInt(word_size) - BigInt(1)
-    const two_pow_word_size = 2 ** word_size
-    const p_limbs = gen_p_limbs(p, num_words, word_size)
-    const r_limbs = gen_r_limbs(r, num_words, word_size)
-    const mu_limbs = gen_mu_limbs(p, num_words, word_size)
-    const p_bitlength = p.toString(2).length
-    const slack = num_words * word_size - p_bitlength
-        const shaderCode = mustache.render(
-        convert_point_coords_shader,
-        {
-            workgroup_size,
-            num_y_workgroups,
-            num_words,
-            word_size,
-            n0,
-            mask,
-            two_pow_word_size,
-            p_limbs,
-            r_limbs,
-            mu_limbs,
-            w_mask: (1 << word_size) - 1,
-            slack,
-            num_words_mul_two: num_words * 2,
-            num_words_plus_one: num_words + 1,
-        },
-        {
-            structs,
-            bigint_funcs,
-            field_funcs,
-            barrett_funcs,
-            montgomery_product_funcs,
-            extract_word_from_bytes_le_funcs,
-        },
-    )
-    return shaderCode
-}
-
-export const decompose_scalars_gpu = async (
-    device: GPUDevice,
-    commandEncoder: GPUCommandEncoder,
-    scalars: bigint[],
-    num_subtasks: number,
-    chunk_size: number,
-    debug = false,
-): Promise<GPUBuffer> => {
-    const input_size = scalars.length
-    assert(num_subtasks * chunk_size === 256)
-
-    // Convert scalars to bytes
-    const scalars_bytes = bigints_to_16_bit_words_for_gpu(scalars)
-
-    // Input buffers
-    const scalars_sb = create_and_write_sb(device, scalars_bytes)
-
-    // Output buffer(s)
-    const chunks_sb = create_sb(device, input_size * num_subtasks * 4)
-
-    const bindGroupLayout = create_bind_group_layout(
-        device,
-        ['read-only-storage', 'storage'],
-    )
-    const bindGroup = create_bind_group(
-        device,
-        bindGroupLayout,
-        [scalars_sb, chunks_sb],
     )
 
     const workgroup_size = 64
     const num_x_workgroups = 256
     const num_y_workgroups = input_size / workgroup_size / num_x_workgroups
 
-    const shaderCode = genDecomposeScalarsShaderCode(
+    const shaderCode = genConvertPointCoordsAndDecomposeScalarsShaderCode(
         workgroup_size,
         num_y_workgroups,
         num_subtasks,
@@ -415,10 +297,37 @@ export const decompose_scalars_gpu = async (
         const data = await read_from_gpu(
             device,
             commandEncoder,
-            [chunks_sb],
+            [
+                point_x_y_sb,
+                point_t_z_sb,
+                scalar_chunks_sb,
+            ],
         )
+        
+        // Verify point coords
+        const computed_x_y_coords = u8s_to_bigints(data[0], num_words, word_size)
+        const computed_t_z_coords = u8s_to_bigints(data[1], num_words, word_size)
 
-        const computed_chunks = u8s_to_numbers(data[0])
+        for (let i = 0; i < input_size; i ++) {
+            const expected_x = baseAffinePoints[i].x * r % p
+            const expected_y = baseAffinePoints[i].y * r % p
+            const expected_t = (baseAffinePoints[i].x * baseAffinePoints[i].y * r) % p
+            const expected_z = r % p
+
+            if (!(
+                expected_x === computed_x_y_coords[i * 2] 
+                && expected_y === computed_x_y_coords[i * 2 + 1] 
+                && expected_t === computed_t_z_coords[i * 2] 
+                && expected_z === computed_t_z_coords[i * 2 + 1]
+            )) {
+                console.log('mismatch at', i)
+                debugger
+                break
+            }
+        }
+
+        // Verify scalar chunks
+        const computed_chunks = u8s_to_numbers(data[2])
 
         const all_chunks: Uint16Array[] = []
 
@@ -450,26 +359,50 @@ export const decompose_scalars_gpu = async (
         }
     }
 
-    return chunks_sb
+    return { point_x_y_sb, point_t_z_sb, scalar_chunks_sb }
 }
 
-const genDecomposeScalarsShaderCode = (
+const genConvertPointCoordsAndDecomposeScalarsShaderCode = (
     workgroup_size: number,
     num_y_workgroups: number,
     num_subtasks: number,
-    chunk_size: number,
-    input_size: number
+    chunk_size: number, 
+    input_size: number,
 ) => {
-    const shaderCode = mustache.render(
-        decompose_scalars_shader,
+    const mask = BigInt(2) ** BigInt(word_size) - BigInt(1)
+    const two_pow_word_size = 2 ** word_size
+    const p_limbs = gen_p_limbs(p, num_words, word_size)
+    const r_limbs = gen_r_limbs(r, num_words, word_size)
+    const mu_limbs = gen_mu_limbs(p, num_words, word_size)
+    const p_bitlength = p.toString(2).length
+    const slack = num_words * word_size - p_bitlength
+        const shaderCode = mustache.render(
+        convert_point_coords_and_decompose_scalars,
         {
             workgroup_size,
             num_y_workgroups,
+            num_words,
+            word_size,
+            n0,
+            mask,
+            two_pow_word_size,
+            p_limbs,
+            r_limbs,
+            mu_limbs,
+            w_mask: (1 << word_size) - 1,
+            slack,
+            num_words_mul_two: num_words * 2,
+            num_words_plus_one: num_words + 1,
             num_subtasks,
             chunk_size,
             input_size,
         },
         {
+            structs,
+            bigint_funcs,
+            field_funcs,
+            barrett_funcs,
+            montgomery_product_funcs,
             extract_word_from_bytes_le_funcs,
         },
     )
