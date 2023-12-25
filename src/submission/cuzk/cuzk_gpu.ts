@@ -188,7 +188,7 @@ export const cuzk_gpu = async (
             csc_col_ptr_sb,
             new_point_x_y_sb,
             new_point_t_z_sb,
-            true
+            false,
         )
 
         // if (debug_idx === subtask_idx) { break }
