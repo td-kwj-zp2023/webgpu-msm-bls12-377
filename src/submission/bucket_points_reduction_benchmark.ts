@@ -209,5 +209,7 @@ const shader_invocation = async (
         size,
     )
 
+    device.destroy()
+
     return { out_x_y_sb, out_t_z_sb, num_points_sb }
 }

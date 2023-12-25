@@ -256,6 +256,8 @@ export const mont_mul_benchmarks = async(
                     break
                 }
             }
+
+            device.destroy()
         }
 
         if (num_runs < 2) {
@@ -266,5 +268,6 @@ export const mont_mul_benchmarks = async(
             console.log(`Limb size: ${word_size}. Average time taken: ${avg}ms`)
         }
     }
+
     return { x: BigInt(0), y: BigInt(0) }
 }

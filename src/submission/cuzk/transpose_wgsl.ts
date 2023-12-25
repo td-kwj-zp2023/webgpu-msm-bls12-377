@@ -172,7 +172,6 @@ export async function transpose(
     const csc_col_ptr_result = u8s_to_numbers_32(data[0])
     const csc_row_idx_result = u8s_to_numbers_32(data[1])
     const csc_val_idxs_result = u8s_to_numbers_32(data[2])
-    debugger
 
     // Check the transposed col_ptr and row_idx
     for (let i = 0; i < csc_col_ptr_result.length; i ++) {

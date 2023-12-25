@@ -422,5 +422,7 @@ export async function create_csr_sparse_matrices_from_points(
         }
     }
 
+    device.destroy()
+
     return csr_sms_gpu
 }
