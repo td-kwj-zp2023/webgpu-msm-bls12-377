@@ -112,12 +112,14 @@ export const cuzk_gpu = async (
 
     for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx ++) {
         // use debug_idx to debug any particular subtask_idx
-        const debug_idx = 1
+        const debug_idx = 0
 
-        // TODO: if debug is set to true in any invocations within a loop, the
+        // If debug is set to true in any invocations within a loop, the
         // sanity check will fail on the second iteration, because the
         // commandEncoder's finish() function has been used. To correctly
         // sanity-check these outputs, do so in a separate test file.
+
+        // Precompute cluster start and end indices
         const {
             new_point_indices_sb,
             cluster_start_indices_sb,
@@ -133,6 +135,7 @@ export const cuzk_gpu = async (
             false,
         )
 
+        // Aggregate clusters of points
         const {
             new_point_x_y_sb,
             new_point_t_z_sb,
@@ -148,6 +151,7 @@ export const cuzk_gpu = async (
             false,
         )
 
+        // Rearrange the scalar chunks by clusters
         const new_scalar_chunks_sb = await pre_aggregation_stage_2_gpu(
             device,
             commandEncoder,
@@ -195,7 +199,9 @@ export const cuzk_gpu = async (
             new_point_x_y_sb,
             new_point_t_z_sb,
             false,
+            //debug_idx === subtask_idx,
         )
+        //if (debug_idx === subtask_idx) { break }
 
         // Bucket aggregation
         const {
@@ -210,25 +216,25 @@ export const cuzk_gpu = async (
             false,
             //debug_idx === subtask_idx,
         )
+        //if (debug_idx === subtask_idx) { break }
 
         aggregated_x_y_sbs.push(out_x_y_sb)
         aggregated_t_z_sbs.push(out_t_z_sb)
-        //if (debug_idx === subtask_idx) { break }
     }
 
-    return { x: BigInt(1), y: BigInt(0) }
-    /*
-    const data = await read_from_gpu(
+    const bucket_sum_data = await read_from_gpu(
         device,
         commandEncoder,
         aggregated_x_y_sbs.concat(aggregated_t_z_sbs),
         num_words * 2 * 4,
     )
+    device.destroy()
 
     const points: ExtPointType[] = []
-    for (let i = 0; i < data.length / 2; i ++) {
-        const x_y_mont_coords = u8s_to_bigints(data[i], num_words, word_size)
-        const t_z_mont_coords = u8s_to_bigints(data[i + data.length / 2], num_words, word_size)
+    for (let i = 0; i < bucket_sum_data.length / 2; i ++) {
+        // Convert each point out of Montgomery form
+        const x_y_mont_coords = u8s_to_bigints(bucket_sum_data[i], num_words, word_size)
+        const t_z_mont_coords = u8s_to_bigints(bucket_sum_data[i + bucket_sum_data.length / 2], num_words, word_size)
 
         const pt = fieldMath.createPoint(
             fieldMath.Fp.mul(x_y_mont_coords[0], rinv),
@@ -239,16 +245,22 @@ export const cuzk_gpu = async (
         points.push(pt)
     }
 
-    let result = points[0]
-    for (let i = 1; i < points.length; i ++) {
-        result = result.multiply(BigInt(2 ** chunk_size))
+    // Horner's rule
+    const m = BigInt(2) ** BigInt(chunk_size)
+    // The last scalar chunk is the most significant digit (base m)
+    let result = points[points.length - 1]
+    for (let i = points.length - 2; i >= 0; i --) {
+    //let result = points[0]
+    //for (let i = 1; i < points.length; i ++) {
+        result = result.multiply(m)
         result = result.add(points[i])
     }
 
     device.destroy()
 
+    console.log(result.toAffine())
+    //debugger
     return result.toAffine()
-    */
     //return { x: BigInt(1), y: BigInt(0) }
 }
 
@@ -1331,8 +1343,10 @@ export const smvp_gpu = async (
 
         // Calculate SMVP in CPU 
         const output_points_cpu: ExtPointType[] = cpu_smvp(csc_col_ptr_sb_result, output_points_cpu_out_of_mont)
+
+        // Skip the 0th point (TODO: check this)
         for (let i = 1; i < output_points_cpu.length; i ++) {
-            output_points_cpu[i] = output_points_cpu[i].multiply(BigInt(BigInt(i)))
+            output_points_cpu[i] = output_points_cpu[i].multiply(BigInt(i))
         }
        
         // Transform results into affine representation
@@ -1452,6 +1466,7 @@ export const bucket_aggregation = async (
         const x_y_mont_coords_result = u8s_to_bigints(data[0], num_words, word_size)
         const t_z_mont_coords_result = u8s_to_bigints(data[1], num_words, word_size)
 
+        // Convert the resulting point coordiantes out of Montgomery form
         const result = fieldMath.createPoint(
             fieldMath.Fp.mul(x_y_mont_coords_result[0], rinv),
             fieldMath.Fp.mul(x_y_mont_coords_result[1], rinv),
@@ -1459,6 +1474,7 @@ export const bucket_aggregation = async (
             fieldMath.Fp.mul(t_z_mont_coords_result[1], rinv),
         )
 
+        // Check that the sum of the points is correct
         const bucket_x_y_mont = u8s_to_bigints(data[2], num_words, word_size)
         const bucket_t_z_mont = u8s_to_bigints(data[3], num_words, word_size)
 
@@ -1472,6 +1488,7 @@ export const bucket_aggregation = async (
             ))
         }
 
+        // Add up the original points
         let expected = points[0]
         for (let i = 1; i < points.length; i ++) {
             expected = expected.add(points[i])
