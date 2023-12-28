@@ -20,6 +20,7 @@ import curve_parameters from './wgsl/curve/parameters.template.wgsl'
 import montgomery_product_funcs from './wgsl/montgomery/mont_pro_product.template.wgsl'
 import bucket_points_reduction_shader from './wgsl/bucket_points_reduction.template.wgsl'
 import { are_point_arr_equal, compute_misc_params, u8s_to_bigints, numbers_to_u8s_for_gpu, gen_p_limbs, bigints_to_u8_for_gpu } from './utils'
+import { shader_invocation } from './bucket_points_reduction'
 
 export const bucket_points_reduction = async (
     baseAffinePoints: BigIntPoint[],
@@ -147,69 +148,4 @@ export const test_bucket_points_reduction = async (
     assert(are_point_arr_equal([result], [expected]))
 
     device.destroy()
-}
-
-const shader_invocation = async (
-    device: GPUDevice,
-    commandEncoder: GPUCommandEncoder,
-    shaderCode: string,
-    x_y_coords_sb: GPUBuffer,
-    t_z_coords_sb: GPUBuffer,
-    out_x_y_sb: GPUBuffer,
-    out_t_z_sb: GPUBuffer,
-    num_points: number,
-    num_words: number,
-) => {
-    assert(num_points <= 2 ** 16)
-
-    const num_points_bytes = numbers_to_u8s_for_gpu([num_points])
-    const num_points_sb = create_and_write_sb(device, num_points_bytes)
-
-    const bindGroupLayout = create_bind_group_layout(
-        device,
-        [
-            'read-only-storage',
-            'read-only-storage',
-            'read-only-storage',
-            'storage',
-            'storage',
-        ],
-    )
-    const bindGroup = create_bind_group(
-        device,
-        bindGroupLayout,
-        [ x_y_coords_sb, t_z_coords_sb, num_points_sb, out_x_y_sb, out_t_z_sb ],
-    )
-
-    const computePipeline = await create_compute_pipeline(
-        device,
-        [bindGroupLayout],
-        shaderCode,
-        'main',
-    )
-
-    const num_x_workgroups = 256
-    const num_y_workgroups = 256
-
-    execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1);
-
-    const size = Math.ceil(num_points / 2) * 4 * num_words * 2
-    commandEncoder.copyBufferToBuffer(
-        out_x_y_sb,
-        0,
-        x_y_coords_sb,
-        0,
-        size,
-    )
-    commandEncoder.copyBufferToBuffer(
-        out_t_z_sb,
-        0,
-        t_z_coords_sb,
-        0,
-        size,
-    )
-
-    device.destroy()
-
-    return { out_x_y_sb, out_t_z_sb, num_points_sb }
 }

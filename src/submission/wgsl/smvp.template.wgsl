@@ -16,6 +16,32 @@ var<storage, read_write> bucket_sum_x_y: array<BigInt>;
 @group(0) @binding(4)
 var<storage, read_write> bucket_sum_t_z: array<BigInt>;
 
+fn get_paf() -> Point {
+    var result: Point;
+    let r = get_r();
+    result.y = r;
+    result.z = r;
+    return result;
+}
+
+// Double-and-add algo adapted from the ZPrize test harness
+fn double_and_add(point: Point, scalar: u32) -> Point {
+    // Set result to the point at infinity
+    var result: Point = get_paf();
+
+    var s = scalar;
+    var temp = point;
+
+    while (s != 0u) {
+        if ((s & 1u) == 1u) {
+            result = add_points(result, temp);
+        }
+        temp = double_point(temp);
+        s = s >> 1u;
+    }
+    return result;
+}
+
 @compute
 @workgroup_size(256)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {    
@@ -23,10 +49,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let gidy = global_id.y; 
     let id = gidx * {{ num_y_workgroups }} + gidy;
 
-    var r: BigInt = get_r();
-    var inf: Point;
-    inf.y = r;
-    inf.z = r;
+    var inf = get_paf();
 
     if (id < arrayLength(&bucket_sum_x_y)) {
         let row_begin = row_ptr[id];
@@ -40,6 +63,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
             let pt = Point(x, y, t, z);
             sum = add_points(sum, pt);
         }
+        sum = double_and_add(sum, id);
 
         bucket_sum_x_y[id * 2u] = sum.x;
         bucket_sum_x_y[id * 2u + 1u] = sum.y;
