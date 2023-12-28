@@ -39,16 +39,17 @@ export const create_sb = (
     })
 }
 
-// 
 export const read_from_gpu = async (
     device: GPUDevice,
     commandEncoder: GPUCommandEncoder,
     storage_buffers: GPUBuffer[],
+    custom_size = 0,
 ) => {
     const staging_buffers: GPUBuffer[] = []
     for (const storage_buffer of storage_buffers) {
+        const size = custom_size === 0 ? storage_buffer.size : custom_size
         const staging_buffer = device.createBuffer({
-            size: storage_buffer.size,
+            size,
             usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST
         })
         commandEncoder.copyBufferToBuffer(
@@ -56,7 +57,7 @@ export const read_from_gpu = async (
             0,
             staging_buffer,
             0,
-            storage_buffer.size
+            size,
         )
         staging_buffers.push(staging_buffer)
     }
@@ -70,7 +71,7 @@ export const read_from_gpu = async (
         await staging_buffers[i].mapAsync(
             GPUMapMode.READ,
             0,
-            storage_buffers[i].size
+            staging_buffers[i].size,
         )
         const result_data = staging_buffers[i].getMappedRange(0, staging_buffers[i].size).slice(0)
         staging_buffers[i].unmap()
