@@ -29,7 +29,7 @@ describe('cuzk', () => {
             const p = BigInt('0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001')
             const v = BigInt('0x1a1b13111111112c11b8111113331111711111f1111111111111311131131121111811171111')
             scalars.push((BigInt(i) * v) % p)
-            points.push(fieldMath.createPoint(x, y, t, z))
+            points.push(fieldMath.createPoint(x, y, t, z).multiply(BigInt(i + 1)))
         }
 
         const decomposed_scalars = decompose_scalars(scalars, num_chunks_per_scalar, chunk_size)
@@ -48,20 +48,32 @@ describe('cuzk', () => {
                 row_ptr.push(row_ptr[j] + num_columns)
                 j ++
             }
+            while (row_ptr.length < num_rows_per_subtask + 1) {
+                row_ptr.push(row_ptr[row_ptr.length - 1])
+            }
 
             const {
                 csc_col_ptr,
-                csc_row_idx,
+                //csc_row_idx,
                 csc_vals,
             }  = cpu_transpose(row_ptr, col_idx, num_columns)
 
-            // SMVP
-            const buckets = cpu_smvp(csc_col_ptr, points, fieldMath)
+            // Rearrange the points
+            const rearranged_points: ExtPointType[] = csc_vals.map((x) => points[x])
+
+            // Perform SMVP
+            const buckets = cpu_smvp(
+                csc_col_ptr,
+                rearranged_points,
+                fieldMath,
+            )
 
             let bucket_sum = fieldMath.customEdwards.ExtendedPoint.ZERO
             for (let i = 1; i < buckets.length; i ++) {
-                const b = buckets[i].multiply(BigInt(i))
-                bucket_sum = bucket_sum.add(b)
+                if (buckets[i] !== fieldMath.customEdwards.ExtendedPoint.ZERO) {
+                    const b = buckets[i].multiply(BigInt(i))
+                    bucket_sum = bucket_sum.add(b)
+                }
             }
             bucket_sums.push(bucket_sum)
         }
@@ -76,7 +88,6 @@ describe('cuzk', () => {
         }
 
         const result_affine = result.toAffine()
-        console.log(result_affine)
 
         // Calculated expected result
         let expected = fieldMath.customEdwards.ExtendedPoint.ZERO
@@ -87,7 +98,8 @@ describe('cuzk', () => {
             }
         }
         const expected_affine = expected.toAffine()
-        console.log(expected_affine)
+        expect(result_affine.x).toEqual(expected_affine.x)
+        expect(result_affine.y).toEqual(expected_affine.y)
     })
 })
 
