@@ -37,6 +37,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Prefix sum, aka cumulative/incremental sum
     for (var i = 1u; i < n + 1u; i ++) {
         csc_col_ptr[i] += csc_col_ptr[i - 1u];
+        storageBarrier();
     }
 
     var val = 0u;
