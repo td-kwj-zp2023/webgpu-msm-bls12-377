@@ -5,15 +5,20 @@
 {{> curve_parameters }}
 {{> ec_funcs }}
 
+// Input buffers
 @group(0) @binding(0)
 var<storage, read> row_ptr: array<u32>;
 @group(0) @binding(1)
-var<storage, read> new_point_x_y: array<BigInt>;
+var<storage, read> val_idx: array<u32>;
 @group(0) @binding(2)
-var<storage, read> new_point_t_z: array<BigInt>;
+var<storage, read> new_point_x_y: array<BigInt>;
 @group(0) @binding(3)
-var<storage, read_write> bucket_sum_x_y: array<BigInt>;
+var<storage, read> new_point_t_z: array<BigInt>;
+
+// Output buffers
 @group(0) @binding(4)
+var<storage, read_write> bucket_sum_x_y: array<BigInt>;
+@group(0) @binding(5)
 var<storage, read_write> bucket_sum_t_z: array<BigInt>;
 
 fn get_paf() -> Point {
@@ -43,7 +48,7 @@ fn double_and_add(point: Point, scalar: u32) -> Point {
 }
 
 @compute
-@workgroup_size(256)
+@workgroup_size({{ num_workgroups }})
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {    
     let gidx = global_id.x; 
     let gidy = global_id.y; 
@@ -51,7 +56,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     var inf = get_paf();
 
-    if (id < arrayLength(&bucket_sum_x_y)) {
+    if (id < arrayLength(&row_ptr) - 1u) {
         let row_begin = row_ptr[id];
         let row_end = row_ptr[id + 1u];
         var sum = inf;
@@ -63,9 +68,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
             let pt = Point(x, y, t, z);
             sum = add_points(sum, pt);
         }
-        if (id > 0u) {
-            sum = double_and_add(sum, id);
-        }
+        sum = double_and_add(sum, val_idx[id]);
 
         bucket_sum_x_y[id * 2u] = sum.x;
         bucket_sum_x_y[id * 2u + 1u] = sum.y;
