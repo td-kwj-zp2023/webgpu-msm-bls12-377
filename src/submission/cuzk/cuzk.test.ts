@@ -13,26 +13,27 @@ const z = BigInt('1')
 const pt = fieldMath.createPoint(x, y, t, z)
 
 describe('cuzk', () => {
-    it('one subtask', () => {
+    // TODO: cuzk with precomputation
+ 
+    it('cuzk without precomputation', () => {
         const input_size = 32
         const chunk_size = 4
 
         const num_columns = 2 ** chunk_size
-        const num_rows_per_subtask = input_size
 
-        const num_chunks_per_scalar = Math.ceil(256 / chunk_size)
-        const num_subtasks = num_chunks_per_scalar
+        const num_subtasks = Math.ceil(256 / chunk_size)
 
         const points: ExtPointType[] = []
         const scalars: bigint[] = []
         for (let i = 0; i < input_size; i ++) {
             const p = BigInt('0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001')
-            const v = BigInt('0x1a1b13111111112c11b8111113331111711111f1111111111111311131131121111811171111')
+            //const v = BigInt('0x1a1b13111111112c11b8111113331111711111f1111111111111311131131121111811171111')
+            const v = BigInt('1111111111111111111111111111111111111111111111111111111111111111111111111111')
             scalars.push((BigInt(i) * v) % p)
             points.push(fieldMath.createPoint(x, y, t, z).multiply(BigInt(i + 1)))
         }
 
-        const decomposed_scalars = decompose_scalars(scalars, num_chunks_per_scalar, chunk_size)
+        const decomposed_scalars = decompose_scalars(scalars, num_subtasks, chunk_size)
 
         const bucket_sums: ExtPointType[] = []
         for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx ++) {
@@ -44,27 +45,31 @@ describe('cuzk', () => {
             // Construct row_ptr
             let j = 0
             const row_ptr: number[] = [0]
-            for (let i = 0; i < subtask_chunks.length; i += num_columns) {
+            for (let i = 0; i < input_size; i += num_columns) {
                 row_ptr.push(row_ptr[j] + num_columns)
                 j ++
             }
-            while (row_ptr.length < num_rows_per_subtask + 1) {
+            while (row_ptr.length < input_size + 1) {
                 row_ptr.push(row_ptr[row_ptr.length - 1])
             }
 
-            const {
-                csc_col_ptr,
-                //csc_row_idx,
-                csc_vals,
-            }  = cpu_transpose(row_ptr, col_idx, num_columns)
+            //console.log(
+                //'row_ptr:', row_ptr,
+                //'col_idx:', col_idx,
+                //'num_columns:', num_columns,
+                //'col_idx.length:', col_idx.length,
+            //)
 
-            // Rearrange the points
-            const rearranged_points: ExtPointType[] = csc_vals.map((x) => points[x])
+            const { csc_col_ptr, csc_vals } =
+                cpu_transpose(row_ptr, col_idx, num_columns)
+
+            //console.log({ csc_col_ptr, csc_vals })
 
             // Perform SMVP
             const buckets = cpu_smvp(
                 csc_col_ptr,
-                rearranged_points,
+                csc_vals,
+                points,
                 fieldMath,
             )
 

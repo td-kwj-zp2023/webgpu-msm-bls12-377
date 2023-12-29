@@ -48,7 +48,7 @@ fn double_and_add(point: Point, scalar: u32) -> Point {
 }
 
 @compute
-@workgroup_size({{ num_workgroups }})
+@workgroup_size({{ workgroup_size }})
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {    
     let gidx = global_id.x; 
     let gidy = global_id.y; 
@@ -56,23 +56,25 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     var inf = get_paf();
 
-    if (id < arrayLength(&row_ptr) - 1u) {
-        let row_begin = row_ptr[id];
-        let row_end = row_ptr[id + 1u];
-        var sum = inf;
-        for (var j = row_begin; j < row_end; j++) {
-            let x = new_point_x_y[j * 2u];
-            let y = new_point_x_y[j * 2u + 1u];
-            let t = new_point_t_z[j * 2u];
-            let z = new_point_t_z[j * 2u + 1u];
-            let pt = Point(x, y, t, z);
-            sum = add_points(sum, pt);
-        }
-        sum = double_and_add(sum, val_idx[id]);
+    let row_begin = row_ptr[id];
+    let row_end = row_ptr[id + 1u];
+    var sum = inf;
+    for (var j = row_begin; j < row_end; j ++) {
+        let j2 = val_idx[j] * 2u;
+        let j21 = j2 + 1u;
 
-        bucket_sum_x_y[id * 2u] = sum.x;
-        bucket_sum_x_y[id * 2u + 1u] = sum.y;
-        bucket_sum_t_z[id * 2u] = sum.t;
-        bucket_sum_t_z[id * 2u + 1u] = sum.z;
+        let x = new_point_x_y[j2];
+        let y = new_point_x_y[j21];
+        let t = new_point_t_z[j2];
+        let z = new_point_t_z[j21];
+
+        let pt = Point(x, y, t, z);
+        sum = add_points(sum, pt);
     }
+    sum = double_and_add(sum, id);
+
+    bucket_sum_x_y[id * 2u] = sum.x;
+    bucket_sum_x_y[id * 2u + 1u] = sum.y;
+    bucket_sum_t_z[id * 2u] = sum.t;
+    bucket_sum_t_z[id * 2u + 1u] = sum.z;
 }
