@@ -28,6 +28,18 @@ export const create_and_write_sb = (
     return sb
 }
 
+export const create_and_write_ub = (
+    device: GPUDevice,
+    buffer: Uint8Array,
+): GPUBuffer => {
+    const ub = device.createBuffer({
+        size: buffer.length,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    })
+    device.queue.writeBuffer(ub, 0, buffer)
+    return ub
+}
+
 // Create buffered memory accessible by the GPU memory space
 export const create_sb = (
     device: GPUDevice,

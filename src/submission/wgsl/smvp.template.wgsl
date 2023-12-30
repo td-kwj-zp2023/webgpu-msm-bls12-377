@@ -11,15 +11,19 @@ var<storage, read> row_ptr: array<u32>;
 @group(0) @binding(1)
 var<storage, read> val_idx: array<u32>;
 @group(0) @binding(2)
-var<storage, read> new_point_x_y: array<BigInt>;
+var<storage, read> new_point_x: array<BigInt>;
 @group(0) @binding(3)
-var<storage, read> new_point_t_z: array<BigInt>;
+var<storage, read> new_point_y: array<BigInt>;
 
 // Output buffers
 @group(0) @binding(4)
-var<storage, read_write> bucket_sum_x_y: array<BigInt>;
+var<storage, read_write> bucket_sum_x: array<BigInt>;
 @group(0) @binding(5)
-var<storage, read_write> bucket_sum_t_z: array<BigInt>;
+var<storage, read_write> bucket_sum_y: array<BigInt>;
+@group(0) @binding(6)
+var<storage, read_write> bucket_sum_t: array<BigInt>;
+@group(0) @binding(7)
+var<storage, read_write> bucket_sum_z: array<BigInt>;
 
 fn get_paf() -> Point {
     var result: Point;
@@ -60,21 +64,20 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let row_end = row_ptr[id + 1u];
     var sum = inf;
     for (var j = row_begin; j < row_end; j ++) {
-        let j2 = val_idx[j] * 2u;
-        let j21 = j2 + 1u;
+        let idx = val_idx[j];
 
-        let x = new_point_x_y[j2];
-        let y = new_point_x_y[j21];
-        let t = new_point_t_z[j2];
-        let z = new_point_t_z[j21];
+        var x = new_point_x[idx];
+        var y = new_point_y[idx];
+        var t = montgomery_product(&x, &y);
+        var z = get_r();
 
         let pt = Point(x, y, t, z);
         sum = add_points(sum, pt);
     }
     sum = double_and_add(sum, id);
 
-    bucket_sum_x_y[id * 2u] = sum.x;
-    bucket_sum_x_y[id * 2u + 1u] = sum.y;
-    bucket_sum_t_z[id * 2u] = sum.t;
-    bucket_sum_t_z[id * 2u + 1u] = sum.z;
+    bucket_sum_x[id] = sum.x;
+    bucket_sum_y[id] = sum.y;
+    bucket_sum_t[id] = sum.t;
+    bucket_sum_z[id] = sum.z;
 }
