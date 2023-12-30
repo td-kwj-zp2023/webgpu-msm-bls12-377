@@ -62,7 +62,7 @@ export const cuzk_gpu = async (
     scalars: bigint[]
 ): Promise<{x: bigint, y: bigint}> => {
     const input_size = baseAffinePoints.length
-    const chunk_size = 4
+    const chunk_size = 16
 
     const num_columns = 2 ** chunk_size
 
