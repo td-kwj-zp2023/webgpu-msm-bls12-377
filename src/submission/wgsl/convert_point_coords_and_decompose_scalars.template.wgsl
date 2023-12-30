@@ -10,16 +10,18 @@
 
 // Input buffers
 @group(0) @binding(0)
-var<storage, read> x_y_coords: array<u32>;
+var<storage, read> x_coords: array<u32>;
 @group(0) @binding(1)
+var<storage, read> y_coords: array<u32>;
+@group(0) @binding(2)
 var<storage, read> scalars: array<u32>;
 
 // Output buffers
-@group(0) @binding(2)
-var<storage, read_write> point_x_y: array<BigInt>;
 @group(0) @binding(3)
-var<storage, read_write> point_t_z: array<BigInt>;
+var<storage, read_write> point_x: array<BigInt>;
 @group(0) @binding(4)
+var<storage, read_write> point_y: array<BigInt>;
+@group(0) @binding(5)
 var<storage, read_write> chunks: array<u32>;
 
 const NUM_SUBTASKS = {{ num_subtasks }}u;
@@ -45,8 +47,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     var x_bytes: array<u32, 16>;
     var y_bytes: array<u32, 16>;
     for (var i = 0u; i < 16u; i ++) {
-        x_bytes[15u - i] = x_y_coords[id * 2 * 16 + i];
-        y_bytes[15u - i] = x_y_coords[id * 2 * 16 + i + 16];
+        x_bytes[15u - i] = x_coords[id * 16 + i];
+        y_bytes[15u - i] = y_coords[id * 16 + i];
     }
 
     // Convert the byte arrays to BigInts with word_size limbs
@@ -63,17 +65,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     // Convert x and y coordinates to Montgomery form
     var r = get_r();
-    var xr = field_mul(&x_bigint, &r);
-    var yr = field_mul(&y_bigint, &r);
-    point_x_y[id * 2u] = xr;
-    point_x_y[id * 2u + 1u] = yr;
-
-    // Compute t
-    let tr = montgomery_product(&xr, &yr);
-    point_t_z[id * 2u] = tr;
-
-    // Store z
-    point_t_z[id * 2u + 1u] = r;
+    point_x[id] = field_mul(&x_bigint, &r);
+    point_y[id] = field_mul(&y_bigint, &r);
 
     // Decompose scalars
     var scalar_bytes: array<u32, 16>;
