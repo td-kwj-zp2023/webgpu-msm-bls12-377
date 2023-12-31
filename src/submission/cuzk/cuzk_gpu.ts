@@ -115,19 +115,6 @@ export const cuzk_gpu = async (
     // iteration
     const csr_col_idx_sb = create_sb(device, input_size * 4)
 
-    // Construct row_ptr
-    // TODO: this should be integrated into the transpose shader as its
-    // values are deterministic
-    // Simply use:
-    // const start = Math.min(i * n, n)
-    // const end = Math.min((i + 1) * n, n)
-    const csr_row_ptr_sb = await gen_row_ptr(
-        device,
-        commandEncoder,
-        input_size,
-        num_columns,
-    )
-
     for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx ++) {
         // Copy the chunks needed for this subtask to csr_col_idx_sb
         commandEncoder.copyBufferToBuffer(
@@ -136,6 +123,19 @@ export const cuzk_gpu = async (
             csr_col_idx_sb,
             0,
             csr_col_idx_sb.size,
+        )
+
+        // Construct row_ptr
+        // TODO: this should be integrated into the transpose shader as its
+        // values are deterministic
+        // Simply use:
+        // const start = Math.min(i * n, n)
+        // const end = Math.min((i + 1) * n, n)
+        const csr_row_ptr_sb = await gen_row_ptr(
+            device,
+            commandEncoder,
+            input_size,
+            num_columns,
         )
 
         // Transpose
