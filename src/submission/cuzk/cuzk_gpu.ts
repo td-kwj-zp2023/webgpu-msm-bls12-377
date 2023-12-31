@@ -115,21 +115,8 @@ export const cuzk_gpu = async (
     // iteration
     const csr_col_idx_sb = create_sb(device, input_size * 4)
 
-    // Construct row_ptr
-    // TODO: this should be integrated into the transpose shader as its
-    // values are deterministic
-    // Simply use:
-    // const start = Math.min(i * n, n)
-    // const end = Math.min((i + 1) * n, n)
-    const csr_row_ptr_sb = await gen_row_ptr(
-        device,
-        commandEncoder,
-        input_size,
-        num_columns,
-    )
-
     for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx ++) {
-        // Copy the chunks needed for this subtask to csr_col_idx_sb
+        // Copy the scalar chunks needed for this subtask to csr_col_idx_sb
         commandEncoder.copyBufferToBuffer(
             scalar_chunks_sb,
             subtask_idx * csr_col_idx_sb.size,
@@ -147,7 +134,6 @@ export const cuzk_gpu = async (
             commandEncoder,
             input_size,
             num_columns,
-            csr_row_ptr_sb,
             csr_col_idx_sb,
         )
 
@@ -473,81 +459,11 @@ const genConvertPointCoordsAndDecomposeScalarsShaderCode = (
     return shaderCode
 }
 
-export const gen_row_ptr = async (
-    device: GPUDevice,
-    commandEncoder: GPUCommandEncoder,
-    input_size: number,
-    num_columns: number,
-    debug = false,
-) => {
-    const row_ptr_sb = create_sb(device, (input_size + 1) * 4)
-
-    const bindGroupLayout = create_bind_group_layout(
-        device,
-        [
-            'storage',
-        ],
-    )
-    const bindGroup = create_bind_group(
-        device,
-        bindGroupLayout,
-        [
-            row_ptr_sb,
-        ],
-    )
-    const num_x_workgroups = 1
-    const num_y_workgroups = 1
-
-    const shaderCode = `
-// Input buffers
-@group(0) @binding(0)
-var<storage, read_write> row_ptr: array<u32>;
-@compute
-@workgroup_size(1)
-fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
-    let num_chunks = ${input_size}u;
-    let num_columns = ${num_columns}u;
-    row_ptr[0] = 0u;
-    var j = 1u;
-    for (var i = 0u; i < num_chunks; i += num_columns) {
-        row_ptr[j] = row_ptr[j - 1u] + num_columns;
-        j ++;
-    }
-
-    for (; j < arrayLength(&row_ptr); j ++) {
-        row_ptr[j] = row_ptr[j - 1u];
-    }
-}
-`
-
-    const computePipeline = await create_compute_pipeline(
-        device,
-        [bindGroupLayout],
-        shaderCode,
-        'main',
-    )
-
-    execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1)
-
-    if (debug) {
-        const data = await read_from_gpu(
-            device,
-            commandEncoder,
-            [ row_ptr_sb ],
-        )
-        const row_ptr = u8s_to_numbers_32(data[0])
-        console.log(row_ptr)
-    }
-
-    return row_ptr_sb
-}
-
 export const transpose_gpu = async (
     device: GPUDevice,
     commandEncoder: GPUCommandEncoder,
     input_size: number,
     num_cols: number,
-    csr_row_ptr_sb: GPUBuffer,
     new_scalar_chunks_sb: GPUBuffer,
     debug = false,
 ): Promise<{
@@ -562,7 +478,6 @@ export const transpose_gpu = async (
      *
      * Given: 
      *   - csr_col_idx (nnz) (aka the new_scalar_chunks)
-     *   - csr_row_ptr (m + 1)
      *
      * Output the transpose of the above:
      *   - csc_row_idx (nnz)
@@ -583,7 +498,6 @@ export const transpose_gpu = async (
         device,
         [
             'read-only-storage',
-            'read-only-storage',
             'storage',
             'storage',
             'storage',
@@ -595,7 +509,6 @@ export const transpose_gpu = async (
         device,
         bindGroupLayout,
         [
-            csr_row_ptr_sb,
             new_scalar_chunks_sb,
             csc_col_ptr_sb,
             csc_row_idx_sb,
@@ -609,9 +522,10 @@ export const transpose_gpu = async (
 
     const shaderCode = mustache.render(
         transpose_serial_shader,
-        { num_cols },
+        { num_cols, num_rows: input_size / num_cols },
         {},
     )
+
     const computePipeline = await create_compute_pipeline(
         device,
         [bindGroupLayout],
@@ -629,32 +543,39 @@ export const transpose_gpu = async (
                 csc_col_ptr_sb,
                 csc_row_idx_sb,
                 csc_val_idxs_sb,
-                csr_row_ptr_sb,
                 new_scalar_chunks_sb],
         )
     
         const csc_col_ptr_result = u8s_to_numbers_32(data[0])
         const csc_row_idx_result = u8s_to_numbers_32(data[1])
         const csc_val_idxs_result = u8s_to_numbers_32(data[2])
-        const csr_row_ptr = u8s_to_numbers_32(data[3])
-        const new_scalar_chunks = u8s_to_numbers_32(data[4])
+        const new_scalar_chunks = u8s_to_numbers_32(data[3])
 
         console.log(
-            //'row_ptr:', csr_row_ptr,
             //'new_scalar_chunks:', new_scalar_chunks, 
             //'num_columns:', num_cols,
             'csc_col_ptr_result:', csc_col_ptr_result,
             //'csc_val_idxs_result:', csc_val_idxs_result,
         )
 
+        // Construct csr_row_ptr
+        let j = 0
+        const row_ptr: number[] = [0]
+        for (let i = 0; i < input_size; i += num_cols) {
+            row_ptr.push(row_ptr[j] + num_cols)
+            j ++
+        }
+        while (row_ptr.length < input_size + 1) {
+            row_ptr.push(row_ptr[row_ptr.length - 1])
+        }
+
         // Verify the output of the shader
-        const expected = cpu_transpose(csr_row_ptr, new_scalar_chunks, num_cols)
+        const expected = cpu_transpose(row_ptr, new_scalar_chunks, num_cols)
 
         console.log('expected.csc_col_ptr', expected.csc_col_ptr)
         //console.log('expected.csc_row_idx', expected.csc_row_idx)
         //console.log('expected.csc_vals', expected.csc_row_idx)
 
-        debugger
         assert(expected.csc_col_ptr.toString() === csc_col_ptr_result.toString(), 'csc_col_ptr mismatch')
         assert(expected.csc_row_idx.toString() === csc_row_idx_result.toString(), 'csc_row_idx mismatch')
         assert(expected.csc_vals.toString() === csc_val_idxs_result.toString(), 'csc_vals mismatch')
