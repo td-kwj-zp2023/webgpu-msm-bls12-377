@@ -17,7 +17,13 @@ export const cpu_transpose = (
     // the index `csr_col_idx[j] + 1` can be the same across iterations,
     // causing a race condition.
     for (let i = 0; i < m; i ++) {
-        for (let j = csr_row_ptr[i]; j < csr_row_ptr[i + 1]; j ++) {
+        const start = csr_row_ptr[i]
+        const end = csr_row_ptr[i + 1]
+
+        // TODO: do the following instead
+        //const start = Math.min(i * n, n)
+        //const end = Math.min((i + 1) * n, n)
+        for (let j = start; j < end; j ++) {
             csc_col_ptr[csr_col_idx[j] + 1] ++
         }
     }
@@ -29,7 +35,12 @@ export const cpu_transpose = (
 
     let val = 0
     for (let i = 0; i < m; i ++) {
-        for (let j = csr_row_ptr[i]; j < csr_row_ptr[i + 1]; j ++) {
+        const start = csr_row_ptr[i]
+        const end = csr_row_ptr[i + 1]
+        // TODO: do the following instead
+        //const start = Math.min(i * n, n)
+        //const end = Math.min((i + 1) * n, n)
+        for (let j = start; j < end; j ++) {
             const loc = csc_col_ptr[csr_col_idx[j]] + (curr[csr_col_idx[j]] ++)
             csc_row_idx[loc] = i
             csc_vals[loc] = val
