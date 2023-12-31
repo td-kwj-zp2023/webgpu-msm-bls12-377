@@ -46,9 +46,24 @@ export const decompose_scalars = (
     word_size: number,
 ): number[][] => {
     const as_limbs: number[][] = []
+    const index_shift = 2 ** (word_size - 1)
     for (const scalar of scalars) {
         const limbs = to_words_le(scalar, num_words, word_size)
-        as_limbs.push(Array.from(limbs))
+        const signed_limbs: number[] = []
+        let carry = 0
+        for (let i = 0; i < limbs.length; i ++) {
+            let s = limbs[i] + carry
+            if (s >= index_shift) {
+                s -= index_shift
+                if (s === -0) { s = 0 }
+                carry = 1
+            } else {
+                carry = 0
+            }
+            signed_limbs.push(s + index_shift)
+        }
+
+        as_limbs.push(signed_limbs)
     }
     const result: number[][] = []
     for (let i = 0; i < num_words; i ++) {

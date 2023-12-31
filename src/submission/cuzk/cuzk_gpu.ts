@@ -13,7 +13,6 @@ import {
     execute_pipeline,
 } from '../gpu'
 import {
-    to_words_le,
     gen_p_limbs,
     gen_r_limbs,
     gen_mu_limbs,
@@ -62,7 +61,7 @@ export const cuzk_gpu = async (
     scalars: bigint[]
 ): Promise<{x: bigint, y: bigint}> => {
     const input_size = baseAffinePoints.length
-    const chunk_size = 16
+    const chunk_size = 4
 
     const num_columns = 2 ** chunk_size
 
@@ -86,7 +85,10 @@ export const cuzk_gpu = async (
             scalars,
             num_subtasks,
             chunk_size,
+            //true,
         )
+    //device.destroy()
+    //return { x: BigInt(0), y: BigInt(1) }
 
     // Buffers to contain the sum of all the bucket sums per subtask
     const subtask_sum_coord_bytelength = num_subtasks * num_words * 4
@@ -133,7 +135,7 @@ export const cuzk_gpu = async (
             device,
             commandEncoder,
             input_size,
-            num_columns,
+            num_columns / 2,
             csr_col_idx_sb,
         )
 
@@ -141,8 +143,9 @@ export const cuzk_gpu = async (
         await smvp_gpu(
             device,
             commandEncoder,
-            num_columns,
+            num_columns / 2,
             input_size,
+            chunk_size,
             csc_col_ptr_sb,
             point_x_sb,
             point_y_sb,
@@ -379,32 +382,15 @@ export const convert_point_coords_and_decompose_shaders = async (
         // Verify scalar chunks
         const computed_chunks = u8s_to_numbers(data[2])
 
-        const all_chunks: Uint16Array[] = []
+        const expected = decompose_scalars(scalars, num_subtasks, chunk_size)
 
-        const expected: number[] = Array(scalars.length * num_subtasks).fill(0)
-        for (let i = 0; i < scalars.length; i ++) {
-            const chunks = to_words_le(scalars[i], num_subtasks, chunk_size)
-            all_chunks.push(chunks)
-        }
-        for (let i = 0; i < chunk_size; i ++) {
-            for (let j = 0; j < scalars.length; j ++) {
-                expected[j * chunk_size + i] = all_chunks[j][i]
-            }
-        }
-
-        const decompose_scalars_original = decompose_scalars(scalars, num_subtasks, chunk_size)
-
-        if (computed_chunks.length !== expected.length) {
-            throw Error('output size mismatch')
-        }
-
-        for (let j = 0; j < decompose_scalars_original.length; j++) {
+        for (let j = 0; j < expected.length; j++) {
             let z = 0;
             for (let i = j * input_size; i < (j + 1) * input_size; i++) {
-                if (computed_chunks[i] !== decompose_scalars_original[j][z]) {
+                if (computed_chunks[i] !== expected[j][z]) {
                     throw Error(`scalar decomp mismatch at ${i}`)
                 }
-                z++;
+                z ++
             }
         }
     }
@@ -421,6 +407,8 @@ const genConvertPointCoordsAndDecomposeScalarsShaderCode = (
 ) => {
     const mask = BigInt(2) ** BigInt(word_size) - BigInt(1)
     const two_pow_word_size = 2 ** word_size
+    const two_pow_chunk_size = 2 ** chunk_size
+    const index_shift = 2 ** (chunk_size - 1)
     const p_limbs = gen_p_limbs(p, num_words, word_size)
     const r_limbs = gen_r_limbs(r, num_words, word_size)
     const mu_limbs = gen_mu_limbs(p, num_words, word_size)
@@ -436,6 +424,8 @@ const genConvertPointCoordsAndDecomposeScalarsShaderCode = (
             n0,
             mask,
             two_pow_word_size,
+            two_pow_chunk_size,
+            index_shift,
             p_limbs,
             r_limbs,
             mu_limbs,
@@ -593,6 +583,7 @@ export const smvp_gpu = async (
     commandEncoder: GPUCommandEncoder,
     num_csr_cols: number,
     input_size: number,
+    chunk_size: number,
     csc_col_ptr_sb: GPUBuffer,
     point_x_sb: GPUBuffer,
     point_y_sb: GPUBuffer,
@@ -647,6 +638,7 @@ export const smvp_gpu = async (
     )
 
     const p_limbs = gen_p_limbs(p, num_words, word_size)
+    const index_shift = 2 ** (chunk_size - 1)
     const shaderCode = mustache.render(
         smvp_shader,
         {
@@ -656,6 +648,7 @@ export const smvp_gpu = async (
             p_limbs,
             mask: BigInt(2) ** BigInt(word_size) - BigInt(1),
             two_pow_word_size: BigInt(2) ** BigInt(word_size),
+            index_shift,
             workgroup_size,
             num_y_workgroups,
         },
