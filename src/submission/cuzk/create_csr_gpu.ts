@@ -291,8 +291,8 @@ export async function create_csr_precomputation_benchmark(
     scalars: bigint[],
 ): Promise<{x: bigint, y: bigint}> {
     const num_rows = 16
-    const num_words = 20
-    const word_size = 13
+    const num_words = 16
+    const word_size = 16
 
     const start_decomposed = Date.now()
     const decomposed_scalars = decompose_scalars(scalars, num_words, word_size)
@@ -421,6 +421,8 @@ export async function create_csr_sparse_matrices_from_points(
             break
         }
     }
+
+    device.destroy()
 
     return csr_sms_gpu
 }
