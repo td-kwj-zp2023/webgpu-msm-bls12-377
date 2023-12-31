@@ -1,5 +1,7 @@
 import mustache from 'mustache'
+import assert from 'assert'
 import { BigIntPoint } from "../../reference/types"
+import { ExtPointType } from "@noble/curves/abstract/edwards";
 import {
     get_device,
     create_and_write_sb,
@@ -8,6 +10,7 @@ import {
     create_compute_pipeline,
     create_sb,
     read_from_gpu,
+    execute_pipeline,
 } from '../gpu'
 import {
     to_words_le,
@@ -17,168 +20,39 @@ import {
     u8s_to_bigints,
     u8s_to_numbers,
     u8s_to_numbers_32,
-    bigints_to_16_bit_words_for_gpu,
-    numbers_to_u8s_for_gpu,
-    bigint_to_u8_for_gpu,
     bigints_to_u8_for_gpu,
-    gen_barrett_domb_m_limbs,
     compute_misc_params,
+    decompose_scalars,
+    are_point_arr_equal,
 } from '../utils'
-import { all_precomputation } from './create_csr'
+import { cpu_transpose } from './transpose'
+import { cpu_smvp } from './smvp';
+import { shader_invocation } from '../bucket_points_reduction'
 
-import convert_point_coords_shader from '../wgsl/convert_point_coords.template.wgsl'
+import convert_point_coords_and_decompose_scalars from '../wgsl/convert_point_coords_and_decompose_scalars.template.wgsl'
 import extract_word_from_bytes_le_funcs from '../wgsl/extract_word_from_bytes_le.template.wgsl'
 import structs from '../wgsl/struct/structs.template.wgsl'
 import bigint_funcs from '../wgsl/bigint/bigint.template.wgsl'
 import field_funcs from '../wgsl/field/field.template.wgsl'
 import ec_funcs from '../wgsl/curve/ec.template.wgsl'
-import barrett_functions from '../wgsl/barrett_domb.template.wgsl'
+import barrett_funcs from '../wgsl/barrett.template.wgsl'
 import montgomery_product_funcs from '../wgsl/montgomery/mont_pro_product.template.wgsl'
-import decompose_scalars_shader from '../wgsl/decompose_scalars.template.wgsl'
-import gen_csr_precompute_shader from '../wgsl/gen_csr_precompute.template.wgsl'
-import preaggregation_stage_1_shader from '../wgsl/preaggregation_stage_1.template.wgsl'
-import preaggregation_stage_2_shader from '../wgsl/preaggregation_stage_2.template.wgsl'
+import curve_parameters from '../wgsl/curve/parameters.template.wgsl'
+import transpose_serial_shader from '../wgsl/transpose_serial.wgsl'
+import smvp_shader from '../wgsl/smvp.template.wgsl'
+import bucket_points_reduction_shader from '../wgsl/bucket_points_reduction.template.wgsl'
 
-/*
- * End-to-end implementation of the cuZK MSM algorithm using Approach D (see 
- * https://github.com/TalDerei/webgpu-msm/pull/39#issuecomment-1820003395
- */
-export const cuzk_gpu_approach_d = async (
-    baseAffinePoints: BigIntPoint[],
-    scalars: bigint[]
-): Promise<{x: bigint, y: bigint}> => {
-    const input_size = scalars.length
-    const num_subtasks = 16
+// Hardcode params for word_size = 13
+const p = BigInt('8444461749428370424248824938781546531375899335154063827935233455917409239041')
+const word_size = 13
+const params = compute_misc_params(p, word_size)
+const n0 = params.n0
+const num_words = params.num_words
+const r = params.r
+const rinv = params.rinv
 
-    // Each pass must use the same GPUDevice and GPUCommandEncoder, or else
-    // storage buffers can't be reused across compute passes
-    let device = await get_device()
-    let commandEncoder = device.createCommandEncoder()
-
-    // Convert the affine points to Montgomery form in the GPU
-    let { point_x_y_sb, point_t_z_sb } =
-        await convert_point_coords_to_mont_gpu(
-            device,
-            commandEncoder,
-            baseAffinePoints,
-            false,
-        )
-
-    // Decompose the scalars
-    let scalar_chunks_sb = await decompose_scalars_gpu(
-        device,
-        commandEncoder,
-        scalars,
-        num_subtasks,
-        false,
-    )
-
-    // Read the scalar chunks from scalar_chunks_sb
-    const [
-        scalar_chunks_data,
-        point_x_y_data,
-        point_t_z_data,
-    ]= await read_from_gpu(
-        device,
-        commandEncoder,
-        [scalar_chunks_sb, point_x_y_sb, point_t_z_sb],
-    )
-
-    // Measure the amount of data read
-    const total_gpu_to_cpu_data =
-        scalar_chunks_data.length +
-        point_x_y_data.length +
-        point_t_z_data.length
-    
-    console.log(`Data transfer from GPU to CPU: ${total_gpu_to_cpu_data} bytes (${total_gpu_to_cpu_data / 1024 / 1024} MB)`)
-
-    // The concatenation of the decomposed scalar chunks across all subtasks
-    const all_computed_chunks = u8s_to_numbers(scalar_chunks_data)
-
-    // Recreate the commandEncoder, since read_from_gpu ran finish() on it, as
-    // well as the device, since storage buffers can't be shared across devices
-    device = await get_device()
-    commandEncoder = device.createCommandEncoder()
-
-    // Recreate the storage buffers under the new device object
-    scalar_chunks_sb = create_and_write_sb(device, scalar_chunks_data)
-    point_x_y_sb = create_and_write_sb(device, point_x_y_data)
-    point_t_z_sb = create_and_write_sb(device, point_t_z_data)
-
-    let total_cpu_to_gpu_data =
-        scalar_chunks_data.length +
-        point_x_y_data.length +
-        point_t_z_data.length
-
-    let total_precomputation_ms = 0
-    const num_rows = 16
-    for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx ++) {
-        const start = Date.now()
-        const scalar_chunks = all_computed_chunks.slice(
-            subtask_idx * input_size,
-            subtask_idx * input_size + input_size,
-        )
-
-        // Precomputation in CPU
-        const {
-            all_new_point_indices,
-            all_cluster_start_indices,
-            all_cluster_end_indices,
-            all_single_point_indices,
-            all_single_scalar_chunks,
-            row_ptr,
-        } = all_precomputation(scalar_chunks, num_rows)
-
-        const all_new_point_indices_bytes = numbers_to_u8s_for_gpu(all_new_point_indices)
-        const all_cluster_start_indices_bytes = numbers_to_u8s_for_gpu(all_cluster_start_indices)
-        const all_cluster_end_indices_bytes = numbers_to_u8s_for_gpu(all_cluster_end_indices)
-
-        const new_point_indices_sb = create_and_write_sb(device, all_new_point_indices_bytes)
-        const cluster_start_indices_sb = create_and_write_sb(device, all_cluster_start_indices_bytes)
-        const cluster_end_indices_sb = create_and_write_sb(device, all_cluster_end_indices_bytes)
-        const elapsed = Date.now() - start
-        total_precomputation_ms += elapsed
-
-        total_cpu_to_gpu_data +=
-            all_new_point_indices_bytes.length +
-            all_cluster_start_indices_bytes.length +
-            all_cluster_end_indices_bytes.length
-
-        // TOOD: figure out where these go:
-        // - all_single_point_indices
-        // - all_single_scalar_chunks
-        // - row_ptr
-
-        const {
-            new_point_x_y_sb,
-            new_point_t_z_sb,
-        } = await pre_aggregation_stage_1_gpu(
-            device,
-            commandEncoder,
-            input_size,
-            point_x_y_sb,
-            point_t_z_sb,
-            new_point_indices_sb,
-            cluster_start_indices_sb,
-            cluster_end_indices_sb,
-            false,
-        )
-
-        const new_scalar_chunks_sb = await pre_aggregation_stage_2_gpu(
-            device,
-            commandEncoder,
-            input_size,
-            scalar_chunks_sb,
-            cluster_start_indices_sb,
-            new_point_indices_sb,
-            false,
-        )
-    }
-    console.log(`all_precomputation for ${num_subtasks} subtasks took: ${total_precomputation_ms}ms`)
-    console.log(`Data transfer from CPU to GPU: ${total_cpu_to_gpu_data} bytes (${total_cpu_to_gpu_data / 1024 / 1024} MB)`)
-
-    return { x: BigInt(1), y: BigInt(0) }
-}
+import { FieldMath } from "../../reference/utils/FieldMath"
+const fieldMath = new FieldMath()
 
 /*
  * End-to-end implementation of the cuZK MSM algorithm.
@@ -187,80 +61,185 @@ export const cuzk_gpu = async (
     baseAffinePoints: BigIntPoint[],
     scalars: bigint[]
 ): Promise<{x: bigint, y: bigint}> => {
-    const input_size = scalars.length
-    const num_subtasks = 16
+    const input_size = baseAffinePoints.length
+    const chunk_size = 16
+
+    const num_columns = 2 ** chunk_size
+
+    const num_chunks_per_scalar = Math.ceil(256 / chunk_size)
+    const num_subtasks = num_chunks_per_scalar
 
     // Each pass must use the same GPUDevice and GPUCommandEncoder, or else
     // storage buffers can't be reused across compute passes
     const device = await get_device()
     const commandEncoder = device.createCommandEncoder()
-
-    // Convert the affine points to Montgomery form in the GPU
-    const { point_x_y_sb, point_t_z_sb } =
-        await convert_point_coords_to_mont_gpu(
+ 
+    // Convert the affine points to Montgomery form and decompose the scalars
+    // using a single shader
+    const { point_x_sb, point_y_sb, scalar_chunks_sb } =
+        await convert_point_coords_and_decompose_shaders(
             device,
             commandEncoder,
             baseAffinePoints,
-            false,
+            num_words, 
+            word_size,
+            scalars,
+            num_subtasks,
+            chunk_size,
         )
 
-    // Decompose the scalars
-    const scalar_chunks_sb = await decompose_scalars_gpu(
-        device,
-        commandEncoder,
-        scalars,
-        num_subtasks,
-        false,
-    )
+    // Buffers to contain the sum of all the bucket sums per subtask
+    const subtask_sum_coord_bytelength = num_subtasks * num_words * 4
+    const subtask_sum_x_sb = create_sb(device, subtask_sum_coord_bytelength)
+    const subtask_sum_y_sb = create_sb(device, subtask_sum_coord_bytelength)
+    const subtask_sum_t_sb = create_sb(device, subtask_sum_coord_bytelength)
+    const subtask_sum_z_sb = create_sb(device, subtask_sum_coord_bytelength)
+
+    // Buffers to  store the SMVP result (the bucket sum). They are overwritten
+    // per iteration
+    const bucket_sum_coord_bytelength = num_columns * num_words * 4
+    const bucket_sum_x_sb = create_sb(device, bucket_sum_coord_bytelength)
+    const bucket_sum_y_sb = create_sb(device, bucket_sum_coord_bytelength)
+    const bucket_sum_t_sb = create_sb(device, bucket_sum_coord_bytelength)
+    const bucket_sum_z_sb = create_sb(device, bucket_sum_coord_bytelength)
+
+    // Used by the tree summation method in bucket_points_reduction
+    const out_x_sb = create_sb(device, bucket_sum_coord_bytelength)
+    const out_y_sb = create_sb(device, bucket_sum_coord_bytelength)
+    const out_t_sb = create_sb(device, bucket_sum_coord_bytelength)
+    const out_z_sb = create_sb(device, bucket_sum_coord_bytelength)
+
+
+    // scalar_chunks_sb contains num_subtasks * input_size chunks, and
+    // csr_col_idx_sb is used to store the needed input_size chunks per
+    // iteration
+    const csr_col_idx_sb = create_sb(device, input_size * 4)
 
     for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx ++) {
-        // TODO: currently if debug is set to true here, the sanity check will
-        // fail on the second iteration, because the commandEncoder's finish()
-        // function has been used. To correctly sanity-check these outputs, do
-        // so in a separate test file.
-        const {
-            new_point_indices_sb,
-            cluster_start_indices_sb,
-            cluster_end_indices_sb,
-        } = await csr_precompute_gpu(
-            device,
-            commandEncoder,
-            input_size,
+        // Copy the scalar chunks needed for this subtask to csr_col_idx_sb
+        commandEncoder.copyBufferToBuffer(
             scalar_chunks_sb,
-            false,
+            subtask_idx * csr_col_idx_sb.size,
+            csr_col_idx_sb,
+            0,
+            csr_col_idx_sb.size,
         )
 
+        // Transpose
         const {
-            new_point_x_y_sb,
-            new_point_t_z_sb,
-        } = await pre_aggregation_stage_1_gpu(
+            csc_col_ptr_sb,
+            csc_val_idxs_sb,
+        } = await transpose_gpu(
             device,
             commandEncoder,
             input_size,
-            point_x_y_sb,
-            point_t_z_sb,
-            new_point_indices_sb,
-            cluster_start_indices_sb,
-            cluster_end_indices_sb,
-            false,
+            num_columns,
+            csr_col_idx_sb,
         )
 
-        const new_scalar_chunks_sb = await pre_aggregation_stage_2_gpu(
+        // SMVP and multiplication by the bucket index
+        await smvp_gpu(
             device,
             commandEncoder,
+            num_columns,
             input_size,
-            scalar_chunks_sb,
-            cluster_start_indices_sb,
-            new_point_indices_sb,
-            false,
+            csc_col_ptr_sb,
+            point_x_sb,
+            point_y_sb,
+            csc_val_idxs_sb,
+            bucket_sum_x_sb,
+            bucket_sum_y_sb,
+            bucket_sum_t_sb,
+            bucket_sum_z_sb,
+        )
+
+        // Bucket aggregation
+        await bucket_aggregation(
+            device,
+            commandEncoder,
+            out_x_sb,
+            out_y_sb,
+            out_t_sb,
+            out_z_sb,
+            bucket_sum_x_sb,
+            bucket_sum_y_sb,
+            bucket_sum_t_sb,
+            bucket_sum_z_sb,
+            num_columns,
+        )
+
+        commandEncoder.copyBufferToBuffer(
+            out_x_sb,
+            0,
+            subtask_sum_x_sb,
+            subtask_idx * num_words * 4,
+            num_words * 4,
+        )
+        commandEncoder.copyBufferToBuffer(
+            out_y_sb,
+            0,
+            subtask_sum_y_sb,
+            subtask_idx * num_words * 4,
+            num_words * 4,
+        )
+        commandEncoder.copyBufferToBuffer(
+            out_t_sb,
+            0,
+            subtask_sum_t_sb,
+            subtask_idx * num_words * 4,
+            num_words * 4,
+        )
+        commandEncoder.copyBufferToBuffer(
+            out_z_sb,
+            0,
+            subtask_sum_z_sb,
+            subtask_idx * num_words * 4,
+            num_words * 4,
         )
     }
 
-    return { x: BigInt(1), y: BigInt(0) }
+    const subtask_sum_data = await read_from_gpu(
+        device,
+        commandEncoder,
+        [ subtask_sum_x_sb, subtask_sum_y_sb, subtask_sum_t_sb, subtask_sum_z_sb ],
+    )
+    device.destroy()
+
+    const x_mont_coords = u8s_to_bigints(subtask_sum_data[0], num_words, word_size)
+    const y_mont_coords = u8s_to_bigints(subtask_sum_data[1], num_words, word_size)
+    const t_mont_coords = u8s_to_bigints(subtask_sum_data[2], num_words, word_size)
+    const z_mont_coords = u8s_to_bigints(subtask_sum_data[3], num_words, word_size)
+
+    // Convert each point out of Montgomery form
+    const points: ExtPointType[] = []
+    for (let i = 0; i < num_subtasks; i ++) {
+        const pt = fieldMath.createPoint(
+            fieldMath.Fp.mul(x_mont_coords[i], rinv),
+            fieldMath.Fp.mul(y_mont_coords[i], rinv),
+            fieldMath.Fp.mul(t_mont_coords[i], rinv),
+            fieldMath.Fp.mul(z_mont_coords[i], rinv),
+        )
+        points.push(pt)
+    }
+
+    // Horner's rule
+    const m = BigInt(2) ** BigInt(chunk_size)
+    // The last scalar chunk is the most significant digit (base m)
+    let result = points[points.length - 1]
+    for (let i = points.length - 2; i >= 0; i --) {
+        result = result.multiply(m)
+        result = result.add(points[i])
+    }
+
+    console.log(result.toAffine())
+    return result.toAffine()
+    //device.destroy()
+    //return { x: BigInt(0), y: BigInt(1) }
 }
 
 /*
- * Convert the affine points to Montgomery form
+ * Convert the affine points to Montgomery form, and decompose scalars into
+ * chunk_size windows.
 
  * ASSUMPTION: the vast majority of WebGPU-enabled consumer devices have a
  * maximum buffer size of at least 268435456 bytes.
@@ -277,34 +256,53 @@ export const cuzk_gpu = async (
  * up to 2^20. The evaluation will be using input randomly sampled from size
  * 2^16 ~ 2^20."
 */
-const convert_point_coords_to_mont_gpu = async (
+export const convert_point_coords_and_decompose_shaders = async (
     device: GPUDevice,
     commandEncoder: GPUCommandEncoder,
     baseAffinePoints: BigIntPoint[],
+    num_words: number,
+    word_size: number,
+    scalars: bigint[],
+    num_subtasks: number,
+    chunk_size: number,
     debug = false,
-): Promise<any> => {
+) => {
+    assert(num_subtasks * chunk_size === 256)
     const input_size = baseAffinePoints.length
 
     // An affine point only contains X and Y points.
-    const x_y_coords = Array(input_size * 2).fill(BigInt(0))
+    const x_coords = Array(input_size).fill(BigInt(0))
+    const y_coords = Array(input_size).fill(BigInt(0))
     for (let i = 0; i < input_size; i ++) {
-        x_y_coords[i * 2] = baseAffinePoints[i].x
-        x_y_coords[i * 2 + 1] = baseAffinePoints[i].y
+        x_coords[i] = baseAffinePoints[i].x
+        y_coords[i] = baseAffinePoints[i].y
     }
 
-    const x_y_coords_bytes = bigints_to_u8_for_gpu(x_y_coords, 20, 13)
+    // Convert points to bytes (performs ~2x faster than
+    // `bigints_to_16_bit_words_for_gpu`)
+    const x_coords_bytes = bigints_to_u8_for_gpu(x_coords, 16, 16)
+    const y_coords_bytes = bigints_to_u8_for_gpu(y_coords, 16, 16)
+
+    // Convert scalars to bytes
+    const scalars_bytes = bigints_to_u8_for_gpu(scalars, 16, 16)
 
     // Input buffers
-    const x_y_coords_sb = create_and_write_sb(device, x_y_coords_bytes)
+    const x_coords_sb = create_and_write_sb(device, x_coords_bytes)
+    const y_coords_sb = create_and_write_sb(device, y_coords_bytes)
+    const scalars_sb = create_and_write_sb(device, scalars_bytes)
 
     // Output buffers
-    const point_x_y_sb = create_sb(device, input_size * 2 * num_words * 4)
-    const point_t_z_sb = create_sb(device, input_size * 2 * num_words * 4)
+    const point_x_sb = create_sb(device, input_size * num_words * 4)
+    const point_y_sb = create_sb(device, input_size * num_words * 4)
+    const scalar_chunks_sb = create_sb(device, input_size * num_subtasks * 4)
 
     const bindGroupLayout = create_bind_group_layout(
         device,
         [
             'read-only-storage',
+            'read-only-storage',
+            'read-only-storage',
+            'storage',
             'storage',
             'storage',
         ],
@@ -313,17 +311,35 @@ const convert_point_coords_to_mont_gpu = async (
         device,
         bindGroupLayout,
         [
-            x_y_coords_sb,
-            point_x_y_sb,
-            point_t_z_sb,
+            x_coords_sb,
+            y_coords_sb,
+            scalars_sb,
+            point_x_sb,
+            point_y_sb,
+            scalar_chunks_sb,
         ],
     )
 
-    const workgroup_size = 256
-    const num_x_workgroups = 256
+    let workgroup_size = 256
+    let num_x_workgroups = 1
+    let num_y_workgroups = input_size / workgroup_size / num_x_workgroups
 
-    const shaderCode = genConvertPointCoordsShaderCode(
+    if (input_size < 256) {
+        workgroup_size = input_size
+        num_x_workgroups = 1
+        num_y_workgroups = 1
+    } else if (input_size >= 256 && input_size < 65536) {
+        workgroup_size = 256
+        num_x_workgroups = input_size / workgroup_size
+        num_y_workgroups = input_size / workgroup_size / num_x_workgroups
+    }
+
+    const shaderCode = genConvertPointCoordsAndDecomposeScalarsShaderCode(
         workgroup_size,
+        num_y_workgroups,
+        num_subtasks,
+        chunk_size, 
+        input_size
     )
 
     const computePipeline = await create_compute_pipeline(
@@ -333,68 +349,88 @@ const convert_point_coords_to_mont_gpu = async (
         'main',
     )
 
-    const passEncoder = commandEncoder.beginComputePass()
-    passEncoder.setPipeline(computePipeline)
-    passEncoder.setBindGroup(0, bindGroup)
-    passEncoder.dispatchWorkgroups(num_x_workgroups)
-    passEncoder.end()
+    execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1)
 
     if (debug) {
         const data = await read_from_gpu(
             device,
             commandEncoder,
-            [point_x_y_sb, point_t_z_sb],
+            [
+                point_x_sb,
+                point_y_sb,
+                scalar_chunks_sb,
+            ],
         )
-
-        // Check point_x data
-        const computed_x_y_coords = u8s_to_bigints(data[0], num_words, word_size)
-        const computed_t_z_coords = u8s_to_bigints(data[1], num_words, word_size)
+        
+        // Verify point coords
+        const computed_x_coords = u8s_to_bigints(data[0], num_words, word_size)
+        const computed_y_coords = u8s_to_bigints(data[1], num_words, word_size)
 
         for (let i = 0; i < input_size; i ++) {
             const expected_x = baseAffinePoints[i].x * r % p
             const expected_y = baseAffinePoints[i].y * r % p
-            const expected_t = (BigInt(baseAffinePoints[i].x) * baseAffinePoints[i].y * r) % p
-            const expected_z = r % p
 
-            if (!(
-                expected_x === computed_x_y_coords[i * 2] 
-                && expected_y === computed_x_y_coords[i * 2 + 1] 
-                && expected_t === computed_t_z_coords[i * 2] 
-                && expected_z === computed_t_z_coords[i * 2 + 1]
-            )) {
+            if (!(expected_x === computed_x_coords[i] && expected_y === computed_y_coords[i])) {
                 console.log('mismatch at', i)
                 break
             }
         }
-        console.log("montgomery conversion assertion checks pass!")
+
+        // Verify scalar chunks
+        const computed_chunks = u8s_to_numbers(data[2])
+
+        const all_chunks: Uint16Array[] = []
+
+        const expected: number[] = Array(scalars.length * num_subtasks).fill(0)
+        for (let i = 0; i < scalars.length; i ++) {
+            const chunks = to_words_le(scalars[i], num_subtasks, chunk_size)
+            all_chunks.push(chunks)
+        }
+        for (let i = 0; i < chunk_size; i ++) {
+            for (let j = 0; j < scalars.length; j ++) {
+                expected[j * chunk_size + i] = all_chunks[j][i]
+            }
+        }
+
+        const decompose_scalars_original = decompose_scalars(scalars, num_subtasks, chunk_size)
+
+        if (computed_chunks.length !== expected.length) {
+            throw Error('output size mismatch')
+        }
+
+        for (let j = 0; j < decompose_scalars_original.length; j++) {
+            let z = 0;
+            for (let i = j * input_size; i < (j + 1) * input_size; i++) {
+                if (computed_chunks[i] !== decompose_scalars_original[j][z]) {
+                    throw Error(`scalar decomp mismatch at ${i}`)
+                }
+                z++;
+            }
+        }
     }
 
-    return { point_x_y_sb, point_t_z_sb }
+    return { point_x_sb, point_y_sb, scalar_chunks_sb }
 }
 
-// Hardcode params for word_size = 13
-const p = BigInt('8444461749428370424248824938781546531375899335154063827935233455917409239041')
-const r = BigInt('3336304672246003866643098545847835280997800251509046313505217280697450888997')
-const word_size = 13
-const num_words = 20
-
-const genConvertPointCoordsShaderCode = (
+const genConvertPointCoordsAndDecomposeScalarsShaderCode = (
     workgroup_size: number,
+    num_y_workgroups: number,
+    num_subtasks: number,
+    chunk_size: number, 
+    input_size: number,
 ) => {
-    const p_bitlength = p.toString(2).length
-    const p_limbs = gen_p_limbs(p, num_words, word_size)
-    const r_limbs = gen_r_limbs(r, num_words, word_size)
-    const misc_params = compute_misc_params(p, word_size)
-    const m_limbs = gen_barrett_domb_m_limbs(misc_params.barrett_domb_m, num_words, word_size)
-    const n0 = misc_params.n0
-    const slack = num_words * word_size - p_bitlength
     const mask = BigInt(2) ** BigInt(word_size) - BigInt(1)
     const two_pow_word_size = 2 ** word_size
-
-    const shaderCode = mustache.render(
-        convert_point_coords_shader,
+    const p_limbs = gen_p_limbs(p, num_words, word_size)
+    const r_limbs = gen_r_limbs(r, num_words, word_size)
+    const mu_limbs = gen_mu_limbs(p, num_words, word_size)
+    const p_bitlength = p.toString(2).length
+    const slack = num_words * word_size - p_bitlength
+        const shaderCode = mustache.render(
+        convert_point_coords_and_decompose_scalars,
         {
             workgroup_size,
+            num_y_workgroups,
             num_words,
             word_size,
             n0,
@@ -402,168 +438,92 @@ const genConvertPointCoordsShaderCode = (
             two_pow_word_size,
             p_limbs,
             r_limbs,
-            m_limbs,
+            mu_limbs,
             w_mask: (1 << word_size) - 1,
             slack,
             num_words_mul_two: num_words * 2,
             num_words_plus_one: num_words + 1,
-            z: (word_size * num_words) - p_bitlength
+            num_subtasks,
+            chunk_size,
+            input_size,
         },
         {
             structs,
             bigint_funcs,
             field_funcs,
-            barrett_functions,
+            barrett_funcs,
             montgomery_product_funcs,
-        },
-    )
-    return shaderCode
-}
-
-const decompose_scalars_gpu = async (
-    device: GPUDevice,
-    commandEncoder: GPUCommandEncoder,
-    scalars: bigint[],
-    num_subtasks: number,
-    debug = false,
-): Promise<GPUBuffer> => {
-    const input_size = scalars.length
-    const chunk_size = Math.ceil(256 / num_subtasks)
-
-    const scalars_bytes = bigints_to_16_bit_words_for_gpu(scalars)
-
-    // Input buffers
-    const scalars_sb = create_and_write_sb(device, scalars_bytes)
-
-    // Output buffer(s)
-    const chunks_sb = create_sb(device, input_size * num_subtasks * 4)
-
-    const bindGroupLayout = create_bind_group_layout(
-        device,
-        ['read-only-storage', 'storage'],
-    )
-    const bindGroup = create_bind_group(
-        device,
-        bindGroupLayout,
-        [scalars_sb, chunks_sb],
-    )
-
-    const workgroup_size = 64
-    const num_x_workgroups = 256
-    const num_y_workgroups = input_size / workgroup_size / num_x_workgroups
-
-    const shaderCode = genDecomposeScalarsShaderCode(
-        num_y_workgroups,
-        workgroup_size,
-        num_subtasks,
-        chunk_size
-    )
-
-    const computePipeline = await create_compute_pipeline(
-        device,
-        [bindGroupLayout],
-        shaderCode,
-        'main',
-    )
-
-    const passEncoder = commandEncoder.beginComputePass()
-    passEncoder.setPipeline(computePipeline)
-    passEncoder.setBindGroup(0, bindGroup)
-    passEncoder.dispatchWorkgroups(num_x_workgroups, num_y_workgroups, 1)
-    passEncoder.end()
-
-    if (debug) {
-        const data = await read_from_gpu(
-            device,
-            commandEncoder,
-            [chunks_sb],
-        )
-
-        const computed_chunks = u8s_to_numbers(data[0])
-        const expected: number[] = []
-        for (const scalar of scalars) {
-            const chunks = to_words_le(scalar, num_subtasks, chunk_size)
-            for (const chunk of chunks) {
-                expected.push(chunk)
-            }
-        }
-
-        if (computed_chunks.length !== expected.length) {
-            throw Error('output size mismatch')
-        }
-
-        for (let i = 0; i < computed_chunks.length; i ++) {
-            if (computed_chunks[i].toString() !== expected[i].toString()) {
-                throw Error(`scalar decomp mismatch at ${i}`)
-            }
-        }
-    }
-
-    return chunks_sb
-}
-
-const genDecomposeScalarsShaderCode = (
-    num_y_workgroups: number,
-    workgroup_size: number,
-    num_subtasks: number,
-    chunk_size: number,
-) => {
-    const shaderCode = mustache.render(
-        decompose_scalars_shader,
-        {
-            workgroup_size,
-            num_y_workgroups,
-            num_subtasks,
-            chunk_size,
-        },
-        {
             extract_word_from_bytes_le_funcs,
         },
     )
     return shaderCode
 }
 
-const csr_precompute_gpu = async (
+export const transpose_gpu = async (
     device: GPUDevice,
     commandEncoder: GPUCommandEncoder,
     input_size: number,
-    scalar_chunks_sb: GPUBuffer,
+    num_cols: number,
+    new_scalar_chunks_sb: GPUBuffer,
     debug = false,
 ): Promise<{
-    new_point_indices_sb: GPUBuffer,
-    cluster_start_indices_sb: GPUBuffer,
-    cluster_end_indices_sb: GPUBuffer,
+    csc_col_ptr_sb: GPUBuffer,
+    csc_row_idx_sb: GPUBuffer,
+    csc_val_idxs_sb: GPUBuffer,
 }> => {
-    // Output buffers
-    const new_point_indices_sb = create_sb(device, input_size * 4)
-    const cluster_start_indices_sb = create_sb(device, input_size * 4)
-    const cluster_end_indices_sb = create_sb(device, input_size * 4)
+    /*
+     * n = number of columns (before transposition)
+     * m = number of columns (before transposition)
+     * nnz = number of nonzero elements
+     *
+     * Given: 
+     *   - csr_col_idx (nnz) (aka the new_scalar_chunks)
+     *
+     * Output the transpose of the above:
+     *   - csc_row_idx (nnz)
+     *      - The cumulative sum of the number of nonzero elements per row
+     *   - csc_col_ptr (m + 1)
+     *      - The column index of each nonzero element
+     *   - csc_val_idxs (nnz)
+     *      - The new index of each nonzero element
+     */
+
+    // TODO: create these buffers only once?
+    const csc_col_ptr_sb = create_sb(device, (num_cols + 1) * 4)
+    const csc_row_idx_sb = create_sb(device, new_scalar_chunks_sb.size)
+    const csc_val_idxs_sb = create_sb(device, new_scalar_chunks_sb.size)
+    const curr_sb = create_sb(device, num_cols * 4)
 
     const bindGroupLayout = create_bind_group_layout(
         device,
-        ['read-only-storage', 'storage', 'storage', 'storage']
+        [
+            'read-only-storage',
+            'storage',
+            'storage',
+            'storage',
+            'storage',
+        ],
     )
 
-    // Reuse the output buffer from the scalar decomp step as one of the input
-    // buffers
     const bindGroup = create_bind_group(
         device,
         bindGroupLayout,
         [
-            scalar_chunks_sb, 
-            new_point_indices_sb,
-            cluster_start_indices_sb,
-            cluster_end_indices_sb,
+            new_scalar_chunks_sb,
+            csc_col_ptr_sb,
+            csc_row_idx_sb,
+            csc_val_idxs_sb,
+            curr_sb,
         ],
     )
 
-    const workgroup_size = 64
-    const num_x_workgroups = 256
-    const num_y_workgroups = input_size / workgroup_size / num_x_workgroups
+    const num_x_workgroups = 1
+    const num_y_workgroups = 1
 
-    const shaderCode = genCsrPrecomputeShaderCode(
-        num_y_workgroups,
-        workgroup_size,
+    const shaderCode = mustache.render(
+        transpose_serial_shader,
+        { num_cols, num_rows: input_size / num_cols },
+        {},
     )
 
     const computePipeline = await create_compute_pipeline(
@@ -573,79 +533,89 @@ const csr_precompute_gpu = async (
         'main',
     )
 
-    const passEncoder = commandEncoder.beginComputePass()
-    passEncoder.setPipeline(computePipeline)
-    passEncoder.setBindGroup(0, bindGroup)
-    passEncoder.dispatchWorkgroups(num_x_workgroups, num_y_workgroups, 1)
-    passEncoder.end()
+    execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1)
 
     if (debug) {
         const data = await read_from_gpu(
             device,
             commandEncoder,
             [
-                new_point_indices_sb,
-                cluster_start_indices_sb,
-                cluster_end_indices_sb,
-                //scalar_chunks_sb,
-            ],
+                csc_col_ptr_sb,
+                csc_row_idx_sb,
+                csc_val_idxs_sb,
+                new_scalar_chunks_sb],
+        )
+    
+        const csc_col_ptr_result = u8s_to_numbers_32(data[0])
+        const csc_row_idx_result = u8s_to_numbers_32(data[1])
+        const csc_val_idxs_result = u8s_to_numbers_32(data[2])
+        const new_scalar_chunks = u8s_to_numbers_32(data[3])
+
+        console.log(
+            //'new_scalar_chunks:', new_scalar_chunks, 
+            //'num_columns:', num_cols,
+            'csc_col_ptr_result:', csc_col_ptr_result,
+            //'csc_val_idxs_result:', csc_val_idxs_result,
         )
 
-        const nums = data.map(u8s_to_numbers_32)
-
-        // Assuming that the precomputation shader provides dummy outputs -
-        // that is, no clustering or sorting at all - the new point indices
-        // should just be 0, 1, ..., input_size - 1
-        // Furthermore, the cluster_start_indices should be 0, 1, ..., input_size - 1
-        // and cluster_start_indices should be 1, 2, ..., input_size
-        for (let i = 0; i < input_size; i ++) {
-            if (nums[0][i] !== i) {
-                throw Error(`new_point_indices_sb mismatch at ${i}`)
-            }
-            if (nums[1][i] !== i) {
-                throw Error(`cluster_start_indices_sb mismatch at ${i}`)
-            }
-
-            if (nums[2][i] - 1 !== i) {
-                throw Error(`cluster_end_indices_sb mismatch at ${i}`)
-            }
+        // Construct csr_row_ptr
+        let j = 0
+        const row_ptr: number[] = [0]
+        for (let i = 0; i < input_size; i += num_cols) {
+            row_ptr.push(row_ptr[j] + num_cols)
+            j ++
         }
+        while (row_ptr.length < input_size + 1) {
+            row_ptr.push(row_ptr[row_ptr.length - 1])
+        }
+
+        // Verify the output of the shader
+        const expected = cpu_transpose(row_ptr, new_scalar_chunks, num_cols)
+
+        console.log('expected.csc_col_ptr', expected.csc_col_ptr)
+        //console.log('expected.csc_row_idx', expected.csc_row_idx)
+        //console.log('expected.csc_vals', expected.csc_row_idx)
+
+        assert(expected.csc_col_ptr.toString() === csc_col_ptr_result.toString(), 'csc_col_ptr mismatch')
+        assert(expected.csc_row_idx.toString() === csc_row_idx_result.toString(), 'csc_row_idx mismatch')
+        assert(expected.csc_vals.toString() === csc_val_idxs_result.toString(), 'csc_vals mismatch')
     }
-    return { new_point_indices_sb, cluster_start_indices_sb, cluster_end_indices_sb }
+
+    return {
+        csc_col_ptr_sb,
+        csc_row_idx_sb,
+        csc_val_idxs_sb,
+    }
 }
 
-const genCsrPrecomputeShaderCode = (
-    num_y_workgroups: number,
-    workgroup_size: number,
-) => {
-    const shaderCode = mustache.render(
-        gen_csr_precompute_shader,
-        {
-            workgroup_size,
-            num_y_workgroups,
-        },
-        {
-        },
-    )
-    return shaderCode
-}
-
-const pre_aggregation_stage_1_gpu = async (
+export const smvp_gpu = async (
     device: GPUDevice,
     commandEncoder: GPUCommandEncoder,
+    num_csr_cols: number,
     input_size: number,
-    point_x_y_sb: GPUBuffer,
-    point_t_z_sb: GPUBuffer,
-    new_point_indices_sb: GPUBuffer,
-    cluster_start_indices_sb: GPUBuffer,
-    cluster_end_indices_sb: GPUBuffer,
+    csc_col_ptr_sb: GPUBuffer,
+    point_x_sb: GPUBuffer,
+    point_y_sb: GPUBuffer,
+    csc_val_idxs_sb: GPUBuffer,
+    bucket_sum_x_sb: GPUBuffer,
+    bucket_sum_y_sb: GPUBuffer,
+    bucket_sum_t_sb: GPUBuffer,
+    bucket_sum_z_sb: GPUBuffer,
     debug = false,
-): Promise<{
-    new_point_x_y_sb: GPUBuffer,
-    new_point_t_z_sb: GPUBuffer,
-}> => {
-    const new_point_x_y_sb = create_sb(device, input_size * 2 * num_words * 4)
-    const new_point_t_z_sb = create_sb(device, input_size * 2 * num_words * 4)
+) => {
+    let workgroup_size = 256
+    let num_x_workgroups = 256
+    let num_y_workgroups = num_csr_cols / workgroup_size / num_x_workgroups
+
+    if (num_csr_cols < 256) {
+        workgroup_size = num_csr_cols
+        num_x_workgroups = 1
+        num_y_workgroups = 1
+    } else if (num_csr_cols >= 256 && num_csr_cols < 65536) {
+        workgroup_size = 256
+        num_x_workgroups = num_csr_cols / workgroup_size
+        num_y_workgroups = num_csr_cols / workgroup_size / num_x_workgroups
+    }
 
     const bindGroupLayout = create_bind_group_layout(
         device,
@@ -654,93 +624,171 @@ const pre_aggregation_stage_1_gpu = async (
             'read-only-storage',
             'read-only-storage',
             'read-only-storage',
-            'read-only-storage',
+            'storage',
+            'storage',
             'storage',
             'storage',
         ],
     )
+
     const bindGroup = create_bind_group(
         device,
         bindGroupLayout,
         [
-            point_x_y_sb,
-            point_t_z_sb,
-            new_point_indices_sb,
-            cluster_start_indices_sb,
-            cluster_end_indices_sb,
-            new_point_x_y_sb,
-            new_point_t_z_sb,
+            csc_col_ptr_sb,
+            csc_val_idxs_sb,
+            point_x_sb,
+            point_y_sb,
+            bucket_sum_x_sb,
+            bucket_sum_y_sb,
+            bucket_sum_t_sb,
+            bucket_sum_z_sb,
         ],
     )
 
-    const workgroup_size = 64
-    const num_x_workgroups = 256
-    const num_y_workgroups = input_size / workgroup_size / num_x_workgroups
-
-    const shaderCode = genPreaggregationStage1ShaderCode(
-        num_y_workgroups,
-        workgroup_size,
-    )
-
-    const computePipeline = await create_compute_pipeline(
-        device,
-        [bindGroupLayout],
-        shaderCode,
-        'main',
-    )
-
-    const passEncoder = commandEncoder.beginComputePass()
-    passEncoder.setPipeline(computePipeline)
-    passEncoder.setBindGroup(0, bindGroup)
-    passEncoder.dispatchWorkgroups(num_x_workgroups, num_y_workgroups, 1)
-    passEncoder.end()
-
-    if (debug) {
-        const data = await read_from_gpu(
-            device,
-            commandEncoder,
-            [
-                new_point_x_y_sb,
-                new_point_t_z_sb,
-            ],
-        )
-
-        const x_y_coords = u8s_to_bigints(data[0], num_words, word_size)
-        const t_z_coords = u8s_to_bigints(data[1], num_words, word_size)
-    }
-
-    return { new_point_x_y_sb, new_point_t_z_sb }
-}
-
-const genPreaggregationStage1ShaderCode = (
-    num_y_workgroups: number,
-    workgroup_size: number,
-) => {
     const p_limbs = gen_p_limbs(p, num_words, word_size)
-    const r_limbs = gen_r_limbs(r, num_words, word_size)
-    const mu_limbs = gen_mu_limbs(p, num_words, word_size)
-    const misc_params = compute_misc_params(p, word_size)
-    const n0 = misc_params.n0
-    const p_bitlength = p.toString(2).length
-    const slack = num_words * word_size - p_bitlength
-    const mask = BigInt(2) ** BigInt(word_size) - BigInt(1)
-
     const shaderCode = mustache.render(
-        preaggregation_stage_1_shader,
+        smvp_shader,
         {
-            num_y_workgroups,
-            workgroup_size,
             word_size,
             num_words,
             n0,
             p_limbs,
-            r_limbs,
-            mu_limbs,
-            w_mask: (1 << word_size) - 1,
-            slack,
-            num_words_mul_two: num_words * 2,
-            num_words_plus_one: num_words + 1,
-            mask,
+            mask: BigInt(2) ** BigInt(word_size) - BigInt(1),
+            two_pow_word_size: BigInt(2) ** BigInt(word_size),
+            workgroup_size,
+            num_y_workgroups,
+        },
+        {
+            structs,
+            bigint_funcs,
+            montgomery_product_funcs,
+            field_funcs,
+            curve_parameters,
+            ec_funcs,
+        },
+    )
+
+    const computePipeline = await create_compute_pipeline(
+        device,
+        [bindGroupLayout],
+        shaderCode,
+        'main',
+    )
+
+    execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1)
+
+    if (debug) {
+        const data = await read_from_gpu(
+            device,
+            commandEncoder,
+            [
+                csc_col_ptr_sb,
+                csc_val_idxs_sb,
+                point_x_sb,
+                point_y_sb,
+                bucket_sum_x_sb,
+                bucket_sum_y_sb,
+                bucket_sum_t_sb,
+                bucket_sum_z_sb,
+            ],
+        )
+    
+        const csc_col_ptr_sb_result = u8s_to_numbers_32(data[0])
+        const csc_val_idxs_result = u8s_to_numbers_32(data[1])
+        const point_x_sb_result = u8s_to_bigints(data[2], num_words, word_size)
+        const point_y_sb_result = u8s_to_bigints(data[3], num_words, word_size)
+        const bucket_sum_x_sb_result = u8s_to_bigints(data[4], num_words, word_size)
+        const bucket_sum_y_sb_result = u8s_to_bigints(data[5], num_words, word_size)
+        const bucket_sum_t_sb_result = u8s_to_bigints(data[6], num_words, word_size)
+        const bucket_sum_z_sb_result = u8s_to_bigints(data[7], num_words, word_size)
+
+        // Convert GPU output out of Montgomery coordinates
+        const bigIntPointToExtPointType = (bip: BigIntPoint): ExtPointType => {
+            return fieldMath.createPoint(bip.x, bip.y, bip.t, bip.z)
+        }
+        const output_points_gpu: ExtPointType[] = []
+        for (let i = 0; i < num_csr_cols; i++) {
+            const non = {
+                x: fieldMath.Fp.mul(bucket_sum_x_sb_result[i], rinv),
+                y: fieldMath.Fp.mul(bucket_sum_y_sb_result[i], rinv),
+                t: fieldMath.Fp.mul(bucket_sum_t_sb_result[i], rinv),
+                z: fieldMath.Fp.mul(bucket_sum_z_sb_result[i], rinv),
+            }
+            output_points_gpu.push(bigIntPointToExtPointType(non))
+        }
+
+        // Convert CPU output out of Montgomery coordinates
+        const output_points_cpu_out_of_mont: ExtPointType[] = []
+        for (let i = 0; i < input_size; i++) {
+            const x = fieldMath.Fp.mul(point_x_sb_result[i], rinv)
+            const y = fieldMath.Fp.mul(point_y_sb_result[i], rinv)
+            const t = fieldMath.Fp.mul(x, y)
+            const pt = fieldMath.createPoint(x, y, t, BigInt(1))
+            pt.assertValidity()
+            output_points_cpu_out_of_mont.push(pt)
+        }
+
+        // Calculate SMVP in CPU 
+        const output_points_cpu: ExtPointType[] = cpu_smvp(
+            csc_col_ptr_sb_result,
+            csc_val_idxs_result,
+            output_points_cpu_out_of_mont,
+            fieldMath,
+        )
+
+        const ZERO_POINT = fieldMath.customEdwards.ExtendedPoint.ZERO
+        output_points_cpu[0] = ZERO_POINT
+        for (let i = 1; i < output_points_cpu.length; i ++) {
+            output_points_cpu[i] = output_points_cpu[i].multiply(BigInt(i))
+        }
+       
+        // Transform results into affine representation
+        const output_points_affine_cpu = output_points_cpu.map((x) => x.toAffine())
+        const output_points_affine_gpu = output_points_gpu.map((x) => x.toAffine())
+
+        // Assert CPU and GPU output
+        for (let i = 0; i < output_points_affine_gpu.length; i ++) {
+            assert(output_points_affine_gpu[i].x === output_points_affine_cpu[i].x, "failed at i: " + i.toString())
+            assert(output_points_affine_gpu[i].y === output_points_affine_cpu[i].y, "failed at i: " + i.toString())
+        }
+    }
+
+    return {
+        bucket_sum_x_sb,
+        bucket_sum_y_sb,
+        bucket_sum_t_sb,
+        bucket_sum_z_sb,
+    }
+}
+
+export const bucket_aggregation = async (
+    device: GPUDevice,
+    commandEncoder: GPUCommandEncoder,
+    out_x_sb: GPUBuffer,
+    out_y_sb: GPUBuffer,
+    out_t_sb: GPUBuffer,
+    out_z_sb: GPUBuffer,
+    bucket_sum_x_sb: GPUBuffer,
+    bucket_sum_y_sb: GPUBuffer,
+    bucket_sum_t_sb: GPUBuffer,
+    bucket_sum_z_sb: GPUBuffer,
+    num_cols: number,
+    debug = false,
+) => {
+    const params = compute_misc_params(p, word_size)
+    const n0 = params.n0
+    const num_words = params.num_words
+    const p_limbs = gen_p_limbs(p, num_words, word_size)
+
+    const shaderCode = mustache.render(
+        bucket_points_reduction_shader,
+        {
+            word_size,
+            num_words,
+            n0,
+            p_limbs,
+            mask: BigInt(2) ** BigInt(word_size) - BigInt(1),
             two_pow_word_size: BigInt(2) ** BigInt(word_size),
         },
         {
@@ -748,95 +796,143 @@ const genPreaggregationStage1ShaderCode = (
             bigint_funcs,
             field_funcs,
             ec_funcs,
+            curve_parameters,
             montgomery_product_funcs,
         },
     )
-    return shaderCode
-}
 
-const pre_aggregation_stage_2_gpu = async (
-    device: GPUDevice,
-    commandEncoder: GPUCommandEncoder,
-    input_size: number,
-    scalar_chunks_sb: GPUBuffer,
-    cluster_start_indices_sb: GPUBuffer,
-    new_point_indices_sb: GPUBuffer,
-    debug = false,
-): Promise<GPUBuffer> => {
-    const new_scalar_chunks_sb = create_sb(device, input_size *  num_words * 4)
-
-    const bindGroupLayout = create_bind_group_layout(
-        device,
-        [
-            'read-only-storage',
-            'read-only-storage',
-            'read-only-storage',
-            'storage',
-        ],
-    )
-
-    const bindGroup = create_bind_group(
-        device,
-        bindGroupLayout,
-        [
-            scalar_chunks_sb,
-            new_point_indices_sb,
-            cluster_start_indices_sb,
-            new_scalar_chunks_sb,
-        ],
-    )
-
-    const workgroup_size = 64
-    const num_x_workgroups = 256
-    const num_y_workgroups = input_size / workgroup_size / num_x_workgroups
-
-    const shaderCode = genPreaggregationStage2ShaderCode(
-        num_y_workgroups,
-        workgroup_size,
-    )
-
-    const computePipeline = await create_compute_pipeline(
-        device,
-        [bindGroupLayout],
-        shaderCode,
-        'main',
-    )
-
-    const passEncoder = commandEncoder.beginComputePass()
-    passEncoder.setPipeline(computePipeline)
-    passEncoder.setBindGroup(0, bindGroup)
-    passEncoder.dispatchWorkgroups(num_x_workgroups, num_y_workgroups, 1)
-    passEncoder.end()
+    let original_bucket_sum_x_sb
+    let original_bucket_sum_y_sb
+    let original_bucket_sum_t_sb
+    let original_bucket_sum_z_sb
 
     if (debug) {
-        // TODO
+        original_bucket_sum_x_sb = create_sb(device, bucket_sum_x_sb.size)
+        original_bucket_sum_y_sb = create_sb(device, bucket_sum_y_sb.size)
+        original_bucket_sum_t_sb = create_sb(device, bucket_sum_t_sb.size)
+        original_bucket_sum_z_sb = create_sb(device, bucket_sum_z_sb.size)
+
+        commandEncoder.copyBufferToBuffer(
+            bucket_sum_x_sb,
+            0,
+            original_bucket_sum_x_sb,
+            0,
+            bucket_sum_x_sb.size,
+        )
+        commandEncoder.copyBufferToBuffer(
+            bucket_sum_y_sb,
+            0,
+            original_bucket_sum_y_sb,
+            0,
+            bucket_sum_y_sb.size,
+        )
+        commandEncoder.copyBufferToBuffer(
+            bucket_sum_t_sb,
+            0,
+            original_bucket_sum_t_sb,
+            0,
+            bucket_sum_t_sb.size,
+        )
+        commandEncoder.copyBufferToBuffer(
+            bucket_sum_z_sb,
+            0,
+            original_bucket_sum_z_sb,
+            0,
+            bucket_sum_z_sb.size,
+        )
+    }
+
+    //let num_invocations = 0
+    let s = num_cols
+    while (s > 1) {
+        await shader_invocation(
+            device,
+            commandEncoder,
+            shaderCode,
+            bucket_sum_x_sb,
+            bucket_sum_y_sb,
+            bucket_sum_t_sb,
+            bucket_sum_z_sb,
+            out_x_sb,
+            out_y_sb,
+            out_t_sb,
+            out_z_sb,
+            s,
+            num_words,
+        )
+        //num_invocations ++
+
+        const e = s
+        s = Math.ceil(s / 2)
+        if (e === 1 && s === 1) {
+            break
+        }
+    }
+    
+    if (
+        debug
+        && original_bucket_sum_x_sb != undefined // prevent TS warnings
+        && original_bucket_sum_y_sb != undefined
+        && original_bucket_sum_t_sb != undefined
+        && original_bucket_sum_z_sb != undefined
+    ) {
         const data = await read_from_gpu(
             device,
             commandEncoder,
-            [new_scalar_chunks_sb],
+            [
+                out_x_sb,
+                out_y_sb,
+                out_t_sb,
+                out_z_sb,
+                original_bucket_sum_x_sb,
+                original_bucket_sum_y_sb,
+                original_bucket_sum_t_sb,
+                original_bucket_sum_z_sb,
+            ]
         )
-        const nums = data.map(u8s_to_numbers_32)
-        console.log(nums)
+
+        const x_mont_coords_result = u8s_to_bigints(data[0], num_words, word_size)
+        const y_mont_coords_result = u8s_to_bigints(data[1], num_words, word_size)
+        const t_mont_coords_result = u8s_to_bigints(data[2], num_words, word_size)
+        const z_mont_coords_result = u8s_to_bigints(data[3], num_words, word_size)
+
+        // Convert the resulting point coordiantes out of Montgomery form
+        const result = fieldMath.createPoint(
+            fieldMath.Fp.mul(x_mont_coords_result[0], rinv),
+            fieldMath.Fp.mul(y_mont_coords_result[0], rinv),
+            fieldMath.Fp.mul(t_mont_coords_result[0], rinv),
+            fieldMath.Fp.mul(z_mont_coords_result[0], rinv),
+        )
+
+        // Check that the sum of the points is correct
+        const bucket_x_mont = u8s_to_bigints(data[4], num_words, word_size)
+        const bucket_y_mont = u8s_to_bigints(data[5], num_words, word_size)
+        const bucket_t_mont = u8s_to_bigints(data[6], num_words, word_size)
+        const bucket_z_mont = u8s_to_bigints(data[7], num_words, word_size)
+
+        const points: ExtPointType[] = []
+        for (let i = 0; i < num_cols; i ++) {
+            points.push(fieldMath.createPoint(
+                fieldMath.Fp.mul(bucket_x_mont[i], rinv),
+                fieldMath.Fp.mul(bucket_y_mont[i], rinv),
+                fieldMath.Fp.mul(bucket_t_mont[i], rinv),
+                fieldMath.Fp.mul(bucket_z_mont[i], rinv),
+            ))
+        }
+
+        // Add up the original points
+        let expected = points[0]
+        for (let i = 1; i < points.length; i ++) {
+            expected = expected.add(points[i])
+        }
+
+        assert(are_point_arr_equal([result], [expected]))
     }
 
-    return new_scalar_chunks_sb
-}
-
-const genPreaggregationStage2ShaderCode = (
-    num_y_workgroups: number,
-    workgroup_size: number,
-) => {
-    const p_limbs = gen_p_limbs(p, num_words, word_size)
-    const r_limbs = gen_r_limbs(r, num_words, word_size)
-    const mu_limbs = gen_mu_limbs(p, num_words, word_size)
-    const shaderCode = mustache.render(
-        preaggregation_stage_2_shader,
-        {
-            num_y_workgroups,
-            workgroup_size,
-        },
-        {
-        },
-    )
-    return shaderCode
+    return {
+        out_x_sb,
+        out_y_sb,
+        out_t_sb,
+        out_z_sb,
+    }
 }

@@ -18,7 +18,7 @@ import {
 import {
     create_csr_wasm_precomputation_benchmark,
 } from '../submission/cuzk/create_csr_wasm'
-import { cuzk_gpu, cuzk_gpu_approach_d } from '../submission/cuzk/cuzk_gpu'
+import { cuzk_gpu } from '../submission/cuzk/cuzk_gpu'
 import { scalar_mul_benchmarks } from '../submission/scalar_mul_benchmarks'
 import { cuzk_typescript_serial, cuzk_typescript_web_workers, transpose_wgsl, smtvp_wgsl, smvp_wgsl } from '../submission/submission';
 import CSVExportButton from './CSVExportButton';
@@ -26,10 +26,11 @@ import { TestCaseDropDown } from './TestCaseDropDown';
 import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
 import { smvp } from '../submission/cuzk/smvp_wgsl';
 import { data_transfer_cost_benchmarks } from '../submission/data_transfer_cost_benchmarks'
+import { bucket_points_reduction } from '../submission/bucket_points_reduction_benchmark'
+import { horners_rule_benchmark } from '../submission/horners_rule_benchmark'
 
 export const AllBenchmarks: React.FC = () => {
   const initialDefaultInputSize = 2 ** 16
-  //const initialDefaultInputSize = 2 ** 16 //65536
   const [inputSize, setInputSize] = useState(initialDefaultInputSize);
   const [power, setPower] = useState<string>('2^0');
   const [inputSizeDisabled, setInputSizeDisabled] = useState(false);
@@ -106,9 +107,8 @@ export const AllBenchmarks: React.FC = () => {
         }});
       setU32Points(newU32Points);
 
-      const newScalars = generateRandomFields(inputSize);
+      //const newScalars = generateRandomFields(inputSize);
     
-    /*
       // Use constants instead of random field elements just for testing
       const newScalars: bigint[] = []
       for (let i = 0; i < inputSize; i ++) {
@@ -116,6 +116,7 @@ export const AllBenchmarks: React.FC = () => {
           const x = BigInt('1111111111111111111111111111111111111111111111111111111111111111111111111111')
           newScalars.push((x * BigInt(i) % p))
       }
+    /*
      */
         
       setBigIntScalars(newScalars);
@@ -152,12 +153,22 @@ export const AllBenchmarks: React.FC = () => {
         bold={true}
       />
       <Benchmark
-        name={'Approach D'}
+        name={'Horner\s Rule'}
         disabled={disabledBenchmark}
         baseAffinePoints={baseAffineBigIntPoints}
         scalars={bigIntScalars}
         expectedResult={expectedResult}
-        msmFunc={cuzk_gpu_approach_d}
+        msmFunc={horners_rule_benchmark}
+        postResult={postResult}
+        bold={true}
+      />
+      <Benchmark
+        name={'Bucket points reduction'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={bucket_points_reduction}
         postResult={postResult}
         bold={true}
       />

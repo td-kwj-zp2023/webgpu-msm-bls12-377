@@ -6,7 +6,6 @@ import { bigIntToU32Array, generateRandomFields } from '../../reference/webgpu/u
 import { Field } from "@noble/curves/abstract/modular";
 
 export async function init(
-  inputSize: number,
   baseAffinePoints: BigIntPoint[],
   scalars: bigint[]
 ): Promise<CSRSparseMatrix[]> {  
@@ -55,7 +54,6 @@ export async function init(
     
     // Divide EC points into t parts
     for (let thread_idx = 0; thread_idx < num_rows; thread_idx++) {
-      const z = 0
       for (let j = 0; j < num_columns; j++) {
           const point_i = thread_idx + j * threads
           data[thread_idx][j] = baseAffinePoints[point_i]
@@ -115,30 +113,29 @@ export async function execute_cuzk(
     baseAffinePoints: BigIntPoint[],
     scalars: bigint[]
 ): Promise<ExtPointType> {    
-  const inputSize = baseAffinePoints.length
-  // Initialize instance 
-  const csr_sparse_matrix_array = await init(inputSize, baseAffinePoints, scalars)
+    // Initialize instance 
+    const csr_sparse_matrix_array = await init(baseAffinePoints, scalars)
 
-  // Perform Transpose and SPMV 
-  const G: ExtPointType[] = []
-  for (let i = 0; i < csr_sparse_matrix_array.length; i++) {
-    const partial_sum = await transpose_and_spmv(csr_sparse_matrix_array[i])
-    G.push(partial_sum)
-  }
+    // Perform Transpose and SPMV 
+    const G: ExtPointType[] = []
+    for (let i = 0; i < csr_sparse_matrix_array.length; i++) {
+        const partial_sum = await transpose_and_spmv(csr_sparse_matrix_array[i])
+        G.push(partial_sum)
+    }
 
-  // Perform SMTVP
-  // const G: ExtPointType[] = []
-  // for (let i = 0; i < parameters.csr_sparse_matrix_array.length; i++) {
-  //   const partial_sum = await smtvp(parameters.csr_sparse_matrix_array[i])
-  //   G.push(partial_sum)
-  // }
+    // Perform SMTVP
+    // const G: ExtPointType[] = []
+    // for (let i = 0; i < parameters.csr_sparse_matrix_array.length; i++) {
+    //   const partial_sum = await smtvp(parameters.csr_sparse_matrix_array[i])
+    //   G.push(partial_sum)
+    // }
 
-  // Perform Honer's rule
-  let T = G[0];
-  for (let i = 1; i < G.length; i++) {
-    T = T.multiply(BigInt(Math.pow(2, 16)));
-    T = T.add(G[i]);
-  }
+    // Perform Honer's rule
+    let T = G[0];
+    for (let i = 1; i < G.length; i++) {
+        T = T.multiply(BigInt(Math.pow(2, 16)));
+        T = T.add(G[i]);
+    }
 
-  return T
+    return T
 }

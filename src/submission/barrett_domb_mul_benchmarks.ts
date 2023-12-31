@@ -229,5 +229,7 @@ export const barrett_domb_mul_benchmarks = async(
         }
     }
 
+    device.destroy()
+
     return { x: BigInt(0), y: BigInt(0) }
 }

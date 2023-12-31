@@ -7,9 +7,18 @@ import {
     u8s_to_numbers,
     decompose_scalars,
     compute_misc_params,
-    bigints_to_16_bit_words_for_gpu,
+    bigints_to_u8_for_gpu,
 } from './utils'
-import { get_device, create_bind_group } from './gpu'
+import {
+    get_device,
+    create_sb,
+    create_and_write_sb,
+    create_bind_group,
+    create_bind_group_layout,
+    create_compute_pipeline,
+    execute_pipeline,
+    read_from_gpu,
+} from './gpu'
 import extract_word_from_bytes_le_shader from './wgsl/extract_word_from_bytes_le.template.wgsl'
 import decompose_scalars_shader from './wgsl/decompose_scalars.template.wgsl'
 
@@ -32,17 +41,17 @@ export const decompose_scalars_ts_benchmark = async (
     }
     console.log()
 
-    console.log('WASM benchmarks:')
-    for (let word_size = 8; word_size < 17; word_size ++) {
-        const params = compute_misc_params(p, word_size)
-        const num_words = params.num_words
+    //console.log('WASM benchmarks:')
+    //for (let word_size = 8; word_size < 17; word_size ++) {
+        //const params = compute_misc_params(p, word_size)
+        //const num_words = params.num_words
 
-        const start_wasm = Date.now()
-        wasm.decompose_scalars(scalars, num_words, word_size).get_result()
-        const elapsed_wasm = Date.now() - start_wasm
-        console.log(`WASM with ${word_size}-bit windows took ${elapsed_wasm}ms`)
-    }
-    console.log()
+        //const start_wasm = Date.now()
+        //wasm.decompose_scalars(scalars, num_words, word_size).get_result()
+        //const elapsed_wasm = Date.now() - start_wasm
+        //console.log(`WASM with ${word_size}-bit windows took ${elapsed_wasm}ms`)
+    //}
+    //console.log()
 
     const num_words = 20
     const word_size = 13
@@ -52,7 +61,7 @@ export const decompose_scalars_ts_benchmark = async (
     //console.log('ok')
 
     console.log('GPU benchmarks:')
-   for (let word_size = 8; word_size < 17; word_size ++) {
+    for (let word_size = 8; word_size < 17; word_size ++) {
         const params = compute_misc_params(p, word_size)
         const num_words = params.num_words
         await decompose_scalars_gpu(scalars, num_words, word_size)
@@ -139,7 +148,7 @@ const decompose_scalars_gpu = async (
     word_size: number,
 ) => {
     // Convert scalars to bytes
-    const scalar_bytes = bigints_to_16_bit_words_for_gpu(scalars)
+    const scalar_bytes = bigints_to_u8_for_gpu(scalars, 16, 16)
 
     // Calculate expected decomposed scalars
     const expected: number[][] = []
@@ -151,28 +160,21 @@ const decompose_scalars_gpu = async (
     assert(expected.toString() === expected2.toString())
 
     const device = await get_device()
+    const commandEncoder = device.createCommandEncoder()
     const workgroup_size = 64
     const num_x_workgroups = 256
     const num_y_workgroups = scalars.length / workgroup_size / num_x_workgroups
 
-    const scalars_storage_buffer = device.createBuffer({
-        size: scalar_bytes.length,
-        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC
-    })
-    device.queue.writeBuffer(scalars_storage_buffer, 0, scalar_bytes)
+    // Input buffer
+    const scalars_storage_buffer = create_and_write_sb(device, scalar_bytes)
 
-    // Output buffers
-    const result_storage_buffer = device.createBuffer({
-        size: num_words * scalars.length * 4,
-        usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC
-    })
+    // Output buffer
+    const result_storage_buffer = create_sb(device, num_words * scalars.length * 4)
 
-    const bindGroupLayout = device.createBindGroupLayout({
-        entries: [
-            { binding: 0, visibility: GPUShaderStage.COMPUTE, buffer: { type: "read-only-storage" } },
-            { binding: 1, visibility: GPUShaderStage.COMPUTE, buffer: { type: "storage" } },
-        ]
-    })
+    const bindGroupLayout = create_bind_group_layout(
+        device,
+        [ 'read-only-storage', 'storage' ],
+    )
 
     const bindGroup = create_bind_group(
         device, 
@@ -187,65 +189,39 @@ const decompose_scalars_gpu = async (
             num_y_workgroups,
             num_subtasks: num_words,
             chunk_size: word_size,
+            input_size: scalars.length,
         },
         {
             extract_word_from_bytes_le_funcs: extract_word_from_bytes_le_shader
         }
     )
 
-    const shaderModule = device.createShaderModule({ code: shaderCode })
-
-    const computePipeline = device.createComputePipeline({
-        layout: device.createPipelineLayout({
-            bindGroupLayouts: [bindGroupLayout]
-        }),
-        compute: {
-            module: shaderModule,
-            entryPoint: 'main'
-        }
-    })
+    const computePipeline = await create_compute_pipeline(
+        device,
+        [bindGroupLayout],
+        shaderCode,
+        'main',
+    )
 
     const start = Date.now();
 
-    const commandEncoder = device.createCommandEncoder()
-    const passEncoder = commandEncoder.beginComputePass()
-    passEncoder.setPipeline(computePipeline)
-    passEncoder.setBindGroup(0, bindGroup)
-    passEncoder.dispatchWorkgroups(num_x_workgroups, num_y_workgroups, 1)
-    passEncoder.end()
-
-    const result_staging_buffer = device.createBuffer({
-        size: result_storage_buffer.size,
-        usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST
-    });
-    commandEncoder.copyBufferToBuffer(
-        result_storage_buffer,
-        0,
-        result_staging_buffer,
-        0,
-        result_storage_buffer.size
-    )
-    device.queue.submit([commandEncoder.finish()]);
-
-    // map staging buffers to read results back to JS
-    await result_staging_buffer.mapAsync(
-        GPUMapMode.READ,
-        0,
-        result_storage_buffer.size
+    execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1)
+    const data = await read_from_gpu(
+        device,
+        commandEncoder,
+        [result_storage_buffer],
     )
 
     const elapsed = Date.now() - start
     console.log(`GPU with ${word_size}-bit windows took ${elapsed}ms`)
 
-    const result_data = result_staging_buffer.getMappedRange(0, result_staging_buffer.size).slice(0)
-    result_staging_buffer.unmap()
+    const scalar_chunks = u8s_to_numbers(new Uint8Array(data[0]))
 
-    const scalar_chunks = u8s_to_numbers(new Uint8Array(result_data))
     //console.log('from gpu:', scalar_chunks)
     for (let i = 0; i < expected.length; i ++) {
         for (let j = 0; j < num_words; j ++) {
             const e = expected[i][j]
-            const s = scalar_chunks[i * num_words + j]
+            const s = scalar_chunks[j * expected.length + i]
             if (e !== s) {
                 console.log('mismatch at', i, j)
                 debugger
@@ -254,4 +230,6 @@ const decompose_scalars_gpu = async (
             assert(e === s)
         }
     }
+
+    device.destroy()
 }
