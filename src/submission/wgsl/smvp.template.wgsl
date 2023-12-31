@@ -51,6 +51,17 @@ fn double_and_add(point: Point, scalar: u32) -> Point {
     return result;
 }
 
+fn negate_point(point: Point) -> Point {
+    var p = get_p();
+    var x = point.x;
+    var t = point.t;
+    var neg_x: BigInt;
+    var neg_t: BigInt;
+    bigint_sub(&p, &x, &neg_x);
+    bigint_sub(&p, &t, &neg_t);
+    return Point(neg_x, point.y, neg_t, point.z);
+}
+
 @compute
 @workgroup_size({{ workgroup_size }})
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {    
@@ -74,7 +85,13 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         let pt = Point(x, y, t, z);
         sum = add_points(sum, pt);
     }
-    sum = double_and_add(sum, id);
+    let index_shift = {{ index_shift }}u;
+    let shifted = id - index_shift;
+    if (shifted < index_shift) {
+        sum = negate_point(sum);
+    }
+
+    sum = double_and_add(sum, shifted);
 
     bucket_sum_x[id] = sum.x;
     bucket_sum_y[id] = sum.y;

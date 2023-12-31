@@ -6,6 +6,7 @@ const to_signed_slices = (
     c: number, // The window size
 ) => {
     const l = 2 ** c
+    const shift = 2 ** (c - 1)
 
     const slices = to_words_le(scalar, k, c)
     const signed_slices: number[] = Array(slices.length).fill(0)
@@ -16,11 +17,15 @@ const to_signed_slices = (
         if (signed_slices[i] >= l / 2) {
             signed_slices[i] = (l - signed_slices[i]) * -1
             if (signed_slices[i] === -0) { signed_slices[i] = 0 }
+
             carry = 1
         } else {
             carry = 0
         }
+
+        signed_slices[i] += shift
     }
+
     if (carry === 1) {
         console.error(scalar)
         throw new Error('final carry is 1')
@@ -47,9 +52,12 @@ describe('signed buckets', () => {
 
             // Sanity check
             let result = BigInt(0)
+            const shift = 2 ** (c - 1)
             for (let i = 0; i < signed_slices.length; i ++) {
+                let signed_slice = signed_slices[i]
+                signed_slice -= shift
                 const b = BigInt(2) ** BigInt(i * c)
-                result += BigInt(signed_slices[i]) * b
+                result += BigInt(signed_slice) * b
             }
             expect(result).toEqual(scalar)
         }
@@ -62,13 +70,11 @@ describe('signed buckets', () => {
         const scalar_0 = BigInt(255)
         const slices_0 = to_words_le(scalar_0, k, c)
         const signed_slices_0 = to_signed_slices(scalar_0, k, c)
-        console.log(slices_0)
-        console.log(signed_slices_0)
+        console.log({slices_0, signed_slices_0})
 
         const scalar_1 = BigInt(301)
         const slices_1 = to_words_le(scalar_1, k, c)
         const signed_slices_1 = to_signed_slices(scalar_1, k, c)
-        console.log(slices_1)
-        console.log(signed_slices_1)
+        console.log({slices_1, signed_slices_1})
     })
 })
