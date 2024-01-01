@@ -1,6 +1,5 @@
 import mustache from 'mustache'
 import { BigIntPoint } from "../../reference/types";
-import transpose_serial_shader from '../wgsl/transpose_serial.wgsl'
 import { u8s_to_numbers_32, numbers_to_u8s_for_gpu } from '../utils'
 import {
     get_device,
@@ -17,7 +16,7 @@ import seedrandom from 'seedrandom'
 
 const transpose_dm = (
     num_cols: number, // of the original matrix
-    num_rows: number, // of the original nmtrix
+    num_rows: number, // of the original matrix
     data: number[],
 ) => {
     assert(data.length === num_cols * num_rows)
@@ -104,6 +103,7 @@ export async function transpose(
     baseAffinePoints: BigIntPoint[],
     scalars: bigint[]
 ): Promise<{x: bigint, y: bigint}> {
+    console.log('warning: this is using a slightly outdated shader as our cuZK implementation arranges the elements in rows in a different fashion')
     const num_rows = 16
     const num_cols = (2 ** 20) / num_rows
 
@@ -263,3 +263,59 @@ const transpose_serial_gpu = async (
     passEncoder.dispatchWorkgroups(num_x_workgroups, num_y_workgroups, 1)
     passEncoder.end()
 }
+
+const transpose_serial_shader = `
+// Input buffers
+@group(0) @binding(0)
+var<storage, read> csr_row_ptr: array<u32>;
+@group(0) @binding(1)
+var<storage, read> csr_col_idx: array<u32>;
+
+// Output buffers
+@group(0) @binding(2)
+var<storage, read_write> csc_col_ptr: array<u32>;
+@group(0) @binding(3)
+var<storage, read_write> csc_row_idx: array<u32>;
+@group(0) @binding(4)
+var<storage, read_write> csc_val_idxs: array<u32>;
+
+// Intermediate buffer
+@group(0) @binding(5)
+var<storage, read_write> curr: array<u32>;
+
+@compute
+@workgroup_size(1)
+fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {    
+    // Serial transpose algo from
+    // https://synergy.cs.vt.edu/pubs/papers/wang-transposition-ics16.pdf
+
+    // Number of rows
+    let m = arrayLength(&csr_row_ptr) - 1u;
+
+    // Number of columns
+    let n = {{ num_cols }}u;
+
+    for (var i = 0u; i < m; i ++) {
+        for (var j = csr_row_ptr[i]; j < csr_row_ptr[i + 1u]; j ++) {
+            csc_col_ptr[csr_col_idx[j] + 1u] += 1u;
+        }
+    }
+
+    // Prefix sum, aka cumulative/incremental sum
+    for (var i = 1u; i < n + 1u; i ++) {
+        csc_col_ptr[i] += csc_col_ptr[i - 1u];
+        storageBarrier();
+    }
+
+    var val = 0u;
+    for (var i = 0u; i < m; i ++) {
+        for (var j = csr_row_ptr[i]; j < csr_row_ptr[i + 1u]; j ++) {
+            let loc = csc_col_ptr[csr_col_idx[j]] + curr[csr_col_idx[j]];
+            csc_row_idx[loc] = i;
+            curr[csr_col_idx[j]] ++;
+            csc_val_idxs[loc] = val;
+            val ++;
+        }
+    }
+}
+`
