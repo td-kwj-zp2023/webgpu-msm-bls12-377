@@ -20,6 +20,7 @@ import curve_parameters from './wgsl/curve/parameters.template.wgsl'
 import montgomery_product_funcs from './wgsl/montgomery/mont_pro_product.template.wgsl'
 import bucket_points_reduction_shader from './wgsl/bucket_points_reduction.template.wgsl'
 import { are_point_arr_equal, compute_misc_params, u8s_to_bigints, numbers_to_u8s_for_gpu, gen_p_limbs, bigints_to_u8_for_gpu } from './utils'
+import { shader_invocation } from './bucket_points_reduction'
 
 export const bucket_points_reduction = async (
     baseAffinePoints: BigIntPoint[],
@@ -49,13 +50,15 @@ export const test_bucket_points_reduction = async (
     const rinv = params.rinv
     const p_limbs = gen_p_limbs(p, num_words, word_size)
 
-    const x_y_coords: bigint[] = []
-    const t_z_coords: bigint[] = []
+    const x_coords: bigint[] = []
+    const y_coords: bigint[] = []
+    const t_coords: bigint[] = []
+    const z_coords: bigint[] = []
     for (const pt of baseAffinePoints.slice(0, input_size)) {
-        x_y_coords.push(fieldMath.Fp.mul(pt.x, r))
-        x_y_coords.push(fieldMath.Fp.mul(pt.y, r))
-        t_z_coords.push(fieldMath.Fp.mul(pt.t, r))
-        t_z_coords.push(fieldMath.Fp.mul(pt.z, r))
+        x_coords.push(fieldMath.Fp.mul(pt.x, r))
+        y_coords.push(fieldMath.Fp.mul(pt.y, r))
+        t_coords.push(fieldMath.Fp.mul(pt.t, r))
+        z_coords.push(fieldMath.Fp.mul(pt.z, r))
     }
 
     const points = baseAffinePoints.slice(0, input_size).map((x) => fieldMath.createPoint(x.x, x.y, x.t, x.z))
@@ -71,13 +74,19 @@ export const test_bucket_points_reduction = async (
     const device = await get_device()
     const commandEncoder = device.createCommandEncoder()
 
-    const x_y_coords_bytes = bigints_to_u8_for_gpu(x_y_coords, num_words, word_size)
-    const t_z_coords_bytes = bigints_to_u8_for_gpu(t_z_coords, num_words, word_size)
+    const x_coords_bytes = bigints_to_u8_for_gpu(x_coords, num_words, word_size)
+    const y_coords_bytes = bigints_to_u8_for_gpu(y_coords, num_words, word_size)
+    const t_coords_bytes = bigints_to_u8_for_gpu(t_coords, num_words, word_size)
+    const z_coords_bytes = bigints_to_u8_for_gpu(z_coords, num_words, word_size)
 
-    const x_y_coords_sb = create_and_write_sb(device, x_y_coords_bytes)
-    const t_z_coords_sb = create_and_write_sb(device, t_z_coords_bytes)
-    const out_x_y_sb = create_sb(device, x_y_coords_sb.size)
-    const out_t_z_sb = create_sb(device, x_y_coords_sb.size)
+    const x_coords_sb = create_and_write_sb(device, x_coords_bytes)
+    const y_coords_sb = create_and_write_sb(device, y_coords_bytes)
+    const t_coords_sb = create_and_write_sb(device, t_coords_bytes)
+    const z_coords_sb = create_and_write_sb(device, z_coords_bytes)
+    const out_x_sb = create_sb(device, x_coords_sb.size)
+    const out_y_sb = create_sb(device, y_coords_sb.size)
+    const out_t_sb = create_sb(device, y_coords_sb.size)
+    const out_z_sb = create_sb(device, z_coords_sb.size)
 
     const shaderCode = mustache.render(
         bucket_points_reduction_shader,
@@ -107,10 +116,14 @@ export const test_bucket_points_reduction = async (
             device,
             commandEncoder,
             shaderCode,
-            x_y_coords_sb,
-            t_z_coords_sb,
-            out_x_y_sb,
-            out_t_z_sb,
+            x_coords_sb,
+            y_coords_sb,
+            t_coords_sb,
+            z_coords_sb,
+            out_x_sb,
+            out_y_sb,
+            out_t_sb,
+            out_z_sb,
             s,
             num_words,
         )
@@ -128,17 +141,24 @@ export const test_bucket_points_reduction = async (
     const data = await read_from_gpu(
         device,
         commandEncoder,
-        [ out_x_y_sb, out_t_z_sb ]
+        [
+            out_x_sb,
+            out_y_sb,
+            out_t_sb,
+            out_z_sb,
+        ]
     )
 
-    const x_y_mont_coords_result = u8s_to_bigints(data[0], num_words, word_size)
-    const t_z_mont_coords_result = u8s_to_bigints(data[1], num_words, word_size)
+    const x_mont_coords_result = u8s_to_bigints(data[0], num_words, word_size)
+    const y_mont_coords_result = u8s_to_bigints(data[1], num_words, word_size)
+    const t_mont_coords_result = u8s_to_bigints(data[2], num_words, word_size)
+    const z_mont_coords_result = u8s_to_bigints(data[3], num_words, word_size)
 
     const result = fieldMath.createPoint(
-        fieldMath.Fp.mul(x_y_mont_coords_result[0], rinv),
-        fieldMath.Fp.mul(x_y_mont_coords_result[1], rinv),
-        fieldMath.Fp.mul(t_z_mont_coords_result[0], rinv),
-        fieldMath.Fp.mul(t_z_mont_coords_result[1], rinv),
+        fieldMath.Fp.mul(x_mont_coords_result[0], rinv),
+        fieldMath.Fp.mul(y_mont_coords_result[0], rinv),
+        fieldMath.Fp.mul(t_mont_coords_result[0], rinv),
+        fieldMath.Fp.mul(z_mont_coords_result[0], rinv),
     )
 
     //console.log('result:', result)
@@ -147,69 +167,4 @@ export const test_bucket_points_reduction = async (
     assert(are_point_arr_equal([result], [expected]))
 
     device.destroy()
-}
-
-const shader_invocation = async (
-    device: GPUDevice,
-    commandEncoder: GPUCommandEncoder,
-    shaderCode: string,
-    x_y_coords_sb: GPUBuffer,
-    t_z_coords_sb: GPUBuffer,
-    out_x_y_sb: GPUBuffer,
-    out_t_z_sb: GPUBuffer,
-    num_points: number,
-    num_words: number,
-) => {
-    assert(num_points <= 2 ** 16)
-
-    const num_points_bytes = numbers_to_u8s_for_gpu([num_points])
-    const num_points_sb = create_and_write_sb(device, num_points_bytes)
-
-    const bindGroupLayout = create_bind_group_layout(
-        device,
-        [
-            'read-only-storage',
-            'read-only-storage',
-            'read-only-storage',
-            'storage',
-            'storage',
-        ],
-    )
-    const bindGroup = create_bind_group(
-        device,
-        bindGroupLayout,
-        [ x_y_coords_sb, t_z_coords_sb, num_points_sb, out_x_y_sb, out_t_z_sb ],
-    )
-
-    const computePipeline = await create_compute_pipeline(
-        device,
-        [bindGroupLayout],
-        shaderCode,
-        'main',
-    )
-
-    const num_x_workgroups = 256
-    const num_y_workgroups = 256
-
-    execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1);
-
-    const size = Math.ceil(num_points / 2) * 4 * num_words * 2
-    commandEncoder.copyBufferToBuffer(
-        out_x_y_sb,
-        0,
-        x_y_coords_sb,
-        0,
-        size,
-    )
-    commandEncoder.copyBufferToBuffer(
-        out_t_z_sb,
-        0,
-        t_z_coords_sb,
-        0,
-        size,
-    )
-
-    device.destroy()
-
-    return { out_x_y_sb, out_t_z_sb, num_points_sb }
 }
