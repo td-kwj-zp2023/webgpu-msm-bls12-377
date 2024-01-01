@@ -17,7 +17,7 @@ describe('cuzk', () => {
  
     it('cuzk without precomputation', () => {
         const input_size = 32
-        const chunk_size = 4
+        const chunk_size = 8
 
         const num_columns = 2 ** chunk_size
 
