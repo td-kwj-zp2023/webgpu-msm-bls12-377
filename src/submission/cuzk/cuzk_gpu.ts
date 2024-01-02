@@ -61,7 +61,7 @@ export const cuzk_gpu = async (
     scalars: bigint[]
 ): Promise<{x: bigint, y: bigint}> => {
     const input_size = baseAffinePoints.length
-    const chunk_size = 4
+    const chunk_size = 16
 
     const num_columns = 2 ** chunk_size
 
@@ -85,10 +85,7 @@ export const cuzk_gpu = async (
             scalars,
             num_subtasks,
             chunk_size,
-            //true,
         )
-    //device.destroy()
-    //return { x: BigInt(0), y: BigInt(1) }
 
     // Buffers to contain the sum of all the bucket sums per subtask
     const subtask_sum_coord_bytelength = num_subtasks * num_words * 4

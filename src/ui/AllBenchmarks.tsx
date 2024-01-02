@@ -30,7 +30,7 @@ import { bucket_points_reduction } from '../submission/bucket_points_reduction_b
 import { horners_rule_benchmark } from '../submission/horners_rule_benchmark'
 
 export const AllBenchmarks: React.FC = () => {
-  const initialDefaultInputSize = 2 ** 4
+  const initialDefaultInputSize = 2 ** 16
   const [inputSize, setInputSize] = useState(initialDefaultInputSize);
   const [power, setPower] = useState<string>('2^0');
   const [inputSizeDisabled, setInputSizeDisabled] = useState(false);

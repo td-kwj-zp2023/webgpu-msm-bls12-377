@@ -1,8 +1,34 @@
 import { FieldMath } from "../../reference/utils/FieldMath";
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 
-// Perform SMVP and scalar mul with signed bucket indices.
 export const cpu_smvp = (
+    csc_col_ptr: number[],
+    csc_val_idxs: number[],
+    points: ExtPointType[],
+    fieldMath: FieldMath,
+) => {
+    const currentSum = fieldMath.customEdwards.ExtendedPoint.ZERO;
+
+    const result: ExtPointType[] = [];
+    for (let i = 0; i < csc_col_ptr.length - 1; i++) {
+        result.push(currentSum)
+    }
+
+    for (let i = 0; i < csc_col_ptr.length - 1; i++) {
+        const row_begin = csc_col_ptr[i];
+        const row_end = csc_col_ptr[i + 1];
+        let sum = currentSum;
+        for (let j = row_begin; j < row_end; j++) {
+            sum = sum.add(points[csc_val_idxs[j]])
+        }
+        result[i] = sum
+    }
+
+    return result
+}
+
+// Perform SMVP and scalar mul with signed bucket indices.
+export const cpu_smvp_signed = (
     csc_col_ptr: number[],
     csc_val_idxs: number[],
     points: ExtPointType[],
@@ -24,16 +50,19 @@ export const cpu_smvp = (
     // i - h and
     // i + h - l / 2
     for (let idx = 0; idx < num_columns / 2; idx ++) {
+        // idx is the thread ID
+
         for (let j = 0; j < 2; j ++) {
             const i = idx * 2 + j
+
             const row_begin = csc_col_ptr[i];
             const row_end = csc_col_ptr[i + 1];
-            let sum = currentSum;
-            for (let j = row_begin; j < row_end; j++) {
+            let sum = currentSum
+            for (let j = row_begin; j < row_end; j ++) {
                 sum = sum.add(points[csc_val_idxs[j]])
             }
 
-            const x = i - l / 2
+            const x = i - h
 
             let bucket_idx = x
             if (x < 0) {

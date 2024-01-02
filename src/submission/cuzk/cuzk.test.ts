@@ -3,7 +3,7 @@ import { FieldMath } from "../../reference/utils/FieldMath";
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import { decompose_scalars_signed } from '../../submission/utils'
 import { cpu_transpose } from '../../submission/cuzk/transpose'
-import { cpu_smvp } from '../../submission/cuzk/smvp';
+import { cpu_smvp_signed } from '../../submission/cuzk/smvp';
 
 const fieldMath = new FieldMath()
 const x = BigInt('2796670805570508460920584878396618987767121022598342527208237783066948667246')
@@ -59,7 +59,7 @@ describe('cuzk', () => {
                 cpu_transpose(row_ptr, col_idx, num_columns)
 
             // Perform SMVP
-            const buckets = cpu_smvp(
+            const buckets = cpu_smvp_signed(
                 csc_col_ptr,
                 csc_vals,
                 points,
