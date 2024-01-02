@@ -13,12 +13,10 @@ const z = BigInt('1')
 const pt = fieldMath.createPoint(x, y, t, z)
 
 describe('cuzk', () => {
-    // TODO: cuzk with precomputation
- 
     it('cuzk without precomputation', () => {
         const p = BigInt('0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001')
 
-        const input_size = 4
+        const input_size = 8
         const chunk_size = 4
 
         const num_columns = 2 ** chunk_size

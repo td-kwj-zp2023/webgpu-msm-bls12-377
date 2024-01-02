@@ -69,15 +69,24 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let gidy = global_id.y; 
     let id = gidx * {{ num_y_workgroups }} + gidy;
 
-    var inf = get_paf();
-
     let l = {{ num_columns }}u;
     let h = {{ half_num_columns }}u;
 
+    var inf = get_paf();
+
+    if (id > h + 1u) {
+        return;
+    }
+
+    // Each thread handles two buckets to avoid race conditions.
     for (var j = 0u; j < 2u; j ++) {
-        let i = id * 2u + j;
-        let row_begin = row_ptr[i];
-        let row_end = row_ptr[i + 1u];
+        var row_idx = id + h;
+        if (j == 1u) {
+            row_idx = id;
+        }
+
+        let row_begin = row_ptr[row_idx];
+        let row_end = row_ptr[row_idx + 1u];
         var sum = inf;
 
         for (var k = row_begin; k < row_end; k ++) {
@@ -92,30 +101,35 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
             sum = add_points(sum, pt);
         }
 
-        let x = i32(i) - i32(h);
-
-        var bucket_idx: i32 = x;
-        if (x < 0i) {
-            bucket_idx = x * -1i;
+        var bucket_idx = 0u;
+        if (h > row_idx) {
+            bucket_idx = h - row_idx;
             sum = negate_point(sum);
+        } else {
+            bucket_idx = row_idx - h;
         }
 
-        sum = double_and_add(sum, u32(bucket_idx));
+        // Perform scalar multiplication
+        sum = double_and_add(sum, bucket_idx);
 
-        let b = u32(bucket_idx);
-        if (b > 0u) {
+        // Store the result in buckets[thread_id]. Each thread must use
+        // a unique storage location (thread_id) to prevent race
+        // conditions.
+        if (j == 1) {
+            // Since the point has been set, add to it
             let bucket = Point(
-                bucket_sum_x[b - 1u],
-                bucket_sum_y[b - 1u],
-                bucket_sum_t[b - 1u],
-                bucket_sum_z[b - 1u]
+                bucket_sum_x[id],
+                bucket_sum_y[id],
+                bucket_sum_t[id],
+                bucket_sum_z[id]
             );
             sum = add_points(bucket, sum);
-            bucket_sum_x[b - 1u] = sum.x;
-            bucket_sum_y[b - 1u] = sum.y;
-            bucket_sum_t[b - 1u] = sum.t;
-            bucket_sum_z[b - 1u] = sum.z;
         }
-        storageBarrier();
+        // Set the point.
+        // Note that no point has been set when j == 0
+        bucket_sum_x[id] = sum.x;
+        bucket_sum_y[id] = sum.y;
+        bucket_sum_z[id] = sum.z;
+        bucket_sum_t[id] = sum.t;
     }
 }
