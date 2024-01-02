@@ -85,13 +85,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         let pt = Point(x, y, t, z);
         sum = add_points(sum, pt);
     }
-    let index_shift = {{ index_shift }}u;
-    let shifted = id - index_shift;
-    if (shifted < index_shift) {
-        sum = negate_point(sum);
-    }
-
-    sum = double_and_add(sum, shifted);
+    sum = double_and_add(sum, sum);
 
     bucket_sum_x[id] = sum.x;
     bucket_sum_y[id] = sum.y;
