@@ -1,4 +1,5 @@
 // Montgomery radix
+// TODO: don't hardcode until final build, so we can try different word sizes
 fn get_r() -> BigInt {
     var r: BigInt;
 
