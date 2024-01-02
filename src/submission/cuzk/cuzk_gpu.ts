@@ -125,19 +125,6 @@ export const cuzk_gpu = async (
             csr_col_idx_sb.size,
         )
 
-        // Construct row_ptr
-        // TODO: this should be integrated into the transpose shader as its
-        // values are deterministic
-        // Simply use:
-        // const start = Math.min(i * n, n)
-        // const end = Math.min((i + 1) * n, n)
-        const csr_row_ptr_sb = await gen_row_ptr(
-            device,
-            commandEncoder,
-            input_size,
-            num_columns,
-        )
-
         // Transpose
         const {
             csc_col_ptr_sb,
