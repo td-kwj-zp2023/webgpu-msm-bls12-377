@@ -85,7 +85,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         let pt = Point(x, y, t, z);
         sum = add_points(sum, pt);
     }
-    sum = double_and_add(sum, sum);
+    sum = double_and_add(sum, id);
 
     bucket_sum_x[id] = sum.x;
     bucket_sum_y[id] = sum.y;

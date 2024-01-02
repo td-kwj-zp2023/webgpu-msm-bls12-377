@@ -24,7 +24,6 @@ var<storage, read_write> point_y: array<BigInt>;
 @group(0) @binding(5)
 var<storage, read_write> chunks: array<u32>;
 
-// Number of chunks per scalar
 const NUM_SUBTASKS = {{ num_subtasks }}u;
 
 // Scalar chunk bitwidth
@@ -75,33 +74,10 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         scalar_bytes[15u - i] = scalars[id * 16 + i];
     }
 
-    var chunks_le: array<u32, {{ num_subtasks }}>;
-    for (var i = 0u; i < NUM_SUBTASKS; i++) {
-        chunks_le[i] = extract_word_from_bytes_le(scalar_bytes, i, CHUNK_SIZE);
-    }
-    chunks_le[NUM_SUBTASKS - 1] = scalar_bytes[0] >> (((NUM_SUBTASKS * CHUNK_SIZE - 256u) + 16u) - CHUNK_SIZE);
-
-    const l = {{ two_pow_chunk_size }}u;
-    const index_shift = {{ index_shift }}u;
-
-    var carry = 0u;
-    for (var i = 0u; i < NUM_SUBTASKS; i++) {
-        var s = chunks_le[i] + carry;
-        if (s >= index_shift) {
-            s -= index_shift;
-            carry = 1u;
-        } else {
-            carry = 0u;
-        }
-        chunks[id + i * INPUT_SIZE] = s + index_shift;
-    }
-
-/*
     for (var i = 0u; i < NUM_SUBTASKS; i++) {
         let offset = i * INPUT_SIZE;
         chunks[id + offset] = extract_word_from_bytes_le(scalar_bytes, i, CHUNK_SIZE);
     }
 
     chunks[id + (NUM_SUBTASKS - 1) * INPUT_SIZE] = scalar_bytes[0] >> (((NUM_SUBTASKS * CHUNK_SIZE - 256u) + 16u) - CHUNK_SIZE);
-    */
 }
