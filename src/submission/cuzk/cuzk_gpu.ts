@@ -21,11 +21,11 @@ import {
     u8s_to_numbers_32,
     bigints_to_u8_for_gpu,
     compute_misc_params,
-    decompose_scalars,
+    decompose_scalars_signed,
     are_point_arr_equal,
 } from '../utils'
 import { cpu_transpose } from './transpose'
-import { cpu_smvp } from './smvp';
+import { cpu_smvp_signed } from './smvp';
 import { shader_invocation } from '../bucket_points_reduction'
 
 import convert_point_coords_and_decompose_scalars from '../wgsl/convert_point_coords_and_decompose_scalars.template.wgsl'
@@ -84,6 +84,7 @@ export const cuzk_gpu = async (
             word_size,
             scalars,
             num_subtasks,
+            num_columns,
             chunk_size,
         )
 
@@ -96,7 +97,7 @@ export const cuzk_gpu = async (
 
     // Buffers to  store the SMVP result (the bucket sum). They are overwritten
     // per iteration
-    const bucket_sum_coord_bytelength = num_columns * num_words * 4
+    const bucket_sum_coord_bytelength = (num_columns / 2) * num_words * 4
     const bucket_sum_x_sb = create_sb(device, bucket_sum_coord_bytelength)
     const bucket_sum_y_sb = create_sb(device, bucket_sum_coord_bytelength)
     const bucket_sum_t_sb = create_sb(device, bucket_sum_coord_bytelength)
@@ -124,19 +125,6 @@ export const cuzk_gpu = async (
             csr_col_idx_sb.size,
         )
 
-        // Construct row_ptr
-        // TODO: this should be integrated into the transpose shader as its
-        // values are deterministic
-        // Simply use:
-        // const start = Math.min(i * n, n)
-        // const end = Math.min((i + 1) * n, n)
-        const csr_row_ptr_sb = await gen_row_ptr(
-            device,
-            commandEncoder,
-            input_size,
-            num_columns,
-        )
-
         // Transpose
         const {
             csc_col_ptr_sb,
@@ -145,15 +133,29 @@ export const cuzk_gpu = async (
             device,
             commandEncoder,
             input_size,
-            num_columns / 2,
+            num_columns,
             csr_col_idx_sb,
+            true,
+        )
+        device.destroy()
+        return { x: BigInt(0), y: BigInt(1) }
+
+        // Set buckets to the point at infinity
+        await set_buckets_to_paf(
+            device,
+            commandEncoder,
+            num_columns,
+            bucket_sum_x_sb,
+            bucket_sum_y_sb,
+            bucket_sum_t_sb,
+            bucket_sum_z_sb,
         )
 
         // SMVP and multiplication by the bucket index
         await smvp_gpu(
             device,
             commandEncoder,
-            num_columns / 2,
+            num_columns,
             input_size,
             chunk_size,
             csc_col_ptr_sb,
@@ -164,7 +166,10 @@ export const cuzk_gpu = async (
             bucket_sum_y_sb,
             bucket_sum_t_sb,
             bucket_sum_z_sb,
+            //true,
         )
+        //device.destroy()
+        //return { x: BigInt(0), y: BigInt(1) }
 
         // Bucket aggregation
         await bucket_aggregation(
@@ -178,7 +183,7 @@ export const cuzk_gpu = async (
             bucket_sum_y_sb,
             bucket_sum_t_sb,
             bucket_sum_z_sb,
-            num_columns,
+            num_columns / 2,
         )
 
         commandEncoder.copyBufferToBuffer(
@@ -277,6 +282,7 @@ export const convert_point_coords_and_decompose_shaders = async (
     word_size: number,
     scalars: bigint[],
     num_subtasks: number,
+    num_columns: number,
     chunk_size: number,
     debug = false,
 ) => {
@@ -351,6 +357,7 @@ export const convert_point_coords_and_decompose_shaders = async (
         workgroup_size,
         num_y_workgroups,
         num_subtasks,
+        num_columns,
         chunk_size, 
         input_size
     )
@@ -392,7 +399,7 @@ export const convert_point_coords_and_decompose_shaders = async (
         // Verify scalar chunks
         const computed_chunks = u8s_to_numbers(data[2])
 
-        const expected = decompose_scalars(scalars, num_subtasks, chunk_size)
+        const expected = decompose_scalars_signed(scalars, num_subtasks, chunk_size)
 
         for (let j = 0; j < expected.length; j++) {
             let z = 0;
@@ -412,6 +419,7 @@ const genConvertPointCoordsAndDecomposeScalarsShaderCode = (
     workgroup_size: number,
     num_y_workgroups: number,
     num_subtasks: number,
+    num_columns: number,
     chunk_size: number, 
     input_size: number,
 ) => {
@@ -444,6 +452,7 @@ const genConvertPointCoordsAndDecomposeScalarsShaderCode = (
             num_words_mul_two: num_words * 2,
             num_words_plus_one: num_words + 1,
             num_subtasks,
+            num_columns,
             chunk_size,
             input_size,
         },
@@ -520,9 +529,11 @@ export const transpose_gpu = async (
     const num_x_workgroups = 1
     const num_y_workgroups = 1
 
+    const num_rows = Math.ceil(input_size / num_cols)
+
     const shaderCode = mustache.render(
         transpose_serial_shader,
-        { num_cols, num_rows: input_size / num_cols },
+        { num_cols, num_rows },
         {},
     )
 
@@ -588,6 +599,96 @@ export const transpose_gpu = async (
     }
 }
 
+export const set_buckets_to_paf = async (
+    device: GPUDevice,
+    commandEncoder: GPUCommandEncoder,
+    num_csr_cols: number,
+    bucket_sum_x_sb: GPUBuffer,
+    bucket_sum_y_sb: GPUBuffer,
+    bucket_sum_t_sb: GPUBuffer,
+    bucket_sum_z_sb: GPUBuffer,
+    debug = false,
+) => {
+    const half_num_columns = num_csr_cols / 2
+    let workgroup_size = 128
+    let num_x_workgroups = 256
+    let num_y_workgroups = half_num_columns / workgroup_size / num_x_workgroups
+
+    if (num_csr_cols < 256) {
+        workgroup_size = half_num_columns
+        num_x_workgroups = 1
+        num_y_workgroups = 1
+    }
+
+    const bindGroupLayout = create_bind_group_layout(
+        device,
+        ['storage', 'storage', 'storage', 'storage'],
+    )
+
+    const bindGroup = create_bind_group(
+        device,
+        bindGroupLayout,
+        [bucket_sum_x_sb, bucket_sum_y_sb, bucket_sum_t_sb, bucket_sum_z_sb ],
+    )
+
+    const template = `
+{{> structs }}
+{{> curve_parameters }}
+
+@group(0) @binding(0)
+var<storage, read_write> bucket_sum_x: array<BigInt>;
+@group(0) @binding(1)
+var<storage, read_write> bucket_sum_y: array<BigInt>;
+@group(0) @binding(2)
+var<storage, read_write> bucket_sum_t: array<BigInt>;
+@group(0) @binding(3)
+var<storage, read_write> bucket_sum_z: array<BigInt>;
+
+fn get_paf() -> Point {
+    var result: Point;
+    let r = get_r();
+    result.y = r;
+    result.z = r;
+    return result;
+}
+
+@compute
+@workgroup_size({{ workgroup_size }})
+fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {    
+    let gidx = global_id.x; 
+    let gidy = global_id.y; 
+    let id = gidx * {{ num_y_workgroups }} + gidy;
+
+    let inf = get_paf();
+    bucket_sum_x[id] = inf.x;
+    bucket_sum_y[id] = inf.y;
+    bucket_sum_t[id] = inf.t;
+    bucket_sum_z[id] = inf.z;
+}
+`
+    const shaderCode = mustache.render(
+        template,
+        {
+            word_size,
+            num_words,
+            workgroup_size,
+            num_y_workgroups,
+        },
+        {
+            structs,
+            curve_parameters,
+        },
+    )
+    const computePipeline = await create_compute_pipeline(
+        device,
+        [bindGroupLayout],
+        shaderCode,
+        'main',
+    )
+
+    execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1)
+}
+
 export const smvp_gpu = async (
     device: GPUDevice,
     commandEncoder: GPUCommandEncoder,
@@ -604,18 +705,15 @@ export const smvp_gpu = async (
     bucket_sum_z_sb: GPUBuffer,
     debug = false,
 ) => {
-    let workgroup_size = 256
+    const half_num_columns = num_csr_cols / 2
+    let workgroup_size = 128
     let num_x_workgroups = 256
-    let num_y_workgroups = num_csr_cols / workgroup_size / num_x_workgroups
+    let num_y_workgroups = half_num_columns / workgroup_size / num_x_workgroups
 
     if (num_csr_cols < 256) {
-        workgroup_size = num_csr_cols
+        workgroup_size = half_num_columns
         num_x_workgroups = 1
         num_y_workgroups = 1
-    } else if (num_csr_cols >= 256 && num_csr_cols < 65536) {
-        workgroup_size = 256
-        num_x_workgroups = num_csr_cols / workgroup_size
-        num_y_workgroups = num_csr_cols / workgroup_size / num_x_workgroups
     }
 
     const bindGroupLayout = create_bind_group_layout(
@@ -661,6 +759,8 @@ export const smvp_gpu = async (
             index_shift,
             workgroup_size,
             num_y_workgroups,
+            num_columns: num_csr_cols,
+            half_num_columns,
         },
         {
             structs,
@@ -711,7 +811,7 @@ export const smvp_gpu = async (
             return fieldMath.createPoint(bip.x, bip.y, bip.t, bip.z)
         }
         const output_points_gpu: ExtPointType[] = []
-        for (let i = 0; i < num_csr_cols; i++) {
+        for (let i = 0; i < num_csr_cols / 2; i++) {
             const non = {
                 x: fieldMath.Fp.mul(bucket_sum_x_sb_result[i], rinv),
                 y: fieldMath.Fp.mul(bucket_sum_y_sb_result[i], rinv),
@@ -720,6 +820,7 @@ export const smvp_gpu = async (
             }
             output_points_gpu.push(bigIntPointToExtPointType(non))
         }
+        console.log(output_points_gpu.map((x) => x.ex).toString())
 
         // Convert CPU output out of Montgomery coordinates
         const output_points_cpu_out_of_mont: ExtPointType[] = []
@@ -733,19 +834,14 @@ export const smvp_gpu = async (
         }
 
         // Calculate SMVP in CPU 
-        const output_points_cpu: ExtPointType[] = cpu_smvp(
+        const output_points_cpu: ExtPointType[] = cpu_smvp_signed(
             csc_col_ptr_sb_result,
             csc_val_idxs_result,
             output_points_cpu_out_of_mont,
+            chunk_size,
             fieldMath,
         )
 
-        const ZERO_POINT = fieldMath.customEdwards.ExtendedPoint.ZERO
-        output_points_cpu[0] = ZERO_POINT
-        for (let i = 1; i < output_points_cpu.length; i ++) {
-            output_points_cpu[i] = output_points_cpu[i].multiply(BigInt(i))
-        }
-       
         // Transform results into affine representation
         const output_points_affine_cpu = output_points_cpu.map((x) => x.toAffine())
         const output_points_affine_gpu = output_points_gpu.map((x) => x.toAffine())

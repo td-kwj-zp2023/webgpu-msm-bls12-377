@@ -41,7 +41,7 @@ export const cpu_smvp_signed = (
     const currentSum = fieldMath.customEdwards.ExtendedPoint.ZERO;
 
     const buckets: ExtPointType[] = [];
-    for (let i = 0; i < csc_col_ptr.length - 1; i++) {
+    for (let i = 0; i < num_columns / 2; i++) {
         buckets.push(currentSum)
     }
 
@@ -70,10 +70,13 @@ export const cpu_smvp_signed = (
                 sum = sum.negate()
             }
 
+            const b = bucket_idx - 1
             if (bucket_idx > 0) {
-                buckets[bucket_idx] = buckets[bucket_idx].add(sum.multiply(BigInt(bucket_idx)))
+                sum = sum.multiply(BigInt(bucket_idx))
+                buckets[b] = buckets[b].add(sum)
             }
         }
     }
+
     return buckets
 }

@@ -71,24 +71,51 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     var inf = get_paf();
 
-    let row_begin = row_ptr[id];
-    let row_end = row_ptr[id + 1u];
-    var sum = inf;
-    for (var j = row_begin; j < row_end; j ++) {
-        let idx = val_idx[j];
+    let l = {{ num_columns }}u;
+    let h = {{ half_num_columns }}u;
 
-        var x = new_point_x[idx];
-        var y = new_point_y[idx];
-        var t = montgomery_product(&x, &y);
-        var z = get_r();
+    for (var j = 0u; j < 2u; j ++) {
+        let i = id * 2u + j;
+        let row_begin = row_ptr[i];
+        let row_end = row_ptr[i + 1u];
+        var sum = inf;
 
-        let pt = Point(x, y, t, z);
-        sum = add_points(sum, pt);
+        for (var k = row_begin; k < row_end; k ++) {
+            let idx = val_idx[k];
+
+            var x = new_point_x[idx];
+            var y = new_point_y[idx];
+            var t = montgomery_product(&x, &y);
+            var z = get_r();
+
+            let pt = Point(x, y, t, z);
+            sum = add_points(sum, pt);
+        }
+
+        let x = i32(i) - i32(h);
+
+        var bucket_idx: i32 = x;
+        if (x < 0i) {
+            bucket_idx = x * -1i;
+            sum = negate_point(sum);
+        }
+
+        sum = double_and_add(sum, u32(bucket_idx));
+
+        let b = u32(bucket_idx);
+        if (b > 0u) {
+            let bucket = Point(
+                bucket_sum_x[b - 1u],
+                bucket_sum_y[b - 1u],
+                bucket_sum_t[b - 1u],
+                bucket_sum_z[b - 1u]
+            );
+            sum = add_points(bucket, sum);
+            bucket_sum_x[b - 1u] = sum.x;
+            bucket_sum_y[b - 1u] = sum.y;
+            bucket_sum_t[b - 1u] = sum.t;
+            bucket_sum_z[b - 1u] = sum.z;
+        }
+        storageBarrier();
     }
-    sum = double_and_add(sum, id);
-
-    bucket_sum_x[id] = sum.x;
-    bucket_sum_y[id] = sum.y;
-    bucket_sum_t[id] = sum.t;
-    bucket_sum_z[id] = sum.z;
 }
