@@ -22,10 +22,10 @@ export const shader_invocation = async (
     out_z_sb: GPUBuffer,
     num_points: number,
     num_words: number,
+    workgroup_size: number,
 ) => {
     assert(num_points <= 2 ** 15)
 
-    const workgroup_size = 32
     const compute_ideal_num_workgroups = (num_points: number) => {
 
         if (num_points <= workgroup_size) {
