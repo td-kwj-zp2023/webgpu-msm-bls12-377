@@ -104,10 +104,10 @@ export const cuzk_gpu = async (
     const bucket_sum_z_sb = create_sb(device, bucket_sum_coord_bytelength)
 
     // Used by the tree summation method in bucket_points_reduction
-    const out_x_sb = create_sb(device, bucket_sum_coord_bytelength)
-    const out_y_sb = create_sb(device, bucket_sum_coord_bytelength)
-    const out_t_sb = create_sb(device, bucket_sum_coord_bytelength)
-    const out_z_sb = create_sb(device, bucket_sum_coord_bytelength)
+    const out_x_sb = create_sb(device, bucket_sum_coord_bytelength / 2)
+    const out_y_sb = create_sb(device, bucket_sum_coord_bytelength / 2)
+    const out_t_sb = create_sb(device, bucket_sum_coord_bytelength / 2)
+    const out_z_sb = create_sb(device, bucket_sum_coord_bytelength / 2)
 
 
     // scalar_chunks_sb contains num_subtasks * input_size chunks, and
