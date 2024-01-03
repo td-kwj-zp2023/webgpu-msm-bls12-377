@@ -74,10 +74,32 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         scalar_bytes[15u - i] = scalars[id * 16 + i];
     }
 
+    // Extract scalar chunks and store them in chunks_arr
+    var chunks_arr: array<u32, {{ num_subtasks }}>;
     for (var i = 0u; i < NUM_SUBTASKS; i++) {
         let offset = i * INPUT_SIZE;
-        chunks[id + offset] = extract_word_from_bytes_le(scalar_bytes, i, CHUNK_SIZE);
+        chunks_arr[i] = extract_word_from_bytes_le(scalar_bytes, i, CHUNK_SIZE);
+    }
+    chunks_arr[NUM_SUBTASKS - 1] = scalar_bytes[0] >> (((NUM_SUBTASKS * CHUNK_SIZE - 256u) + 16u) - CHUNK_SIZE);
+
+    // Iterate through chunks_arr to compute the signed indices
+    let l = {{ num_columns }}u;
+    let s = l / 2u;
+
+    var signed_slices: array<i32, {{ num_subtasks }}>;
+    var carry = 0u;
+    for (var i = 0u; i < NUM_SUBTASKS; i ++) {
+        signed_slices[i] = i32(chunks_arr[i] + carry);
+        if (signed_slices[i] >= i32(s)) {
+            signed_slices[i] = (i32(l) - signed_slices[i]) * -1i;
+            carry = 1u;
+        } else {
+            carry = 0u;
+        }
     }
 
-    chunks[id + (NUM_SUBTASKS - 1) * INPUT_SIZE] = scalar_bytes[0] >> (((NUM_SUBTASKS * CHUNK_SIZE - 256u) + 16u) - CHUNK_SIZE);
+    for (var i = 0u; i < NUM_SUBTASKS; i++) {
+        let offset = i * INPUT_SIZE;
+        chunks[id + offset] = u32(signed_slices[i]) + s;
+    }
 }

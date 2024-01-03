@@ -58,6 +58,49 @@ export const decompose_scalars = (
     return result
 }
 
+export const decompose_scalars_signed = (
+    scalars: bigint[],
+    num_words: number,
+    word_size: number,
+): number[][] => {
+    const l = 2 ** word_size
+    const shift = 2 ** (word_size - 1)
+
+    const as_limbs: number[][] = []
+
+    for (const scalar of scalars) {
+        const limbs = to_words_le(scalar, num_words, word_size)
+        const signed_slices: number[] = Array(limbs.length).fill(0)
+
+        let carry = 0
+        for (let i = 0; i < limbs.length; i ++) {
+            signed_slices[i] = limbs[i] + carry
+            if (signed_slices[i] >= l / 2) {
+                signed_slices[i] = (l - signed_slices[i]) * -1
+                if (signed_slices[i] === -0) { signed_slices[i] = 0 }
+
+                carry = 1
+            } else {
+                carry = 0
+            }
+        }
+
+        if (carry === 1) {
+            console.error(scalar)
+            throw new Error('final carry is 1')
+        }
+
+        as_limbs.push(Array.from(signed_slices).map((x) => x + shift))
+    }
+
+    const result: number[][] = []
+    for (let i = 0; i < num_words; i ++) {
+        const t = as_limbs.map((limbs) => limbs[i])
+        result.push(t)
+    }
+    return result
+}
+
 export const points_to_u8s_for_gpu = (
   points: BigIntPoint[],
   num_words: number,

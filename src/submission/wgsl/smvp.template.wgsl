@@ -51,6 +51,17 @@ fn double_and_add(point: Point, scalar: u32) -> Point {
     return result;
 }
 
+fn negate_point(point: Point) -> Point {
+    var p = get_p();
+    var x = point.x;
+    var t = point.t;
+    var neg_x: BigInt;
+    var neg_t: BigInt;
+    bigint_sub(&p, &x, &neg_x);
+    bigint_sub(&p, &t, &neg_t);
+    return Point(neg_x, point.y, neg_t, point.z);
+}
+
 @compute
 @workgroup_size({{ workgroup_size }})
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {    
@@ -58,26 +69,67 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let gidy = global_id.y; 
     let id = gidx * {{ num_y_workgroups }} + gidy;
 
+    let l = {{ num_columns }}u;
+    let h = {{ half_num_columns }}u;
+
     var inf = get_paf();
 
-    let row_begin = row_ptr[id];
-    let row_end = row_ptr[id + 1u];
-    var sum = inf;
-    for (var j = row_begin; j < row_end; j ++) {
-        let idx = val_idx[j];
-
-        var x = new_point_x[idx];
-        var y = new_point_y[idx];
-        var t = montgomery_product(&x, &y);
-        var z = get_r();
-
-        let pt = Point(x, y, t, z);
-        sum = add_points(sum, pt);
+    if (id > h + 1u) {
+        return;
     }
-    sum = double_and_add(sum, id);
 
-    bucket_sum_x[id] = sum.x;
-    bucket_sum_y[id] = sum.y;
-    bucket_sum_t[id] = sum.t;
-    bucket_sum_z[id] = sum.z;
+    // Each thread handles two buckets to avoid race conditions.
+    for (var j = 0u; j < 2u; j ++) {
+        var row_idx = id + h;
+        if (j == 1u) {
+            row_idx = id;
+        }
+
+        let row_begin = row_ptr[row_idx];
+        let row_end = row_ptr[row_idx + 1u];
+        var sum = inf;
+
+        for (var k = row_begin; k < row_end; k ++) {
+            let idx = val_idx[k];
+
+            var x = new_point_x[idx];
+            var y = new_point_y[idx];
+            var t = montgomery_product(&x, &y);
+            var z = get_r();
+
+            let pt = Point(x, y, t, z);
+            sum = add_points(sum, pt);
+        }
+
+        var bucket_idx = 0u;
+        if (h > row_idx) {
+            bucket_idx = h - row_idx;
+            sum = negate_point(sum);
+        } else {
+            bucket_idx = row_idx - h;
+        }
+
+        // Perform scalar multiplication
+        sum = double_and_add(sum, bucket_idx);
+
+        // Store the result in buckets[thread_id]. Each thread must use
+        // a unique storage location (thread_id) to prevent race
+        // conditions.
+        if (j == 1) {
+            // Since the point has been set, add to it
+            let bucket = Point(
+                bucket_sum_x[id],
+                bucket_sum_y[id],
+                bucket_sum_t[id],
+                bucket_sum_z[id]
+            );
+            sum = add_points(bucket, sum);
+        }
+        // Set the point.
+        // Note that no point has been set when j == 0
+        bucket_sum_x[id] = sum.x;
+        bucket_sum_y[id] = sum.y;
+        bucket_sum_z[id] = sum.z;
+        bucket_sum_t[id] = sum.t;
+    }
 }

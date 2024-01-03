@@ -7,17 +7,17 @@ export const cpu_smvp = (
     points: ExtPointType[],
     fieldMath: FieldMath,
 ) => {
-    const currentSum = fieldMath.customEdwards.ExtendedPoint.ZERO;
+    const zero = fieldMath.customEdwards.ExtendedPoint.ZERO;
 
     const result: ExtPointType[] = [];
     for (let i = 0; i < csc_col_ptr.length - 1; i++) {
-        result.push(currentSum)
+        result.push(zero)
     }
 
     for (let i = 0; i < csc_col_ptr.length - 1; i++) {
         const row_begin = csc_col_ptr[i];
         const row_end = csc_col_ptr[i + 1];
-        let sum = currentSum;
+        let sum = zero;
         for (let j = row_begin; j < row_end; j++) {
             sum = sum.add(points[csc_val_idxs[j]])
         }
@@ -25,4 +25,67 @@ export const cpu_smvp = (
     }
 
     return result
+}
+
+// Perform SMVP and scalar mul with signed bucket indices.
+export const cpu_smvp_signed = (
+    csc_col_ptr: number[],
+    csc_val_idxs: number[],
+    points: ExtPointType[],
+    chunk_size: number,
+    fieldMath: FieldMath,
+) => {
+    const l = 2 ** chunk_size
+    const h = l / 2
+    const num_columns = csc_col_ptr.length - 1
+    const zero = fieldMath.customEdwards.ExtendedPoint.ZERO;
+
+    const buckets: ExtPointType[] = [];
+    for (let i = 0; i < num_columns / 2 + 1; i++) {
+        buckets.push(zero)
+    }
+
+    // In a GPU implementation, each iteration of this loop should be performed by a thread.
+    // Each thread handles two buckets
+    for (let thread_id = 0; thread_id < num_columns / 2; thread_id ++) {
+        const bucket_idxs: number[] = []
+        for (let j = 0; j < 2; j ++) {
+            // row_idx is the index of the row in the CSR matrix. It is *not*
+            // the same as the bucket index.
+            let row_idx = thread_id + num_columns / 2
+            if (j === 1) {
+                row_idx = thread_id
+            }
+
+            const row_begin = csc_col_ptr[row_idx];
+            const row_end = csc_col_ptr[row_idx + 1];
+            let sum = zero
+            for (let k = row_begin; k < row_end; k ++) {
+                sum = sum.add(points[csc_val_idxs[k]])
+            }
+
+            let bucket_idx
+            if (h > row_idx) {
+                bucket_idx = h - row_idx
+                sum = sum.negate()
+            } else {
+                bucket_idx = row_idx - h
+            }
+
+            //console.log({ thread_id, row_idx, bucket_idx })
+
+            if (bucket_idx > 0) {
+                sum = sum.multiply(BigInt(bucket_idx))
+
+                // Store the result in buckets[thread_id]. Each thread must use
+                // a unique storage location (thread_id) to prevent race
+                // conditions.
+                buckets[thread_id] = buckets[thread_id].add(sum)
+            }
+
+            bucket_idxs.push(bucket_idx)
+        }
+    }
+
+    return buckets
 }
