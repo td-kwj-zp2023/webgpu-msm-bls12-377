@@ -65,6 +65,7 @@ export const shader_invocation = async (
         'main',
     )
 
+    // TODO: should we dispatch just the right number of threads instead?
     const num_x_workgroups = 256
     const num_y_workgroups = 256
 
