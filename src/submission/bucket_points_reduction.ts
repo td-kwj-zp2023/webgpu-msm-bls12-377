@@ -25,6 +25,7 @@ export const shader_invocation = async (
 ) => {
     assert(num_points <= 2 ** 15)
 
+    /*
     const workgroup_size = 32
     const compute_ideal_num_workgroups = (num_points: number) => {
 
@@ -37,7 +38,8 @@ export const shader_invocation = async (
         const num_y_workgroups = 2 ** m
         return { num_x_workgroups, num_y_workgroups }
     }
-    /*
+    */
+
     const num_z_workgroups = 2
     const compute_ideal_num_workgroups = (num_points: number) => {
 
@@ -50,7 +52,6 @@ export const shader_invocation = async (
         const num_y_workgroups = 2 ** m
         return { num_x_workgroups, num_y_workgroups }
     }
-    */
 
     const { num_x_workgroups, num_y_workgroups } = compute_ideal_num_workgroups(num_points)
 
@@ -58,7 +59,7 @@ export const shader_invocation = async (
         [
             num_points,
             num_y_workgroups,
-            //num_z_workgroups,
+            num_z_workgroups,
         ],
     )
     const params_ub = create_and_write_ub(device, params_bytes)
@@ -100,7 +101,7 @@ export const shader_invocation = async (
         'main',
     )
 
-    execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1)
+    execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, num_z_workgroups)
 
     const size = Math.ceil(num_points / 2) * 4 * num_words
     commandEncoder.copyBufferToBuffer(out_x_sb, 0, x_coords_sb, 0, size)

@@ -23,7 +23,7 @@ var<storage, read_write> out_t: array<BigInt>;
 @group(0) @binding(7)
 var<storage, read_write> out_z: array<BigInt>;
 @group(0) @binding(8)
-var<uniform> params: vec2<u32>;
+var<uniform> params: vec3<u32>;
 
 fn get_paf() -> Point {
     var result: Point;
@@ -34,17 +34,17 @@ fn get_paf() -> Point {
 }
 
 @compute
-@workgroup_size(32)
+@workgroup_size(1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let num_points = params[0];
     let num_y_workgroups = params[1];
-    /*let num_z_workgroups = params[2];*/
+    let num_z_workgroups = params[2];
 
     var gidx = global_id.x;
     var gidy = global_id.y;
-    /*var gidz = global_id.z;*/
-    /*let id = (gidx * num_y_workgroups + gidy) * num_z_workgroups + gidz;*/
-    let id = gidx * num_y_workgroups + gidy;
+    var gidz = global_id.z;
+    let id = (gidx * num_y_workgroups + gidy) * num_z_workgroups + gidz;
+    /*let id = gidx * num_y_workgroups + gidy;*/
 
     let a_x = point_x[id * 2u];
     let a_y = point_y[id * 2u];
