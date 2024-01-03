@@ -32,7 +32,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let m = {{ num_rows }}u;
 
     // Number of columns
-    let n = {{ num_cols }}u;
+    let n = {{ num_columns }}u;
 
     for (var i = 0u; i < m; i ++) {
         let r = calc_start_end(m, n, i);

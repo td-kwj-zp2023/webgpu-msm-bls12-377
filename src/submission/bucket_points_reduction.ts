@@ -23,10 +23,10 @@ export const shader_invocation = async (
     num_points: number,
     num_words: number,
 ) => {
-    assert(num_points <= 2 ** 16)
+    assert(num_points <= 2 ** 15)
 
+    const workgroup_size = 32
     const compute_ideal_num_workgroups = (num_points: number) => {
-        const workgroup_size = 16 // hardcoded in the shader
 
         if (num_points <= workgroup_size) {
             return { num_x_workgroups: 1, num_y_workgroups: 1 }
@@ -37,10 +37,30 @@ export const shader_invocation = async (
         const num_y_workgroups = 2 ** m
         return { num_x_workgroups, num_y_workgroups }
     }
+    /*
+    const num_z_workgroups = 2
+    const compute_ideal_num_workgroups = (num_points: number) => {
+
+        if (num_points <= num_z_workgroups) {
+            return { num_x_workgroups: 1, num_y_workgroups: 1 }
+        }
+
+        const m = Math.ceil(Math.log2(Math.sqrt(num_points / num_z_workgroups)))
+        const num_x_workgroups = 2 ** m
+        const num_y_workgroups = 2 ** m
+        return { num_x_workgroups, num_y_workgroups }
+    }
+    */
 
     const { num_x_workgroups, num_y_workgroups } = compute_ideal_num_workgroups(num_points)
 
-    const params_bytes = numbers_to_u8s_for_gpu([num_points, num_y_workgroups])
+    const params_bytes = numbers_to_u8s_for_gpu(
+        [
+            num_points,
+            num_y_workgroups,
+            //num_z_workgroups,
+        ],
+    )
     const params_ub = create_and_write_ub(device, params_bytes)
 
     const bindGroupLayout = create_bind_group_layout(
