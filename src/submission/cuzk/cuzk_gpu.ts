@@ -776,6 +776,12 @@ export const bucket_aggregation = async (
     const num_words = params.num_words
     const p_limbs = gen_p_limbs(p, num_words, word_size)
 
+    // Important: workgroup_size should be constant regardless of the number of
+    // points, as setting a different workgroup_size will cause a costly
+    // recompile. This constant is only passed into the shader as a template
+    // variable for ease of benchmarking.
+    const workgroup_size = 32
+
     const shaderCode = mustache.render(
         bucket_points_reduction_shader,
         {
@@ -785,6 +791,7 @@ export const bucket_aggregation = async (
             p_limbs,
             mask: BigInt(2) ** BigInt(word_size) - BigInt(1),
             two_pow_word_size: BigInt(2) ** BigInt(word_size),
+            workgroup_size,
         },
         {
             structs,
@@ -854,6 +861,7 @@ export const bucket_aggregation = async (
             out_z_sb,
             s,
             num_words,
+            workgroup_size,
         )
         //num_invocations ++
 

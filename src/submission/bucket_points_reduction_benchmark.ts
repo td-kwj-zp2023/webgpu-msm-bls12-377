@@ -39,6 +39,7 @@ export const test_bucket_points_reduction = async (
 ) => {
     assert(baseAffinePoints.length >= input_size)
 
+    const workgroup_size = 32
     const fieldMath = new FieldMath()
     const p = BigInt('0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001')
     const word_size = 13
@@ -97,6 +98,7 @@ export const test_bucket_points_reduction = async (
             p_limbs,
             mask: BigInt(2) ** BigInt(word_size) - BigInt(1),
             two_pow_word_size: BigInt(2) ** BigInt(word_size),
+            workgroup_size,
         },
         {
             structs,
@@ -126,6 +128,7 @@ export const test_bucket_points_reduction = async (
             out_z_sb,
             s,
             num_words,
+            workgroup_size,
         )
         num_invocations ++
 

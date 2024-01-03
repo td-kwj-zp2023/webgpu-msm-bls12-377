@@ -34,7 +34,7 @@ fn get_paf() -> Point {
 }
 
 @compute
-@workgroup_size(32)
+@workgroup_size({{ workgroup_size }})
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let num_points = params[0];
     let num_y_workgroups = params[1];
