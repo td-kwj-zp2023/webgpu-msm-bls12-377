@@ -25,22 +25,7 @@ export const shader_invocation = async (
 ) => {
     assert(num_points <= 2 ** 15)
 
-    /*
-    const workgroup_size = 32
-    const compute_ideal_num_workgroups = (num_points: number) => {
-
-        if (num_points <= workgroup_size) {
-            return { num_x_workgroups: 1, num_y_workgroups: 1 }
-        }
-
-        const m = Math.ceil(Math.log2(Math.sqrt(num_points / workgroup_size)))
-        const num_x_workgroups = 2 ** m
-        const num_y_workgroups = 2 ** m
-        return { num_x_workgroups, num_y_workgroups }
-    }
-    */
-
-    const num_z_workgroups = 2
+    let num_z_workgroups = 2
     const compute_ideal_num_workgroups = (num_points: number) => {
 
         if (num_points <= num_z_workgroups) {
@@ -48,8 +33,19 @@ export const shader_invocation = async (
         }
 
         const m = Math.ceil(Math.log2(Math.sqrt(num_points / num_z_workgroups)))
-        const num_x_workgroups = 2 ** m
-        const num_y_workgroups = 2 ** m
+        let num_x_workgroups = 2 ** m
+        let num_y_workgroups = 2 ** m
+
+        if (num_x_workgroups * num_y_workgroups == (num_points / 2)) {
+            num_z_workgroups = 1;
+        }
+
+        if (num_x_workgroups * num_y_workgroups == num_points) {
+            num_x_workgroups = 2 ** (m - 1)
+            num_y_workgroups = 2 ** (m - 1)
+            num_z_workgroups = (num_points / 2) / (num_x_workgroups * num_y_workgroups);
+        }
+
         return { num_x_workgroups, num_y_workgroups }
     }
 
