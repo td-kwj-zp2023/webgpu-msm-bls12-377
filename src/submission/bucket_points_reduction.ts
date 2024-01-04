@@ -34,7 +34,7 @@ export const shader_invocation = async (
 
         const m = Math.ceil(Math.log2(Math.sqrt(num_points / workgroup_size)))
         const num_x_workgroups = 2 ** m
-        const num_y_workgroups = 2 ** m
+        const num_y_workgroups = Math.ceil(num_points / num_x_workgroups / workgroup_size)
         return { num_x_workgroups, num_y_workgroups }
     }
     /*
@@ -101,6 +101,7 @@ export const shader_invocation = async (
     )
 
     execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1)
+    console.log({num_points, 'total threads': num_x_workgroups * num_y_workgroups * workgroup_size})
 
     const size = Math.ceil(num_points / 2) * 4 * num_words
     commandEncoder.copyBufferToBuffer(out_x_sb, 0, x_coords_sb, 0, size)
