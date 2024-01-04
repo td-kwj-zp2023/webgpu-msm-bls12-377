@@ -10,7 +10,7 @@ import {
     create_sb,
     read_from_gpu,
 } from '../gpu'
-import { cpu_transpose } from './transpose'
+import { cpu_transpose_classic } from './transpose'
 import assert from 'assert'
 import seedrandom from 'seedrandom'
 
@@ -112,7 +112,7 @@ export async function transpose(
     const { csr_row_ptr, csr_col_idx } = rand_csr
 
     const { csc_col_ptr, csc_row_idx } =
-        cpu_transpose(csr_row_ptr, csr_col_idx, num_cols)
+        cpu_transpose_classic(csr_row_ptr, csr_col_idx, num_cols)
 
     const transposed_dm = transpose_dm(num_cols, num_rows, rand_dm)
     const transposed_csr = gen_csr(num_rows, num_cols, transposed_dm)

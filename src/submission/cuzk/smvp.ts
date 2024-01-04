@@ -29,15 +29,17 @@ export const cpu_smvp = (
 
 // Perform SMVP and scalar mul with signed bucket indices.
 export const cpu_smvp_signed = (
-    csc_col_ptr: number[],
-    csc_val_idxs: number[],
-    points: ExtPointType[],
+    subtask_idx: number,
+    input_size: number,
+    num_columns: number,
     chunk_size: number,
+    all_csc_col_ptr: number[],
+    all_csc_val_idxs: number[],
+    points: ExtPointType[],
     fieldMath: FieldMath,
 ) => {
     const l = 2 ** chunk_size
     const h = l / 2
-    const num_columns = csc_col_ptr.length - 1
     const zero = fieldMath.customEdwards.ExtendedPoint.ZERO;
 
     const buckets: ExtPointType[] = [];
@@ -57,11 +59,14 @@ export const cpu_smvp_signed = (
                 row_idx = thread_id
             }
 
-            const row_begin = csc_col_ptr[row_idx];
-            const row_end = csc_col_ptr[row_idx + 1];
+            const row_begin = all_csc_col_ptr[subtask_idx * (num_columns + 1) + row_idx];
+            const row_end = all_csc_col_ptr[subtask_idx * (num_columns + 1) + row_idx + 1];
+
             let sum = zero
             for (let k = row_begin; k < row_end; k ++) {
-                sum = sum.add(points[csc_val_idxs[k]])
+                sum = sum.add(
+                    points[all_csc_val_idxs[subtask_idx * input_size + k]]
+            )
             }
 
             let bucket_idx
