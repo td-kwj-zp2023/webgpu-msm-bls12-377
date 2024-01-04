@@ -33,8 +33,18 @@ export const shader_invocation = async (
         }
 
         const m = Math.ceil(Math.log2(Math.sqrt(num_points / workgroup_size)))
-        const num_x_workgroups = 2 ** m
-        const num_y_workgroups = Math.ceil(num_points / num_x_workgroups / workgroup_size)
+        // console.log("m is: ", m)
+        let num_x_workgroups = 2 ** m
+
+        const num_y_workgroups = (Math.ceil(num_points / num_x_workgroups / workgroup_size))
+
+        if (num_x_workgroups * num_y_workgroups * workgroup_size == num_points) {
+            num_x_workgroups = num_x_workgroups / 2
+        }
+
+        // console.log("num_x_workgroups is: ", num_x_workgroups)
+        // console.log("num_y_workgroups is: ", num_y_workgroups)
+        
         return { num_x_workgroups, num_y_workgroups }
     }
     /*
