@@ -6,13 +6,13 @@ var<storage, read> csr_col_idx: array<u32>;
 @group(0) @binding(1)
 var<storage, read_write> csc_col_ptr: array<u32>;
 @group(0) @binding(2)
-var<storage, read_write> csc_row_idx: array<u32>;
-@group(0) @binding(3)
 var<storage, read_write> csc_val_idxs: array<u32>;
 
 // Intermediate buffer
-@group(0) @binding(4)
+@group(0) @binding(3)
 var<storage, read_write> curr: array<u32>;
+@group(0) @binding(4)
+var<uniform> params: vec2<u32>;
 
 fn calc_start_end(m: u32, n: u32, i: u32) -> vec2<u32> {
     if (i < m) {
@@ -28,11 +28,11 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // Serial transpose algo from
     // https://synergy.cs.vt.edu/pubs/papers/wang-transposition-ics16.pdf
 
-    // Number of rows
-    let m = {{ num_rows }}u;
-
     // Number of columns
-    let n = {{ num_columns }}u;
+    let m = params[0];
+
+    // Number of rows
+    let n = params[1];
 
     for (var i = 0u; i < m; i ++) {
         let r = calc_start_end(m, n, i);
@@ -57,7 +57,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         let end = r[1];
         for (var j = start; j < end; j ++) {
             let loc = csc_col_ptr[csr_col_idx[j]] + curr[csr_col_idx[j]];
-            csc_row_idx[loc] = i;
             curr[csr_col_idx[j]] ++;
             csc_val_idxs[loc] = val;
             val ++;
