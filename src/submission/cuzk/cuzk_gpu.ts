@@ -5,6 +5,7 @@ import { ExtPointType } from "@noble/curves/abstract/edwards";
 import {
     get_device,
     create_and_write_sb,
+    create_and_write_ub,
     create_bind_group,
     create_bind_group_layout,
     create_compute_pipeline,
@@ -20,6 +21,7 @@ import {
     u8s_to_numbers,
     u8s_to_numbers_32,
     bigints_to_u8_for_gpu,
+    numbers_to_u8s_for_gpu,
     compute_misc_params,
     decompose_scalars_signed,
     are_point_arr_equal,
@@ -463,31 +465,40 @@ export const transpose_gpu = async (
     debug = false,
 ): Promise<{
     csc_col_ptr_sb: GPUBuffer,
-    csc_row_idx_sb: GPUBuffer,
     csc_val_idxs_sb: GPUBuffer,
 }> => {
     /*
      * n = number of columns (before transposition)
-     * m = number of columns (before transposition)
+     * m = number of rows (before transposition)
      * nnz = number of nonzero elements
      *
      * Given: 
      *   - csr_col_idx (nnz) (aka the new_scalar_chunks)
      *
      * Output the transpose of the above:
-     *   - csc_row_idx (nnz)
-     *      - The cumulative sum of the number of nonzero elements per row
      *   - csc_col_ptr (m + 1)
      *      - The column index of each nonzero element
      *   - csc_val_idxs (nnz)
      *      - The new index of each nonzero element
+     *
+     * Not computed as it's not used:
+     *   - csc_row_idx (nnz)
+     *      - The cumulative sum of the number of nonzero elements per row
      */
 
     // TODO: create these buffers only once?
     const csc_col_ptr_sb = create_sb(device, (num_columns + 1) * 4)
-    const csc_row_idx_sb = create_sb(device, new_scalar_chunks_sb.size)
     const csc_val_idxs_sb = create_sb(device, new_scalar_chunks_sb.size)
     const curr_sb = create_sb(device, num_columns * 4)
+
+    const num_rows = Math.ceil(input_size / num_columns)
+    const params_bytes = numbers_to_u8s_for_gpu(
+        [
+            num_rows,
+            num_columns,
+        ],
+    )
+    const params_ub = create_and_write_ub(device, params_bytes)
 
     const bindGroupLayout = create_bind_group_layout(
         device,
@@ -496,7 +507,7 @@ export const transpose_gpu = async (
             'storage',
             'storage',
             'storage',
-            'storage',
+            'uniform',
         ],
     )
 
@@ -506,22 +517,16 @@ export const transpose_gpu = async (
         [
             new_scalar_chunks_sb,
             csc_col_ptr_sb,
-            csc_row_idx_sb,
             csc_val_idxs_sb,
             curr_sb,
+            params_ub,
         ],
     )
 
     const num_x_workgroups = 1
     const num_y_workgroups = 1
 
-    const num_rows = Math.ceil(input_size / num_columns)
-
-    const shaderCode = mustache.render(
-        transpose_serial_shader,
-        { num_columns, num_rows },
-        {},
-    )
+    const shaderCode = mustache.render(transpose_serial_shader, {}, {})
 
     const computePipeline = await create_compute_pipeline(
         device,
@@ -538,15 +543,14 @@ export const transpose_gpu = async (
             commandEncoder,
             [
                 csc_col_ptr_sb,
-                csc_row_idx_sb,
                 csc_val_idxs_sb,
-                new_scalar_chunks_sb],
+                new_scalar_chunks_sb,
+            ],
         )
     
         const csc_col_ptr_result = u8s_to_numbers_32(data[0])
-        const csc_row_idx_result = u8s_to_numbers_32(data[1])
-        const csc_val_idxs_result = u8s_to_numbers_32(data[2])
-        const new_scalar_chunks = u8s_to_numbers_32(data[3])
+        const csc_val_idxs_result = u8s_to_numbers_32(data[1])
+        const new_scalar_chunks = u8s_to_numbers_32(data[2])
 
         console.log(
             //'new_scalar_chunks:', new_scalar_chunks, 
@@ -570,17 +574,14 @@ export const transpose_gpu = async (
         const expected = cpu_transpose(row_ptr, new_scalar_chunks, num_columns)
 
         console.log('expected.csc_col_ptr', expected.csc_col_ptr)
-        //console.log('expected.csc_row_idx', expected.csc_row_idx)
         //console.log('expected.csc_vals', expected.csc_row_idx)
 
         assert(expected.csc_col_ptr.toString() === csc_col_ptr_result.toString(), 'csc_col_ptr mismatch')
-        assert(expected.csc_row_idx.toString() === csc_row_idx_result.toString(), 'csc_row_idx mismatch')
         assert(expected.csc_vals.toString() === csc_val_idxs_result.toString(), 'csc_vals mismatch')
     }
 
     return {
         csc_col_ptr_sb,
-        csc_row_idx_sb,
         csc_val_idxs_sb,
     }
 }
