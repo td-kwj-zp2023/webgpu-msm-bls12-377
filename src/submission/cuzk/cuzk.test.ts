@@ -17,9 +17,12 @@ describe('cuzk', () => {
         const p = BigInt('0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001')
 
         const input_size = 8
-        const chunk_size = 4
+        const chunk_size = 2
+
+        expect(input_size >= 2 ** chunk_size).toBeTruthy()
 
         const num_columns = 2 ** chunk_size
+        const num_rows = Math.ceil(input_size / num_columns)
 
         const num_chunks_per_scalar = Math.ceil(256 / chunk_size)
         const num_subtasks = num_chunks_per_scalar
@@ -36,32 +39,26 @@ describe('cuzk', () => {
         const decomposed_scalars = decompose_scalars_signed(scalars, num_subtasks, chunk_size)
 
         const bucket_sums: ExtPointType[] = []
+
+        // Perform multiple transpositions "in parallel"
+        const { all_csc_col_ptr, all_csc_vals } = cpu_transpose(
+            decomposed_scalars.flat(),
+            num_columns,
+            num_rows,
+            num_subtasks,
+            input_size,
+        )
+
         for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx ++) {
-            const subtask_chunks = decomposed_scalars[subtask_idx]
-
-            // Copy subtask_chunks to col_idx
-            const col_idx = subtask_chunks.map((x) => Number(x))
-
-            // Construct row_ptr
-            let j = 0
-            const row_ptr: number[] = [0]
-            for (let i = 0; i < input_size; i += num_columns) {
-                row_ptr.push(row_ptr[j] + num_columns)
-                j ++
-            }
-            while (row_ptr.length < input_size + 1) {
-                row_ptr.push(row_ptr[row_ptr.length - 1])
-            }
-
-            const { csc_col_ptr, csc_vals } =
-                cpu_transpose(row_ptr, col_idx, num_columns)
-
             // Perform SMVP
             const buckets = cpu_smvp_signed(
-                csc_col_ptr,
-                csc_vals,
-                points,
+                subtask_idx,
+                input_size,
+                num_columns,
                 chunk_size,
+                all_csc_col_ptr,
+                all_csc_vals,
+                points,
                 fieldMath,
             )
 
