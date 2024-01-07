@@ -25,6 +25,10 @@ var<storage, read_write> bucket_sum_t: array<BigInt>;
 @group(0) @binding(7)
 var<storage, read_write> bucket_sum_z: array<BigInt>;
 
+// Params buffer
+@group(0) @binding(8)
+var<uniform> params: vec2<u32>;
+
 fn get_paf() -> Point {
     var result: Point;
     let r = get_r();
@@ -69,7 +73,11 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let gidy = global_id.y; 
     let id = gidx * {{ num_y_workgroups }} + gidy;
 
-    let l = {{ num_columns }}u;
+    let subtask_idx = params[0];
+    let input_size = params[1];
+
+    let num_columns = {{ num_columns }}u;
+    let l = num_columns;
     let h = {{ half_num_columns }}u;
 
     var inf = get_paf();
@@ -78,6 +86,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         return;
     }
 
+    let rp_offset = subtask_idx * (num_columns + 1u);
+
     // Each thread handles two buckets to avoid race conditions.
     for (var j = 0u; j < 2u; j ++) {
         var row_idx = id + h;
@@ -85,12 +95,12 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
             row_idx = id;
         }
 
-        let row_begin = row_ptr[row_idx];
-        let row_end = row_ptr[row_idx + 1u];
+        let row_begin = row_ptr[rp_offset + row_idx];
+        let row_end = row_ptr[rp_offset + row_idx + 1u];
         var sum = inf;
 
         for (var k = row_begin; k < row_end; k ++) {
-            let idx = val_idx[k];
+            let idx = val_idx[subtask_idx * input_size + k];
 
             var x = new_point_x[idx];
             var y = new_point_y[idx];
