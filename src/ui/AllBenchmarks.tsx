@@ -332,7 +332,7 @@ export const AllBenchmarks: React.FC = () => {
         bold={true}
       />
       <Benchmark
-        name={'Transpose (WGSL)'}
+        name={'Transpose (WGSL) - classic algo'}
         disabled={disabledBenchmark}
         baseAffinePoints={baseAffineBigIntPoints}
         scalars={bigIntScalars}
