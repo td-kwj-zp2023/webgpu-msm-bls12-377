@@ -74,14 +74,12 @@ export const cuzk_gpu = async (
     // Each pass must use the same GPUDevice and GPUCommandEncoder, or else
     // storage buffers can't be reused across compute passes
     const device = await get_device()
-    const commandEncoder = device.createCommandEncoder()
  
     // Convert the affine points to Montgomery form and decompose the scalars
     // using a single shader
     const { point_x_sb, point_y_sb, scalar_chunks_sb } =
         await convert_point_coords_and_decompose_shaders(
             device,
-            commandEncoder,
             baseAffinePoints,
             num_words, 
             word_size,
@@ -89,6 +87,7 @@ export const cuzk_gpu = async (
             num_subtasks,
             num_columns,
             chunk_size,
+            false,
         )
 
     // Buffers to contain the sum of all the bucket sums per subtask
@@ -118,18 +117,16 @@ export const cuzk_gpu = async (
         all_csc_val_idxs_sb,
     } = await transpose_gpu(
         device,
-        commandEncoder,
         input_size,
         num_columns,
         num_rows,
         num_subtasks,    
         scalar_chunks_sb,
-        //true,
     )
-    //device.destroy()
-    //return { x: BigInt(0), y: BigInt(1) }
 
     for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx ++) {
+        const start = Date.now()
+        const commandEncoder = device.createCommandEncoder()
         // SMVP and multiplication by the bucket index
         await smvp_gpu(
             device,
@@ -146,10 +143,8 @@ export const cuzk_gpu = async (
             bucket_sum_y_sb,
             bucket_sum_t_sb,
             bucket_sum_z_sb,
-            //true,
         )
-        //device.destroy()
-        //return { x: BigInt(0), y: BigInt(1) }
+        //device.destroy(); return { x: BigInt(0), y: BigInt(1) }
 
         // Bucket aggregation
         await bucket_aggregation(
@@ -194,8 +189,14 @@ export const cuzk_gpu = async (
             subtask_idx * num_words * 4,
             num_words * 4,
         )
+        device.queue.submit([commandEncoder.finish()])
+        await device.queue.onSubmittedWorkDone()
+        const elapsed = Date.now() - start
+        console.log(`iteration ${subtask_idx} took ${elapsed}ms (SMVP and bucket aggregation)`)
     }
 
+    const start = Date.now()
+    const commandEncoder = device.createCommandEncoder()
     const subtask_sum_data = await read_from_gpu(
         device,
         commandEncoder,
@@ -228,6 +229,8 @@ export const cuzk_gpu = async (
         result = result.multiply(m)
         result = result.add(points[i])
     }
+    const elapsed = Date.now() - start
+    console.log(`Final steps (reading subtask sums, conversion out of Montgomery form, and Horner's rule) took ${elapsed}ms`)
 
     console.log(result.toAffine())
     return result.toAffine()
@@ -256,7 +259,6 @@ export const cuzk_gpu = async (
 */
 export const convert_point_coords_and_decompose_shaders = async (
     device: GPUDevice,
-    commandEncoder: GPUCommandEncoder,
     baseAffinePoints: BigIntPoint[],
     num_words: number,
     word_size: number,
@@ -266,6 +268,7 @@ export const convert_point_coords_and_decompose_shaders = async (
     chunk_size: number,
     debug = false,
 ) => {
+    console.log('in convert_point_coords_and_decompose_scalars')
     assert(num_subtasks * chunk_size === 256)
     const input_size = baseAffinePoints.length
 
@@ -349,7 +352,13 @@ export const convert_point_coords_and_decompose_shaders = async (
         'main',
     )
 
+    const commandEncoder = device.createCommandEncoder()
+    const start = Date.now()
     execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1)
+    device.queue.submit([commandEncoder.finish()])
+    await device.queue.onSubmittedWorkDone()
+    const elapsed = Date.now() - start
+    console.log(`convert_point_coords_and_decompose_scalars took ${elapsed}ms`)
 
     if (debug) {
         const data = await read_from_gpu(
@@ -450,7 +459,6 @@ const genConvertPointCoordsAndDecomposeScalarsShaderCode = (
 
 export const transpose_gpu = async (
     device: GPUDevice,
-    commandEncoder: GPUCommandEncoder,
     input_size: number,
     num_columns: number,
     num_rows: number,
@@ -529,7 +537,13 @@ export const transpose_gpu = async (
         'main',
     )
 
+    const commandEncoder = device.createCommandEncoder()
+    const start = Date.now()
     execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1)
+    device.queue.submit([commandEncoder.finish()])
+    await device.queue.onSubmittedWorkDone()
+    const elapsed = Date.now() - start
+    console.log(`transpose took ${elapsed}ms`)
 
     if (debug) {
         const data = await read_from_gpu(
