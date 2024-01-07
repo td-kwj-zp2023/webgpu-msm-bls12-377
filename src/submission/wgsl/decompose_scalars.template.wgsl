@@ -24,7 +24,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     for (var i = 0u; i < NUM_SUBTASKS; i++) {
         let offset = i * INPUT_SIZE;
-        result[id + offset] = extract_word_from_bytes_le(scalar_bytes, i);
+        result[id + offset] = extract_word_from_bytes_le(scalar_bytes, i, CHUNK_SIZE);
     }
 
     result[id + (NUM_SUBTASKS - 1) * INPUT_SIZE] = scalar_bytes[0] >> (((NUM_SUBTASKS * CHUNK_SIZE - 256u) + 16u) - CHUNK_SIZE);
