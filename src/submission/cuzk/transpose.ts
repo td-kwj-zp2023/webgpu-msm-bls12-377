@@ -22,15 +22,15 @@ export const cpu_transpose = (
     num_subtasks: number,
     input_size: number,
 ) => {
-    let all_csc_col_ptr: number[] = []
-    let all_csc_row_idx: number[] = []
-    let all_csc_vals: number[] = []
+    const all_csc_col_ptr = Array(num_subtasks * (n + 1)).fill(0)
+    const all_csc_row_idx = Array(num_subtasks * input_size).fill(0)
+    const all_csc_vals = Array(num_subtasks * input_size).fill(0)
     const all_curr = Array(num_subtasks * n).fill(0)
 
     for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx ++) {
-        const csc_col_ptr: number[] = Array(n + 1).fill(0)
-        const csc_row_idx: number[] = Array(input_size).fill(0)
-        const csc_vals: number[] = Array(input_size).fill(0)
+        const ccp_offset = subtask_idx * (n + 1)
+        const cci_offset = subtask_idx * input_size
+        const curr_offset = subtask_idx * n
 
         // Calculate the count per column. This step is *not* parallelisable because
         // the index `csr_col_idx[j] + 1` can be the same across iterations,
@@ -38,29 +38,33 @@ export const cpu_transpose = (
         for (let i = 0; i < m; i ++) {
             const [start, end] = calc_start_end(m, n, i)
             for (let j = start; j < end; j ++) {
-                csc_col_ptr[all_csr_col_idx[subtask_idx * input_size + j] + 1] ++
+                all_csc_col_ptr[
+                    ccp_offset + all_csr_col_idx[
+                        cci_offset + j
+                    ] + 1
+                ] ++
             }
         }
 
         // Prefix sum, aka cumulative/incremental sum
         for (let i = 1; i < n + 1; i ++) {
-            csc_col_ptr[i] += csc_col_ptr[i - 1]
+            all_csc_col_ptr[ccp_offset + i] +=
+            all_csc_col_ptr[ccp_offset + i - 1]
         }
 
         let val = 0
         for (let i = 0; i < m; i ++) {
             const [start, end] = calc_start_end(m, n, i)
             for (let j = start; j < end; j ++) {
-                const loc = csc_col_ptr[all_csr_col_idx[subtask_idx * input_size + j]] + (all_curr[subtask_idx * n + all_csr_col_idx[subtask_idx * input_size + j]] ++)
-                csc_row_idx[loc] = i
-                csc_vals[loc] = val
+                const loc = all_csc_col_ptr[ccp_offset + 
+                    all_csr_col_idx[cci_offset + j]] + 
+                    (all_curr[curr_offset + all_csr_col_idx[cci_offset + j]] ++)
+
+                all_csc_row_idx[subtask_idx * input_size + loc] = i
+                all_csc_vals[cci_offset + loc] = val
                 val ++
             }
         }
-
-        all_csc_col_ptr = all_csc_col_ptr.concat(csc_col_ptr)
-        all_csc_row_idx = all_csc_row_idx.concat(csc_row_idx)
-        all_csc_vals = all_csc_vals.concat(csc_vals)
     }
 
     return { all_csc_col_ptr, all_csc_row_idx, all_csc_vals }
