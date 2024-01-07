@@ -127,6 +127,7 @@ export const cuzk_gpu = async (
     for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx ++) {
         const start = Date.now()
         const commandEncoder = device.createCommandEncoder()
+
         // SMVP and multiplication by the bucket index
         await smvp_gpu(
             device,
@@ -144,7 +145,6 @@ export const cuzk_gpu = async (
             bucket_sum_t_sb,
             bucket_sum_z_sb,
         )
-        //device.destroy(); return { x: BigInt(0), y: BigInt(1) }
 
         // Bucket aggregation
         await bucket_aggregation(
@@ -189,6 +189,7 @@ export const cuzk_gpu = async (
             subtask_idx * num_words * 4,
             num_words * 4,
         )
+
         device.queue.submit([commandEncoder.finish()])
         await device.queue.onSubmittedWorkDone()
         const elapsed = Date.now() - start
@@ -232,10 +233,7 @@ export const cuzk_gpu = async (
     const elapsed = Date.now() - start
     console.log(`Final steps (reading subtask sums, conversion out of Montgomery form, and Horner's rule) took ${elapsed}ms`)
 
-    console.log(result.toAffine())
     return result.toAffine()
-    //device.destroy()
-    //return { x: BigInt(0), y: BigInt(1) }
 }
 
 /*
@@ -268,7 +266,6 @@ export const convert_point_coords_and_decompose_shaders = async (
     chunk_size: number,
     debug = false,
 ) => {
-    console.log('in convert_point_coords_and_decompose_scalars')
     assert(num_subtasks * chunk_size === 256)
     const input_size = baseAffinePoints.length
 
@@ -353,6 +350,7 @@ export const convert_point_coords_and_decompose_shaders = async (
     )
 
     const commandEncoder = device.createCommandEncoder()
+
     const start = Date.now()
     execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1)
     device.queue.submit([commandEncoder.finish()])
@@ -538,6 +536,7 @@ export const transpose_gpu = async (
     )
 
     const commandEncoder = device.createCommandEncoder()
+    
     const start = Date.now()
     execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1)
     device.queue.submit([commandEncoder.finish()])
@@ -560,13 +559,6 @@ export const transpose_gpu = async (
         const all_csc_val_idxs_result = u8s_to_numbers_32(data[1])
         const new_scalar_chunks = u8s_to_numbers_32(data[2])
 
-        console.log(
-            //'new_scalar_chunks:', new_scalar_chunks, 
-            //'num_columns:', num_columns,
-            'all_csc_col_ptr_result:', all_csc_col_ptr_result,
-            //'csc_val_idxs_result:', csc_val_idxs_result,
-        )
-
         // Verify the output of the shader
         const expected = cpu_transpose(
             new_scalar_chunks,
@@ -575,8 +567,6 @@ export const transpose_gpu = async (
             num_subtasks,
             input_size,
         )
-        console.log('expected.csc_col_ptr', expected.all_csc_col_ptr)
-        //console.log('expected.csc_vals', expected.csc_row_idx)
 
         assert(expected.all_csc_col_ptr.toString() === all_csc_col_ptr_result.toString(), 'all_csc_col_ptr mismatch')
         assert(expected.all_csc_vals.toString() === all_csc_val_idxs_result.toString(), 'all_csc_vals mismatch')
