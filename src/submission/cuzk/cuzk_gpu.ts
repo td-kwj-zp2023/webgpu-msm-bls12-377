@@ -399,6 +399,11 @@ export const convert_point_coords_and_decompose_shaders = async (
         }
     }
 
+    // Destroy unused intermediate buffers
+    x_coords_sb.destroy()
+    y_coords_sb.destroy()
+    scalars_sb.destroy()
+
     return { point_x_sb, point_y_sb, scalar_chunks_sb }
 }
 
@@ -571,6 +576,11 @@ export const transpose_gpu = async (
         assert(expected.all_csc_col_ptr.toString() === all_csc_col_ptr_result.toString(), 'all_csc_col_ptr mismatch')
         assert(expected.all_csc_vals.toString() === all_csc_val_idxs_result.toString(), 'all_csc_vals mismatch')
     }
+
+    // Destroy unused intermediate buffers
+    scalar_chunks_sb.destroy()
+    all_curr_sb.destroy()
+    params_ub.destroy()
 
     return {
         all_csc_col_ptr_sb,
@@ -751,7 +761,7 @@ export const smvp_gpu = async (
             assert(output_points_affine_gpu[i].y === output_points_affine_cpu[i].y, "failed at i: " + i.toString())
         }
     }
-
+    
     return {
         bucket_sum_x_sb,
         bucket_sum_y_sb,
