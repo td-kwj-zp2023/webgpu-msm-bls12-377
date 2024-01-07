@@ -47,6 +47,8 @@ export const cpu_smvp_signed = (
         buckets.push(zero)
     }
 
+    const rp_offset = subtask_idx * (num_columns + 1)
+
     // In a GPU implementation, each iteration of this loop should be performed by a thread.
     // Each thread handles two buckets
     for (let thread_id = 0; thread_id < num_columns / 2; thread_id ++) {
@@ -59,14 +61,14 @@ export const cpu_smvp_signed = (
                 row_idx = thread_id
             }
 
-            const row_begin = all_csc_col_ptr[subtask_idx * (num_columns + 1) + row_idx];
-            const row_end = all_csc_col_ptr[subtask_idx * (num_columns + 1) + row_idx + 1];
+            const row_begin = all_csc_col_ptr[rp_offset + row_idx];
+            const row_end = all_csc_col_ptr[rp_offset + row_idx + 1];
 
             let sum = zero
             for (let k = row_begin; k < row_end; k ++) {
                 sum = sum.add(
                     points[all_csc_val_idxs[subtask_idx * input_size + k]]
-            )
+                )
             }
 
             let bucket_idx
