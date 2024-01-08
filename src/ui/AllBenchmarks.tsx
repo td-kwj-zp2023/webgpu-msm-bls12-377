@@ -15,9 +15,6 @@ import {
     create_csr_precomputation_benchmark,
     create_csr_sparse_matrices_from_points_benchmark,
 } from '../submission/cuzk/create_csr_gpu'
-import {
-    create_csr_wasm_precomputation_benchmark,
-} from '../submission/cuzk/create_csr_wasm'
 import { cuzk_gpu } from '../submission/cuzk/cuzk_gpu'
 import { scalar_mul_benchmarks } from '../submission/scalar_mul_benchmarks'
 import { cuzk_typescript_serial, cuzk_typescript_web_workers, transpose_wgsl, smtvp_wgsl, smvp_wgsl } from '../submission/submission';
@@ -368,16 +365,6 @@ export const AllBenchmarks: React.FC = () => {
         scalars={bigIntScalars}
         expectedResult={expectedResult}
         msmFunc={create_csr_precomputation_benchmark}
-        postResult={postResult}
-        bold={true}
-      />
-      <Benchmark
-        name={'Create CSR sparse matrices (precomputation only in WASM)'}
-        disabled={disabledBenchmark}
-        baseAffinePoints={baseAffineBigIntPoints}
-        scalars={bigIntScalars}
-        expectedResult={expectedResult}
-        msmFunc={create_csr_wasm_precomputation_benchmark}
         postResult={postResult}
         bold={true}
       />
