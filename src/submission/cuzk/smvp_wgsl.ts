@@ -18,7 +18,7 @@ import bigint_functions from '../wgsl/bigint/bigint.template.wgsl'
 import field_functions from '../wgsl/field/field.template.wgsl'
 import curve_functions from '../wgsl/curve/ec.template.wgsl'
 import montgomery_product_funcs from '../wgsl/montgomery/mont_pro_product.template.wgsl'
-import { u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, compute_misc_params, gen_p_limbs, gen_r_limbs } from '../utils'
+import { u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, compute_misc_params, gen_p_limbs, gen_r_limbs, gen_d_limbs } from '../utils'
 import assert from 'assert'
 
 export async function smvp(
@@ -31,22 +31,22 @@ export async function smvp(
     // s-bit window size 
     const word_size = 13
 
+    const params = compute_misc_params(p, word_size)
+
     // Number of limbs (ie. windows)
-    const num_words = 20
+    const num_words = params.num_words
 
     // λ-bit scalars (13 * 20 = 260)
-    const lambda = 260
+    const lambda = word_size * num_words
 
     // Thread count
-    const threads = 20
+    const threads = num_words
 
-    // Misc parameters
-    const params = compute_misc_params(p, word_size)
     const n0 = params.n0    
 
     // Request GPU device
     const device = await get_device()
-    const limits = device.limits
+    //const limits = device.limits
 
     // Generate CSR sparse matrices
     const csr_sparse_matrices = await gen_csr_sparse_matrices(
@@ -61,7 +61,7 @@ export async function smvp(
     for (let i = 0; i < 2; i ++) {
         console.log('CSR matrix:', i)
         // Perform Sparse-Matrix Tranpose and SMVP
-        await smvp_gpu(device, csr_sparse_matrices[i], num_words, word_size, p, n0, params.r, params.rinv)
+        await smvp_gpu(device, csr_sparse_matrices[i], num_words, word_size, p, n0, params.r, params.rinv, params.edwards_d)
     }
 
     device.destroy()
@@ -140,6 +140,7 @@ export async function smvp_gpu(
     n0: bigint,
     r: bigint,
     rinv: bigint,
+    d: bigint,
 ) {
     const csr_sparse_matrix_transposed = await csr_sm.transpose()
 
@@ -191,6 +192,7 @@ export async function smvp_gpu(
 
     const p_limbs = gen_p_limbs(p, num_words, word_size)
     const r_limbs = gen_r_limbs(r, num_words, word_size)
+    const d_limbs = gen_d_limbs(d, num_words, word_size)
     const shaderCode = mustache.render(
         smvp_shader,
         {
@@ -199,6 +201,7 @@ export async function smvp_gpu(
             n0,
             p_limbs,
             r_limbs,
+            d_limbs,
             mask: BigInt(2) ** BigInt(word_size) - BigInt(1),
             two_pow_word_size: BigInt(2) ** BigInt(word_size),
             NUM_ROWS_GPU,

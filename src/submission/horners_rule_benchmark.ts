@@ -2,6 +2,7 @@ import assert from 'assert'
 import mustache from 'mustache'
 import { BigIntPoint } from "../reference/types"
 import { FieldMath } from "../reference/utils/FieldMath";
+import { EDWARDS_D } from '../reference/params/AleoConstants'
 import {
     get_device,
     create_and_write_sb,
@@ -17,7 +18,7 @@ import field_funcs from './wgsl/field/field.template.wgsl'
 import ec_funcs from './wgsl/curve/ec.template.wgsl'
 import montgomery_product_funcs from './wgsl/montgomery/mont_pro_product.template.wgsl'
 import horners_rule_shader from './wgsl/horners_rule.template.wgsl'
-import { are_point_arr_equal, compute_misc_params, u8s_to_bigints, gen_p_limbs, gen_r_limbs, bigints_to_u8_for_gpu } from './utils'
+import { are_point_arr_equal, compute_misc_params, u8s_to_bigints, gen_p_limbs, gen_r_limbs, gen_d_limbs, bigints_to_u8_for_gpu } from './utils'
 
 export const horners_rule_benchmark = async (
     baseAffinePoints: BigIntPoint[],
@@ -32,8 +33,10 @@ export const horners_rule_benchmark = async (
     const num_words = params.num_words
     const r = params.r
     const rinv = params.rinv
+    const d = params.edwards_d
     const p_limbs = gen_p_limbs(p, num_words, word_size)
     const r_limbs = gen_r_limbs(r, num_words, word_size)
+    const d_limbs = gen_d_limbs(d, num_words, word_size)
 
     const num_subtasks = 16
     assert(baseAffinePoints.length >= num_subtasks)
@@ -77,6 +80,7 @@ export const horners_rule_benchmark = async (
             n0,
             p_limbs,
             r_limbs,
+            d_limbs,
             mask: BigInt(2) ** BigInt(word_size) - BigInt(1),
             two_pow_word_size: BigInt(2) ** BigInt(word_size),
             chunk_size,

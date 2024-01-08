@@ -1,5 +1,5 @@
 import mustache from 'mustache'
-import { bigIntPointToExtPointType, compute_misc_params, u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, gen_p_limbs, gen_r_limbs, to_words_le } from '../utils'
+import { bigIntPointToExtPointType, compute_misc_params, u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, gen_p_limbs, gen_r_limbs, gen_d_limbs, to_words_le } from '../utils'
 import { BigIntPoint } from "../../reference/types"
 import { FieldMath } from "../../reference/utils/FieldMath";
 import { ELLSparseMatrix, CSRSparseMatrix } from '../matrices/matrices'; 
@@ -93,7 +93,6 @@ export const smtvp = async (
     const params = compute_misc_params(p, word_size)
     const n0 = params.n0
     const num_words = params.num_words
-    assert(num_words === 20)
 
     // Each scalar has λ bits. e.g. 13 * 20 = 260 bits
     const lambda = word_size * num_words
@@ -130,7 +129,7 @@ export const smtvp = async (
             }
         }
     
-        const t = await smtvp_run(device, csr_sparse_matrices[i], fieldMath, max_col_idx, num_words, word_size, p, n0, params.r, params.rinv)
+        const t = await smtvp_run(device, csr_sparse_matrices[i], fieldMath, max_col_idx, num_words, word_size, p, n0, params.r, params.rinv, params.edwards_d)
         timings.push(t)
     }
 
@@ -166,6 +165,7 @@ export const smtvp_run = async (
     n0: bigint,
     r: bigint,
     rinv: bigint,
+    d: bigint,
 ): Promise<{ cpu_elapsed: number, gpu_elapsed: number }> => {
     let cpu_elapsed = 0
     let gpu_elapsed = 0
@@ -213,7 +213,7 @@ export const smtvp_run = async (
 
     const points_bytes = points_to_u8s_for_gpu(points_with_mont_coords, num_words, word_size)
 
-    const shaderCode = setup_shader_code(p, r, num_words, word_size, n0)
+    const shaderCode = setup_shader_code(p, r, d, num_words, word_size, n0)
 
     const shaderModule = device.createShaderModule({ code: shaderCode })
 
@@ -423,12 +423,14 @@ export const smtvp_run = async (
 const setup_shader_code = (
     p: bigint,
     r: bigint,
+    d: bigint,
     num_words: number,
     word_size: number,
     n0: bigint,
 ) => {
     const p_limbs = gen_p_limbs(p, num_words, word_size)
     const r_limbs = gen_r_limbs(r, num_words, word_size)
+    const d_limbs = gen_d_limbs(d, num_words, word_size)
     const shaderCode = mustache.render(
         smtvp_shader,
         {
@@ -437,6 +439,7 @@ const setup_shader_code = (
             n0,
             p_limbs,
             r_limbs,
+            d_limbs,
             mask: BigInt(2) ** BigInt(word_size) - BigInt(1),
             two_pow_word_size: BigInt(2) ** BigInt(word_size),
         },
