@@ -13,8 +13,10 @@ export const full_benchmarks = async (
     const END_POWER: PowersTestCase = 20
 
     const all_results: any = {}
+    console.log(`Running benchmarks for powers ${START_POWER} to ${END_POWER} (inclusive)`)
 
     for (let power = START_POWER; power <= END_POWER; power ++) {
+        console.log(`Running ${NUM_RUNS + 1} invocations of cuzk_gpu() for 2^${power} inputs, please wait...`)
         const testcase = await loadTestCase(power)
 
         /*
@@ -78,22 +80,26 @@ export const full_benchmarks = async (
 
     let header = `| MSM size | 1st run |`
     for (let i = 0; i < NUM_RUNS; i ++) {
-        header += ` #${i + 1} |`
+        header += ` Run ${i + 1} |`
     }
 
     header += ` Average (incl 1st) | Average (excl 1st) |`
-    header += `\n|-|-|-|-|\n`
+    header += `\n|-|-|-|-|`
+    for (let i = 0; i < NUM_RUNS; i ++) {
+        header += `-|`
+    }
+    header += `\n`
     let body = ``
 
     for (let power = START_POWER; power <= END_POWER; power ++) {
         const result = all_results[power]
-        let md = `| 2^${power} | ${result.first_run_elapsed } |`
+        let md = `| 2^${power} | \`${result.first_run_elapsed}\` |`
         for (let i = 0; i < result.subsequent_runs.length; i ++) {
             const r = result.subsequent_runs[i]
-            md += ` ${r} |`
+            md += ` \`${r}\` |`
         }
 
-        body += md + ` **${result.full_average}** | **${result.subsequent_average}** |\n`
+        body += md + ` **\`${result.full_average}\`** | **\`${result.subsequent_average}\`** |\n`
     }
 
     console.log(header + body.trim())
