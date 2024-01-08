@@ -179,14 +179,6 @@ const do_benchmark = async (
     const rinv = params.rinv
     const d = params.edwards_d
 
-    console.log(
-        to_words_le(
-            fieldMath.Fp.mul(BigInt(3021), r),
-            num_words,
-            word_size,
-        )
-    )
-
     // Convert to Mont form
     const points_with_mont_coords: BigIntPoint[] = []
     for (const pt of [a, b]) {
