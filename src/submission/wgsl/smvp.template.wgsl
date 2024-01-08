@@ -27,7 +27,7 @@ var<storage, read_write> bucket_sum_z: array<BigInt>;
 
 // Params buffer
 @group(0) @binding(8)
-var<uniform> params: vec2<u32>;
+var<uniform> params: u32;
 
 fn get_paf() -> Point {
     var result: Point;
@@ -71,28 +71,26 @@ fn negate_point(point: Point) -> Point {
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {    
     let gidx = global_id.x; 
     let gidy = global_id.y; 
-    let id = gidx * {{ num_y_workgroups }} + gidy;
-
-    let subtask_idx = params[0];
-    let input_size = params[1];
+    var gidz = global_id.z;
+    let id = (gidx * {{ num_y_workgroups }} + gidy) * {{ num_z_workgroups }} + gidz;
 
     let num_columns = {{ num_columns }}u;
     let l = num_columns;
     let h = {{ half_num_columns }}u;
 
-    var inf = get_paf();
+    // Define custom subtask_idx
+    let subtask_idx = (id / h);
+    let input_size = params;
 
-    if (id > h + 1u) {
-        return;
-    }
+    var inf = get_paf();
 
     let rp_offset = subtask_idx * (num_columns + 1u);
 
     // Each thread handles two buckets to avoid race conditions.
     for (var j = 0u; j < 2u; j ++) {
-        var row_idx = id + h;
+        var row_idx = (id % h) + h;
         if (j == 1u) {
-            row_idx = id;
+            row_idx = (id % h);
         }
 
         let row_begin = row_ptr[rp_offset + row_idx];
