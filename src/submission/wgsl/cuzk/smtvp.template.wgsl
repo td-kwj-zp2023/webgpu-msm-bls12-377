@@ -1,9 +1,7 @@
-
 {{> structs }}
 {{> montgomery_product_funcs }}
 {{> field_functions }}
 {{> bigint_functions }}
-{{> curve_parameters }}
 {{> curve_functions }}
 
 @group(0) @binding(0)
@@ -20,6 +18,12 @@ var<storage, read> points: array<Point>;
 
 @group(0) @binding(4)
 var<storage, read_write> loop_index: u32;
+
+fn get_r() -> BigInt {
+    var r: BigInt;
+{{{ r_limbs }}}
+    return r;
+}
 
 @compute
 @workgroup_size(1)

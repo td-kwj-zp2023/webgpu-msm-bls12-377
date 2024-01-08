@@ -17,9 +17,8 @@ import structs from '../wgsl/struct/structs.template.wgsl'
 import bigint_functions from '../wgsl/bigint/bigint.template.wgsl'
 import field_functions from '../wgsl/field/field.template.wgsl'
 import curve_functions from '../wgsl/curve/ec.template.wgsl'
-import curve_parameters from '../wgsl/curve/parameters.template.wgsl'
 import montgomery_product_funcs from '../wgsl/montgomery/mont_pro_product.template.wgsl'
-import { u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, compute_misc_params, gen_p_limbs } from '../utils'
+import { u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, compute_misc_params, gen_p_limbs, gen_r_limbs } from '../utils'
 import assert from 'assert'
 
 export async function smvp(
@@ -191,6 +190,7 @@ export async function smvp_gpu(
     const points_bytes = points_to_u8s_for_gpu(points_with_mont_coords, num_words, word_size)
 
     const p_limbs = gen_p_limbs(p, num_words, word_size)
+    const r_limbs = gen_r_limbs(r, num_words, word_size)
     const shaderCode = mustache.render(
         smvp_shader,
         {
@@ -198,6 +198,7 @@ export async function smvp_gpu(
             num_words,
             n0,
             p_limbs,
+            r_limbs,
             mask: BigInt(2) ** BigInt(word_size) - BigInt(1),
             two_pow_word_size: BigInt(2) ** BigInt(word_size),
             NUM_ROWS_GPU,
@@ -207,7 +208,6 @@ export async function smvp_gpu(
             bigint_functions,
             montgomery_product_funcs,
             field_functions,
-            curve_parameters,
             curve_functions,
         },
     )

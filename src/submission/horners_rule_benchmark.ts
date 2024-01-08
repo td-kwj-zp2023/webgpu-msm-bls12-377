@@ -1,6 +1,5 @@
 import assert from 'assert'
 import mustache from 'mustache'
-import { ExtPointType } from "@noble/curves/abstract/edwards";
 import { BigIntPoint } from "../reference/types"
 import { FieldMath } from "../reference/utils/FieldMath";
 import {
@@ -9,7 +8,6 @@ import {
     create_bind_group,
     create_bind_group_layout,
     create_compute_pipeline,
-    create_sb,
     read_from_gpu,
     execute_pipeline,
 } from './gpu'
@@ -17,15 +15,13 @@ import structs from './wgsl/struct/structs.template.wgsl'
 import bigint_funcs from './wgsl/bigint/bigint.template.wgsl'
 import field_funcs from './wgsl/field/field.template.wgsl'
 import ec_funcs from './wgsl/curve/ec.template.wgsl'
-import curve_parameters from './wgsl/curve/parameters.template.wgsl'
 import montgomery_product_funcs from './wgsl/montgomery/mont_pro_product.template.wgsl'
-import bucket_points_reduction_shader from './wgsl/bucket_points_reduction_shader.template.wgsl'
 import horners_rule_shader from './wgsl/horners_rule.template.wgsl'
-import { are_point_arr_equal, compute_misc_params, u8s_to_bigints, numbers_to_u8s_for_gpu, gen_p_limbs, bigints_to_u8_for_gpu } from './utils'
+import { are_point_arr_equal, compute_misc_params, u8s_to_bigints, gen_p_limbs, gen_r_limbs, bigints_to_u8_for_gpu } from './utils'
 
 export const horners_rule_benchmark = async (
     baseAffinePoints: BigIntPoint[],
-    scalars: bigint[]
+    {}: bigint[]
 ): Promise<{x: bigint, y: bigint}> => {
     const fieldMath = new FieldMath()
     const p = BigInt('0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001')
@@ -37,6 +33,7 @@ export const horners_rule_benchmark = async (
     const r = params.r
     const rinv = params.rinv
     const p_limbs = gen_p_limbs(p, num_words, word_size)
+    const r_limbs = gen_r_limbs(r, num_words, word_size)
 
     const num_subtasks = 16
     assert(baseAffinePoints.length >= num_subtasks)
@@ -79,6 +76,7 @@ export const horners_rule_benchmark = async (
             num_words,
             n0,
             p_limbs,
+            r_limbs,
             mask: BigInt(2) ** BigInt(word_size) - BigInt(1),
             two_pow_word_size: BigInt(2) ** BigInt(word_size),
             chunk_size,
@@ -88,7 +86,6 @@ export const horners_rule_benchmark = async (
             bigint_funcs,
             field_funcs,
             ec_funcs,
-            curve_parameters,
             montgomery_product_funcs,
         },
     )

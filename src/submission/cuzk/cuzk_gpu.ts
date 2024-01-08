@@ -38,7 +38,6 @@ import field_funcs from '../wgsl/field/field.template.wgsl'
 import ec_funcs from '../wgsl/curve/ec.template.wgsl'
 import barrett_funcs from '../wgsl/barrett.template.wgsl'
 import montgomery_product_funcs from '../wgsl/montgomery/mont_pro_product.template.wgsl'
-import curve_parameters from '../wgsl/curve/parameters.template.wgsl'
 import transpose_serial_shader from '../wgsl/transpose_serial.wgsl'
 import smvp_shader from '../wgsl/smvp.template.wgsl'
 import bucket_points_reduction_shader from '../wgsl/bucket_points_reduction.template.wgsl'
@@ -639,6 +638,7 @@ export const smvp_gpu = async (
     )
 
     const p_limbs = gen_p_limbs(p, num_words, word_size)
+    const r_limbs = gen_r_limbs(r, num_words, word_size)
     const index_shift = 2 ** (chunk_size - 1)
     const shaderCode = mustache.render(
         smvp_shader,
@@ -647,6 +647,7 @@ export const smvp_gpu = async (
             num_words,
             n0,
             p_limbs,
+            r_limbs,
             mask: BigInt(2) ** BigInt(word_size) - BigInt(1),
             two_pow_word_size: BigInt(2) ** BigInt(word_size),
             index_shift,
@@ -660,7 +661,6 @@ export const smvp_gpu = async (
             bigint_funcs,
             montgomery_product_funcs,
             field_funcs,
-            curve_parameters,
             ec_funcs,
         },
     )
@@ -774,6 +774,7 @@ export const bucket_aggregation = async (
     const n0 = params.n0
     const num_words = params.num_words
     const p_limbs = gen_p_limbs(p, num_words, word_size)
+    const r_limbs = gen_r_limbs(r, num_words, word_size)
 
     // Important: workgroup_size should be constant regardless of the number of
     // points, as setting a different workgroup_size will cause a costly
@@ -788,6 +789,7 @@ export const bucket_aggregation = async (
             num_words,
             n0,
             p_limbs,
+            r_limbs,
             mask: BigInt(2) ** BigInt(word_size) - BigInt(1),
             two_pow_word_size: BigInt(2) ** BigInt(word_size),
             workgroup_size,
@@ -797,7 +799,6 @@ export const bucket_aggregation = async (
             bigint_funcs,
             field_funcs,
             ec_funcs,
-            curve_parameters,
             montgomery_product_funcs,
         },
     )

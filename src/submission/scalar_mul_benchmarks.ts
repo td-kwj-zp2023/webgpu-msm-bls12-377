@@ -6,6 +6,7 @@ import { FieldMath } from "../reference/utils/FieldMath";
 import { createHash } from 'crypto'
 import {
     gen_p_limbs,
+    gen_r_limbs,
     to_words_le,
     from_words_le,
     u8s_to_points,
@@ -28,7 +29,6 @@ import structs from './wgsl/struct/structs.template.wgsl'
 import bigint_funcs from './wgsl/bigint/bigint.template.wgsl'
 import field_funcs from './wgsl/field/field.template.wgsl'
 import ec_funcs from './wgsl/curve/ec.template.wgsl'
-import curve_parameters from './wgsl/curve/parameters.template.wgsl'
 import montgomery_product_funcs from './wgsl/montgomery/mont_pro_product.template.wgsl'
 import scalar_mul_shader from './wgsl/scalar_mul.template.wgsl'
 
@@ -545,6 +545,7 @@ const run_in_gpu = async(
     )
 
     const p_limbs = gen_p_limbs(p, num_words, word_size)
+    const r_limbs = gen_r_limbs(r, num_words, word_size)
     const shaderCode = mustache.render(
         scalar_mul_shader,
         {
@@ -552,6 +553,7 @@ const run_in_gpu = async(
             num_words,
             n0,
             p_limbs,
+            r_limbs,
             mask: BigInt(2) ** BigInt(word_size) - BigInt(1),
             two_pow_word_size: BigInt(2) ** BigInt(word_size),
             workgroup_size,
@@ -565,7 +567,6 @@ const run_in_gpu = async(
             bigint_funcs,
             field_funcs,
             ec_funcs,
-            curve_parameters,
             montgomery_product_funcs,
         },
     )
