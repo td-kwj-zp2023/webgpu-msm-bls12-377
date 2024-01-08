@@ -7,6 +7,7 @@ import { createHash } from 'crypto'
 import {
     gen_p_limbs,
     gen_r_limbs,
+    gen_d_limbs,
     to_words_le,
     from_words_le,
     u8s_to_points,
@@ -47,7 +48,7 @@ const word_size = 13
  */
 export const scalar_mul_benchmarks = async (
     baseAffinePoints: BigIntPoint[],
-    bigint_scalars: bigint[]
+    {}: bigint[]
 ): Promise<{x: bigint, y: bigint}> => {
     const cost = 1024
 
@@ -503,6 +504,7 @@ const run_in_gpu = async(
     const num_words = params.num_words
     const r = params.r
     const rinv = params.rinv
+    const d = params.edwards_d
 
     const input_size = scalars.length
     const workgroup_size = 1
@@ -546,6 +548,7 @@ const run_in_gpu = async(
 
     const p_limbs = gen_p_limbs(p, num_words, word_size)
     const r_limbs = gen_r_limbs(r, num_words, word_size)
+    const d_limbs = gen_d_limbs(d, num_words, word_size)
     const shaderCode = mustache.render(
         scalar_mul_shader,
         {
@@ -554,6 +557,7 @@ const run_in_gpu = async(
             n0,
             p_limbs,
             r_limbs,
+            d_limbs,
             mask: BigInt(2) ** BigInt(word_size) - BigInt(1),
             two_pow_word_size: BigInt(2) ** BigInt(word_size),
             workgroup_size,
@@ -590,9 +594,9 @@ const run_in_gpu = async(
         [results_sb],
     )
 
-    const d = u8s_to_points(results_data[0], num_words, word_size)
+    const data = u8s_to_points(results_data[0], num_words, word_size)
     const results_points = []
-    for (const p of d) {
+    for (const p of data) {
         const pt = fieldMath.createPoint(
             fieldMath.Fp.mul(p.x, rinv),
             fieldMath.Fp.mul(p.y, rinv),
