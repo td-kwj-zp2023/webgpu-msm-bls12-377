@@ -2,7 +2,6 @@
 {{> montgomery_product_funcs }}
 {{> field_funcs }}
 {{> bigint_funcs }}
-{{> curve_parameters }}
 {{> ec_funcs }}
 
 // Input buffers
@@ -28,6 +27,12 @@ var<storage, read_write> bucket_sum_z: array<BigInt>;
 // Params buffer
 @group(0) @binding(8)
 var<uniform> params: vec2<u32>;
+
+fn get_r() -> BigInt {
+    var r: BigInt;
+{{{ r_limbs }}}
+    return r;
+}
 
 fn get_paf() -> Point {
     var result: Point;
