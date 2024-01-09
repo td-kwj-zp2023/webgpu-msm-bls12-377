@@ -1,6 +1,4 @@
-import { BigIntPoint } from "../reference/types"
-
-// Request GPU device
+// Request a high-performance GPU device
 export const get_device = async (): Promise<GPUDevice> => {
     const gpuErrMsg = "Please use a browser that has WebGPU enabled.";
     const adapter = await navigator.gpu.requestAdapter({
@@ -15,7 +13,12 @@ export const get_device = async (): Promise<GPUDevice> => {
     return device
 }
 
-// Create and write buffered memory accessible by the GPU memory space
+export const read_write_buffer_usage = 
+    GPUBufferUsage.STORAGE |
+    GPUBufferUsage.COPY_SRC |
+    GPUBufferUsage.COPY_DST
+
+// Create and write a storage buffer
 export const create_and_write_sb = (
     device: GPUDevice,
     buffer: Uint8Array,
@@ -28,6 +31,7 @@ export const create_and_write_sb = (
     return sb
 }
 
+// Create and write a uniform buffer
 export const create_and_write_ub = (
     device: GPUDevice,
     buffer: Uint8Array,
@@ -40,7 +44,7 @@ export const create_and_write_ub = (
     return ub
 }
 
-// Create buffered memory accessible by the GPU memory space
+// Allocate memory via a storage buffer, but do not write to it
 export const create_sb = (
     device: GPUDevice,
     size: number,
@@ -51,6 +55,7 @@ export const create_sb = (
     })
 }
 
+// Read from all the specified storage buffers and return the data as bytes
 export const read_from_gpu = async (
     device: GPUDevice,
     commandEncoder: GPUCommandEncoder,
@@ -92,7 +97,9 @@ export const read_from_gpu = async (
     return data
 }
 
-// Bind Group Layout defines the input/output interface expected by the shader 
+// Create a GPUBindGroupLayout, which defines the order and type of buffers
+// which the shader expects. Acceptable types are "storage",
+// "read-only-storage", and "uniform".
 export const create_bind_group_layout = (
     device: GPUDevice,
     types: string[],
@@ -108,8 +115,13 @@ export const create_bind_group_layout = (
     return device.createBindGroupLayout({ entries })
 }
 
-// Bind groups maps buffers to data 
-export const create_bind_group = (device: GPUDevice, layout: GPUBindGroupLayout, buffers: GPUBuffer[]) => {
+// Create a GPUBindGroup, which specifies the storage and uniform buffers to be
+// read by a shader. The buffers must follow the order set in the layout.
+export const create_bind_group = (
+    device: GPUDevice,
+    layout: GPUBindGroupLayout,
+    buffers: GPUBuffer[],
+) => {
     const entries: any[] = []
     for (let i = 0; i < buffers.length; i ++) {
         entries.push({
@@ -120,7 +132,7 @@ export const create_bind_group = (device: GPUDevice, layout: GPUBindGroupLayout,
     return device.createBindGroup({ layout, entries })
 }
 
-// Asynchronously create pipeline
+// Asynchronously create a compute pipeline
 export const create_compute_pipeline = async (
     device: GPUDevice,
     bindGroupLayouts: GPUBindGroupLayout[],
@@ -153,8 +165,3 @@ export const execute_pipeline = async (
     passEncoder.dispatchWorkgroups(num_x_workgroups, num_y_workgroups, num_z_workgroups)
     passEncoder.end()
 }
- 
-export const read_write_buffer_usage = 
-    GPUBufferUsage.STORAGE |
-    GPUBufferUsage.COPY_SRC |
-    GPUBufferUsage.COPY_DST
