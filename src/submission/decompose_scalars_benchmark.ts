@@ -1,6 +1,5 @@
 import assert from 'assert'
 import mustache from 'mustache'
-import * as wasm from 'decompose-scalars'
 import { BigIntPoint } from "../reference/types"
 import {
     to_words_le,
@@ -40,25 +39,6 @@ export const decompose_scalars_ts_benchmark = async (
         console.log(`decompose_scalars() with ${word_size}-bit windows took ${elapsed}ms`)
     }
     console.log()
-
-    //console.log('WASM benchmarks:')
-    //for (let word_size = 8; word_size < 17; word_size ++) {
-        //const params = compute_misc_params(p, word_size)
-        //const num_words = params.num_words
-
-        //const start_wasm = Date.now()
-        //wasm.decompose_scalars(scalars, num_words, word_size).get_result()
-        //const elapsed_wasm = Date.now() - start_wasm
-        //console.log(`WASM with ${word_size}-bit windows took ${elapsed_wasm}ms`)
-    //}
-    //console.log()
-
-    const num_words = 20
-    const word_size = 13
-    const ts_r = decompose_scalars(scalars, num_words, word_size).flat()
-    const wasm_r = wasm.decompose_scalars(scalars, num_words, word_size).get_result()
-    assert(ts_r.toString() === wasm_r.toString())
-    //console.log('ok')
 
     console.log('GPU benchmarks:')
     for (let word_size = 8; word_size < 17; word_size ++) {
