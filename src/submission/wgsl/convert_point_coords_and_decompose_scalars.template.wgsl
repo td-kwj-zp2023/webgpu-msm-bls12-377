@@ -106,4 +106,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         // sign of the original index.
         chunks[id + offset] = u32(signed_slices[i]) + s;
     }
+
+    {{{ recompile }}}
 }
