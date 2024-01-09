@@ -1,7 +1,7 @@
-import mustache from 'mustache'
 import assert from 'assert'
 import { BigIntPoint } from "../../reference/types"
 import { ExtPointType } from "@noble/curves/abstract/edwards";
+import { ShaderManager } from '../shader_manager'
 import {
     get_device,
     create_and_write_sb,
@@ -14,10 +14,6 @@ import {
     execute_pipeline,
 } from '../gpu'
 import {
-    gen_p_limbs,
-    gen_r_limbs,
-    gen_d_limbs,
-    gen_mu_limbs,
     u8s_to_bigints,
     u8s_to_numbers,
     u8s_to_numbers_32,
@@ -31,25 +27,11 @@ import { cpu_transpose } from './transpose'
 import { cpu_smvp_signed } from './smvp';
 import { shader_invocation } from '../bucket_points_reduction'
 
-import convert_point_coords_and_decompose_scalars from '../wgsl/convert_point_coords_and_decompose_scalars.template.wgsl'
-import extract_word_from_bytes_le_funcs from '../wgsl/extract_word_from_bytes_le.template.wgsl'
-import structs from '../wgsl/struct/structs.template.wgsl'
-import bigint_funcs from '../wgsl/bigint/bigint.template.wgsl'
-import field_funcs from '../wgsl/field/field.template.wgsl'
-import ec_funcs from '../wgsl/curve/ec.template.wgsl'
-import barrett_funcs from '../wgsl/barrett.template.wgsl'
-import montgomery_product_funcs from '../wgsl/montgomery/mont_pro_product.template.wgsl'
-import transpose_serial_shader from '../wgsl/transpose_serial.wgsl'
-import smvp_shader from '../wgsl/smvp.template.wgsl'
-import bucket_points_reduction_shader from '../wgsl/bucket_points_reduction.template.wgsl'
-
 const p = BigInt('8444461749428370424248824938781546531375899335154063827935233455917409239041')
 const word_size = 13
 const params = compute_misc_params(p, word_size)
-const n0 = params.n0
 const num_words = params.num_words
 const r = params.r
-const d = params.edwards_d
 const rinv = params.rinv
 
 import { FieldMath } from "../../reference/utils/FieldMath"
@@ -83,6 +65,12 @@ export const cuzk_gpu = async (
     const input_size = baseAffinePoints.length
     const chunk_size = input_size >= 65536 ? 16 : 4
 
+    const shaderManager = new ShaderManager(
+        word_size,
+        chunk_size,
+        input_size,
+    )
+
     const num_columns = 2 ** chunk_size
     const num_rows = Math.ceil(input_size / num_columns)
 
@@ -96,8 +84,32 @@ export const cuzk_gpu = async (
  
     // Convert the affine points to Montgomery form and decompose the scalars
     // using a single shader
+
+    let c_workgroup_size = 256
+    let c_num_x_workgroups = 1
+    let c_num_y_workgroups = input_size / c_workgroup_size / c_num_x_workgroups
+
+    if (input_size < 256) {
+        c_workgroup_size = input_size
+        c_num_x_workgroups = 1
+        c_num_y_workgroups = 1
+    } else if (input_size >= 256 && input_size < 65536) {
+        c_workgroup_size = 256
+        c_num_x_workgroups = input_size / c_workgroup_size
+        c_num_y_workgroups = input_size / c_workgroup_size / c_num_x_workgroups
+    }
+
+    const c_shader = shaderManager.gen_convert_points_and_decomp_scalars_shader(
+        c_workgroup_size,
+        c_num_y_workgroups,
+        num_subtasks,
+        num_columns,
+    )
     const { point_x_sb, point_y_sb, scalar_chunks_sb } =
         await convert_point_coords_and_decompose_shaders(
+            c_shader,
+            c_num_x_workgroups,
+            c_num_y_workgroups,
             device,
             commandEncoder,
             baseAffinePoints,
@@ -130,11 +142,14 @@ export const cuzk_gpu = async (
     const out_t_sb = create_sb(device, bucket_sum_coord_bytelength / 2)
     const out_z_sb = create_sb(device, bucket_sum_coord_bytelength / 2)
 
+    const t_shader = shaderManager.gen_transpose_shader(num_subtasks)
+
     // Transpose
     const {
         all_csc_col_ptr_sb,
         all_csc_val_idxs_sb,
     } = await transpose_gpu(
+        t_shader,
         device,
         commandEncoder,
         input_size,
@@ -147,9 +162,35 @@ export const cuzk_gpu = async (
     //device.destroy()
     //return { x: BigInt(0), y: BigInt(1) }
 
+    const half_num_columns = num_columns / 2
+    let s_workgroup_size = 128
+    let s_num_x_workgroups = 256
+    let s_num_y_workgroups = (half_num_columns / s_workgroup_size / s_num_x_workgroups)
+
+    if (num_columns < 256) {
+        s_workgroup_size = 1
+        s_num_x_workgroups = half_num_columns
+        s_num_y_workgroups = 1
+    }
+
+    const smvp_shader = shaderManager.gen_smvp_shader(
+        s_workgroup_size,
+        s_num_y_workgroups,
+        num_columns,
+    )
+
+    const b_workgroup_size = 32
+    const bucket_reduction_shader = shaderManager.gen_bucket_reduction_shader(
+        b_workgroup_size,
+    )
+
     for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx ++) {
         // SMVP and multiplication by the bucket index
         await smvp_gpu(
+            smvp_shader,
+            s_num_x_workgroups,
+            s_num_y_workgroups,
+            s_workgroup_size,
             device,
             commandEncoder,
             subtask_idx,
@@ -171,6 +212,8 @@ export const cuzk_gpu = async (
 
         // Bucket aggregation
         await bucket_aggregation(
+            bucket_reduction_shader,
+            b_workgroup_size,
             device,
             commandEncoder,
             out_x_sb,
@@ -282,6 +325,9 @@ export const cuzk_gpu = async (
  * evaluation will be using input randomly sampled from size 2^16 ~ 2^20."
 */
 export const convert_point_coords_and_decompose_shaders = async (
+    shaderCode: string,
+    num_x_workgroups: number,
+    num_y_workgroups: number,
     device: GPUDevice,
     commandEncoder: GPUCommandEncoder,
     baseAffinePoints: BigIntPoint[],
@@ -346,29 +392,6 @@ export const convert_point_coords_and_decompose_shaders = async (
         ],
     )
 
-    let workgroup_size = 256
-    let num_x_workgroups = 1
-    let num_y_workgroups = input_size / workgroup_size / num_x_workgroups
-
-    if (input_size < 256) {
-        workgroup_size = input_size
-        num_x_workgroups = 1
-        num_y_workgroups = 1
-    } else if (input_size >= 256 && input_size < 65536) {
-        workgroup_size = 256
-        num_x_workgroups = input_size / workgroup_size
-        num_y_workgroups = input_size / workgroup_size / num_x_workgroups
-    }
-
-    const shaderCode = genConvertPointCoordsAndDecomposeScalarsShaderCode(
-        workgroup_size,
-        num_y_workgroups,
-        num_subtasks,
-        num_columns,
-        chunk_size, 
-        input_size
-    )
-
     const computePipeline = await create_compute_pipeline(
         device,
         [bindGroupLayout],
@@ -424,67 +447,13 @@ export const convert_point_coords_and_decompose_shaders = async (
     return { point_x_sb, point_y_sb, scalar_chunks_sb }
 }
 
-const genConvertPointCoordsAndDecomposeScalarsShaderCode = (
-    workgroup_size: number,
-    num_y_workgroups: number,
-    num_subtasks: number,
-    num_columns: number,
-    chunk_size: number, 
-    input_size: number,
-) => {
-    const mask = BigInt(2) ** BigInt(word_size) - BigInt(1)
-    const two_pow_word_size = 2 ** word_size
-    const two_pow_chunk_size = 2 ** chunk_size
-    const index_shift = 2 ** (chunk_size - 1)
-    const p_limbs = gen_p_limbs(p, num_words, word_size)
-    const r_limbs = gen_r_limbs(r, num_words, word_size)
-    const d_limbs = gen_d_limbs(d, num_words, word_size)
-    const mu_limbs = gen_mu_limbs(p, num_words, word_size)
-    const p_bitlength = p.toString(2).length
-    const slack = num_words * word_size - p_bitlength
-        const shaderCode = mustache.render(
-        convert_point_coords_and_decompose_scalars,
-        {
-            workgroup_size,
-            num_y_workgroups,
-            num_words,
-            word_size,
-            n0,
-            mask,
-            two_pow_word_size,
-            two_pow_chunk_size,
-            index_shift,
-            p_limbs,
-            r_limbs,
-            d_limbs,
-            mu_limbs,
-            w_mask: (1 << word_size) - 1,
-            slack,
-            num_words_mul_two: num_words * 2,
-            num_words_plus_one: num_words + 1,
-            num_subtasks,
-            num_columns,
-            chunk_size,
-            input_size,
-        },
-        {
-            structs,
-            bigint_funcs,
-            field_funcs,
-            barrett_funcs,
-            montgomery_product_funcs,
-            extract_word_from_bytes_le_funcs,
-        },
-    )
-    return shaderCode
-}
-
 /*
  * Perform a modified version of CSR matrix transposition, which comes before
  * SMVP. Essentially, this step generates the point indices for each thread in
  * the SMVP step which corresponds to a particular bucket.
  */
 export const transpose_gpu = async (
+    shaderCode: string,
     device: GPUDevice,
     commandEncoder: GPUCommandEncoder,
     input_size: number,
@@ -550,13 +519,6 @@ export const transpose_gpu = async (
 
     const num_x_workgroups = 1
     const num_y_workgroups = 1
-    const num_workgroups = num_subtasks 
-
-    const shaderCode = mustache.render(
-        transpose_serial_shader,
-        { num_workgroups },
-        {},
-    )
 
     const computePipeline = await create_compute_pipeline(
         device,
@@ -617,6 +579,10 @@ export const transpose_gpu = async (
  * indices.
  */
 export const smvp_gpu = async (
+    shaderCode: string,
+    num_x_workgroups: number,
+    num_y_workgroups: number,
+    workgroup_size: number,
     device: GPUDevice,
     commandEncoder: GPUCommandEncoder,
     subtask_idx: number,
@@ -637,17 +603,6 @@ export const smvp_gpu = async (
         [subtask_idx, input_size],
     )
     const params_ub = create_and_write_ub(device, params_bytes)
-    const half_num_columns = num_csr_cols / 2
-
-    let workgroup_size = 128
-    let num_x_workgroups = 256
-    let num_y_workgroups = (half_num_columns / workgroup_size / num_x_workgroups)
-
-    if (num_csr_cols < 256) {
-        workgroup_size = 1
-        num_x_workgroups = half_num_columns
-        num_y_workgroups = 1
-    }
 
     const bindGroupLayout = create_bind_group_layout(
         device,
@@ -678,36 +633,6 @@ export const smvp_gpu = async (
             bucket_sum_z_sb,
             params_ub,
         ],
-    )
-
-    const p_limbs = gen_p_limbs(p, num_words, word_size)
-    const r_limbs = gen_r_limbs(r, num_words, word_size)
-    const d_limbs = gen_d_limbs(d, num_words, word_size)
-    const index_shift = 2 ** (chunk_size - 1)
-    const shaderCode = mustache.render(
-        smvp_shader,
-        {
-            word_size,
-            num_words,
-            n0,
-            p_limbs,
-            r_limbs,
-            d_limbs,
-            mask: BigInt(2) ** BigInt(word_size) - BigInt(1),
-            two_pow_word_size: BigInt(2) ** BigInt(word_size),
-            index_shift,
-            workgroup_size,
-            num_y_workgroups,
-            num_columns: num_csr_cols,
-            half_num_columns,
-        },
-        {
-            structs,
-            bigint_funcs,
-            montgomery_product_funcs,
-            field_funcs,
-            ec_funcs,
-        },
     )
 
     const computePipeline = await create_compute_pipeline(
@@ -808,6 +733,8 @@ export const smvp_gpu = async (
  * indices) using a recursive tree-summation method.
  */
 export const bucket_aggregation = async (
+    shaderCode: string,
+    workgroup_size: number,
     device: GPUDevice,
     commandEncoder: GPUCommandEncoder,
     out_x_sb: GPUBuffer,
@@ -822,39 +749,7 @@ export const bucket_aggregation = async (
     debug = false,
 ) => {
     const params = compute_misc_params(p, word_size)
-    const n0 = params.n0
     const num_words = params.num_words
-    const p_limbs = gen_p_limbs(p, num_words, word_size)
-    const r_limbs = gen_r_limbs(r, num_words, word_size)
-    const d_limbs = gen_d_limbs(d, num_words, word_size)
-
-    // Important: workgroup_size should be constant regardless of the number of
-    // points, as setting a different workgroup_size will cause a costly
-    // recompile. This constant is only passed into the shader as a template
-    // variable for ease of benchmarking.
-    const workgroup_size = 32
-
-    const shaderCode = mustache.render(
-        bucket_points_reduction_shader,
-        {
-            word_size,
-            num_words,
-            n0,
-            p_limbs,
-            r_limbs,
-            d_limbs,
-            mask: BigInt(2) ** BigInt(word_size) - BigInt(1),
-            two_pow_word_size: BigInt(2) ** BigInt(word_size),
-            workgroup_size,
-        },
-        {
-            structs,
-            bigint_funcs,
-            field_funcs,
-            ec_funcs,
-            montgomery_product_funcs,
-        },
-    )
 
     let original_bucket_sum_x_sb
     let original_bucket_sum_y_sb
