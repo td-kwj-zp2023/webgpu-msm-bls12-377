@@ -15,13 +15,10 @@ import {
     create_csr_precomputation_benchmark,
     create_csr_sparse_matrices_from_points_benchmark,
 } from '../submission/cuzk/create_csr_gpu'
-import {
-    create_csr_wasm_precomputation_benchmark,
-} from '../submission/cuzk/create_csr_wasm'
 import { cuzk_gpu } from '../submission/cuzk/cuzk_gpu'
 import { full_benchmarks } from '../submission/full_benchmarks'
 import { scalar_mul_benchmarks } from '../submission/scalar_mul_benchmarks'
-import { cuzk_typescript_serial, cuzk_typescript_web_workers, transpose_wgsl, smtvp_wgsl, smvp_wgsl } from '../submission/submission';
+import { cuzk_typescript_serial, transpose_wgsl, smtvp_wgsl, smvp_wgsl } from '../submission/submission';
 import CSVExportButton from './CSVExportButton';
 import { TestCaseDropDown } from './TestCaseDropDown';
 import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
@@ -323,16 +320,6 @@ export const AllBenchmarks: React.FC = () => {
         bold={true}
       />
       <Benchmark
-        name={'cuzk Parallel (Web Workers)'}
-        disabled={disabledBenchmark}
-        baseAffinePoints={baseAffineBigIntPoints}
-        scalars={bigIntScalars}
-        expectedResult={expectedResult}
-        msmFunc={cuzk_typescript_web_workers}
-        postResult={postResult}
-        bold={true}
-      />
-      <Benchmark
         name={'Point addition algorithm benchmarks'}
         disabled={disabledBenchmark}
         baseAffinePoints={baseAffineBigIntPoints}
@@ -379,16 +366,6 @@ export const AllBenchmarks: React.FC = () => {
         scalars={bigIntScalars}
         expectedResult={expectedResult}
         msmFunc={create_csr_precomputation_benchmark}
-        postResult={postResult}
-        bold={true}
-      />
-      <Benchmark
-        name={'Create CSR sparse matrices (precomputation only in WASM)'}
-        disabled={disabledBenchmark}
-        baseAffinePoints={baseAffineBigIntPoints}
-        scalars={bigIntScalars}
-        expectedResult={expectedResult}
-        msmFunc={create_csr_wasm_precomputation_benchmark}
         postResult={postResult}
         bold={true}
       />

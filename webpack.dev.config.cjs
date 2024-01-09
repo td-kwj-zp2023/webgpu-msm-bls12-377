@@ -117,7 +117,6 @@ const workerConfig = {
   target: 'web',
   entry: {
     wasmMSM: './src/workers/wasmMSM.ts',
-    webworkers: './src/submission/cuzk/workers/csrSparseMatrixWorker.ts',
   },
   output: {
     pathinfo: false,
