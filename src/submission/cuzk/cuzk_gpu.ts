@@ -56,7 +56,25 @@ import { FieldMath } from "../../reference/utils/FieldMath"
 const fieldMath = new FieldMath()
 
 /*
- * End-to-end implementation of the cuZK MSM algorithm.
+ * End-to-end implementation of the modified cuZK MSM algorithm by Lu et al,
+ * 2022: https://eprint.iacr.org/2022/1321.pdf
+ * Many aspects of cuZK were adapted and modified for our submission, and some
+ * aspects were omitted. As such, please refer to the documentation we have
+ * written for a more accurate description of our work. We also used techniques
+ * by previous ZPrize contestations. In summary, we took the following
+ * approach:
+ * 1. Perform as much of the computation within the GPU as possible, in order
+ *    to minimse CPU-GPU and GPU-CPU data transfer, which is slow.
+ * 2. Use optimisations inspired by previous years' submissions, such as:
+ *    - Montgomery multiplication with smaller limb sizes
+ *    - Signed bucket indices
+ * 3. Careful memory management to stay within WebGPU's default buffer size
+ *    limits.
+ * 4. A recursive bucket aggregation shader (a tree-summation method).
+ * 5. Perform the final computation of the MSM result from the subtask results
+ *    (Horner's rule) in the CPU instead of the GPU, as the number of points is
+ *    small, and the time taken to compile a shader to perform this computation
+ *    is greater than the time it takes for the CPU to do so.
  */
 export const cuzk_gpu = async (
     baseAffinePoints: BigIntPoint[],
@@ -196,11 +214,14 @@ export const cuzk_gpu = async (
         )
     }
 
+    // Read the subtask sums from the GPU
     const subtask_sum_data = await read_from_gpu(
         device,
         commandEncoder,
         [ subtask_sum_x_sb, subtask_sum_y_sb, subtask_sum_t_sb, subtask_sum_z_sb ],
     )
+
+    // Destroy the GPU device object
     device.destroy()
 
     const x_mont_coords = u8s_to_bigints(subtask_sum_data[0], num_words, word_size)
@@ -208,7 +229,8 @@ export const cuzk_gpu = async (
     const t_mont_coords = u8s_to_bigints(subtask_sum_data[2], num_words, word_size)
     const z_mont_coords = u8s_to_bigints(subtask_sum_data[3], num_words, word_size)
 
-    // Convert each point out of Montgomery form
+    // Convert each point out of Montgomery form by multiplying by the inverse
+    // of the Montgomery radix
     const points: ExtPointType[] = []
     for (let i = 0; i < num_subtasks; i ++) {
         const pt = fieldMath.createPoint(
@@ -220,7 +242,8 @@ export const cuzk_gpu = async (
         points.push(pt)
     }
 
-    // Horner's rule
+    // Calculate the final result (Formula 3 of the cuZK paper, also known as
+    // Horner's rule)
     const m = BigInt(2) ** BigInt(chunk_size)
     // The last scalar chunk is the most significant digit (base m)
     let result = points[points.length - 1]
@@ -237,22 +260,26 @@ export const cuzk_gpu = async (
 
 /*
  * Convert the affine points to Montgomery form, and decompose scalars into
- * chunk_size windows.
+ * chunk_size windows using the signed bucket index technique.
 
  * ASSUMPTION: the vast majority of WebGPU-enabled consumer devices have a
  * maximum buffer size of at least 268435456 bytes.
  * 
  * The default maximum buffer size is 268435456 bytes. Since each point
  * consumes 320 bytes, a maximum of around 2 ** 19 points can be stored in a
- * single buffer. If, however, we use 4 buffers - one for each point coordiante
- * X, Y, T, and Z - we can support up an input size of up to 2 ** 21 points.
+ * single buffer. If, however, we use 2 buffers - one for each point coordinate
+ * X and Y - we can support larger input sizes.
  * Our implementation, however, will only support up to 2 ** 20 points as that
  * is the maximum input size for the ZPrize competition.
+ *
+ * Furthremore, there is a limit of 8 storage buffers per shader. As such, we
+ * do not calculate the T and Z coordinates in this shader. Rather, we do so in
+ * the SMVP shader.
  * 
- * The test harness readme at https://github.com/demox-labs/webgpu-msm states:
- * "The submission should produce correct outputs on input vectors with length
- * up to 2^20. The evaluation will be using input randomly sampled from size
- * 2^16 ~ 2^20."
+ * Note that The test harness readme at
+ * https://github.com/demox-labs/webgpu-msm states: "The submission should
+ * produce correct outputs on input vectors with length up to 2^20. The
+ * evaluation will be using input randomly sampled from size 2^16 ~ 2^20."
 */
 export const convert_point_coords_and_decompose_shaders = async (
     device: GPUDevice,
@@ -351,6 +378,8 @@ export const convert_point_coords_and_decompose_shaders = async (
 
     execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1)
 
+    // Debug the output of the shader. This should **not** be run in
+    // production.
     if (debug) {
         const data = await read_from_gpu(
             device,
@@ -450,6 +479,11 @@ const genConvertPointCoordsAndDecomposeScalarsShaderCode = (
     return shaderCode
 }
 
+/*
+ * Perform a modified version of CSR matrix transposition, which comes before
+ * SMVP. Essentially, this step generates the point indices for each thread in
+ * the SMVP step which corresponds to a particular bucket.
+ */
 export const transpose_gpu = async (
     device: GPUDevice,
     commandEncoder: GPUCommandEncoder,
@@ -533,6 +567,8 @@ export const transpose_gpu = async (
 
     execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1)
 
+    // Debug the output of the shader. This should **not** be run in
+    // production.
     if (debug) {
         const data = await read_from_gpu(
             device,
@@ -576,6 +612,10 @@ export const transpose_gpu = async (
     }
 }
 
+/*
+ * Compute the bucket sums and perform scalar multiplication with the bucket
+ * indices.
+ */
 export const smvp_gpu = async (
     device: GPUDevice,
     commandEncoder: GPUCommandEncoder,
@@ -679,6 +719,8 @@ export const smvp_gpu = async (
 
     execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1)
 
+    // Debug the output of the shader. This should **not** be run in
+    // production.
     if (debug) {
         const data = await read_from_gpu(
             device,
@@ -761,6 +803,10 @@ export const smvp_gpu = async (
     }
 }
 
+/*
+ * Add up all the buckets (which have already been multiplied by their bucket
+ * indices) using a recursive tree-summation method.
+ */
 export const bucket_aggregation = async (
     device: GPUDevice,
     commandEncoder: GPUCommandEncoder,
@@ -815,6 +861,8 @@ export const bucket_aggregation = async (
     let original_bucket_sum_t_sb
     let original_bucket_sum_z_sb
 
+    // Debug the output of the shader. This should **not** be run in
+    // production.
     if (debug) {
         original_bucket_sum_x_sb = create_sb(device, bucket_sum_x_sb.size)
         original_bucket_sum_y_sb = create_sb(device, bucket_sum_y_sb.size)
@@ -879,6 +927,8 @@ export const bucket_aggregation = async (
         }
     }
     
+    // Debug the output of the shader. This should **not** be run in
+    // production.
     if (
         debug
         && original_bucket_sum_x_sb != undefined // prevent TS warnings
