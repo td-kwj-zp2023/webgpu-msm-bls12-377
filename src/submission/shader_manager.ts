@@ -44,11 +44,13 @@ export class ShaderManager {
     public r_limbs: string
     public d_limbs: string
     public mu_limbs: string
+    public recompile = ''
 
     constructor(
         word_size: number,
         chunk_size: number,
         input_size: number,
+        force_recompile = false,
     ) {
         const params = compute_misc_params(this.p, word_size)
         this.word_size = word_size
@@ -70,6 +72,15 @@ export class ShaderManager {
         this.p_bitlength = this.p.toString(2).length
         this.slack = this.num_words * word_size - this.p_bitlength
         this.w_mask = (1 << word_size) - 1
+
+        if (force_recompile) {
+            const rand = Math.round(Math.random() * 100000000000000000) % 
+                (2 ** 32)
+            this.recompile = `
+                var recompile = ${rand}u;
+                recompile += 1u;
+            `.trim()
+        }
     }
 
     public gen_convert_points_and_decomp_scalars_shader(
@@ -102,6 +113,7 @@ export class ShaderManager {
                 num_words_plus_one: this.num_words + 1,
                 chunk_size: this.chunk_size,
                 input_size: this.input_size,
+                recompile: this.recompile,
             },
             {
                 structs,
@@ -121,7 +133,10 @@ export class ShaderManager {
     ) {
         const shaderCode = mustache.render(
             transpose_serial_shader,
-            { num_workgroups },
+            {
+                num_workgroups,
+                recompile: this.recompile,
+            },
             {},
         )
         return shaderCode
@@ -148,6 +163,7 @@ export class ShaderManager {
                 num_y_workgroups,
                 num_columns: num_csr_cols,
                 half_num_columns: num_csr_cols / 2,
+                recompile: this.recompile,
             },
             {
                 structs,
@@ -179,6 +195,7 @@ export class ShaderManager {
                 mask: this.mask,
                 two_pow_word_size: this.two_pow_word_size,
                 workgroup_size,
+                recompile: this.recompile,
             },
             {
                 structs,
@@ -190,5 +207,4 @@ export class ShaderManager {
         )
         return shaderCode
     }
-
 }

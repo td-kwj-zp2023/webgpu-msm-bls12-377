@@ -9,6 +9,7 @@ export const full_benchmarks = async (
     const DELAY = 100
     const NUM_RUNS = 4
 
+    // Inclusive
     const START_POWER: PowersTestCase = 16
     const END_POWER: PowersTestCase = 20
 
@@ -31,9 +32,14 @@ export const full_benchmarks = async (
 
         // TODO: inject random variables in to the shader
 
-        // Measure the first run
+        // Measure the first run, which forces a recompile
         const first_run_start = Date.now()
-        const msm = await cuzk_gpu(testcase.baseAffinePoints, testcase.scalars, false)
+        const msm = await cuzk_gpu(
+            testcase.baseAffinePoints,
+            testcase.scalars,
+            false,
+            true,
+        )
         const first_run_elapsed = Date.now() - first_run_start
 
         const expected = testcase.expectedResult
@@ -57,7 +63,8 @@ export const full_benchmarks = async (
 
         for (let i = 0; i < NUM_RUNS; i ++) {
             const start = Date.now()
-            await cuzk_gpu(testcase.baseAffinePoints, testcase.scalars, false)
+            // Run without forcing a recompile
+            await cuzk_gpu(testcase.baseAffinePoints, testcase.scalars, false, false)
             const elapsed = Date.now() - start
 
             results.subsequent_runs.push(elapsed)
