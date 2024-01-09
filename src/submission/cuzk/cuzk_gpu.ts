@@ -60,7 +60,8 @@ const fieldMath = new FieldMath()
  */
 export const cuzk_gpu = async (
     baseAffinePoints: BigIntPoint[],
-    scalars: bigint[]
+    scalars: bigint[],
+    log_result = true,
 ): Promise<{x: bigint, y: bigint}> => {
     const input_size = baseAffinePoints.length
     const chunk_size = input_size >= 65536 ? 16 : 4
@@ -295,7 +296,8 @@ export const cuzk_gpu = async (
         result = result.add(points[i])
     }
 
-    console.log(result.toAffine())
+    if (log_result) { console.log(result.toAffine()) }
+
     return result.toAffine()
     //device.destroy()
     //return { x: BigInt(0), y: BigInt(1) }

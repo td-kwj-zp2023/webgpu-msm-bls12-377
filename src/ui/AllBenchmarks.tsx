@@ -16,6 +16,7 @@ import {
     create_csr_sparse_matrices_from_points_benchmark,
 } from '../submission/cuzk/create_csr_gpu'
 import { cuzk_gpu } from '../submission/cuzk/cuzk_gpu'
+import { full_benchmarks } from '../submission/full_benchmarks'
 import { scalar_mul_benchmarks } from '../submission/scalar_mul_benchmarks'
 import { cuzk_typescript_serial, transpose_wgsl, smtvp_wgsl, smvp_wgsl } from '../submission/submission';
 import CSVExportButton from './CSVExportButton';
@@ -146,6 +147,16 @@ export const AllBenchmarks: React.FC = () => {
         scalars={bigIntScalars}
         expectedResult={expectedResult}
         msmFunc={cuzk_gpu}
+        postResult={postResult}
+        bold={true}
+      />
+      <Benchmark
+        name={'Full benchmark suite'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={full_benchmarks}
         postResult={postResult}
         bold={true}
       />
