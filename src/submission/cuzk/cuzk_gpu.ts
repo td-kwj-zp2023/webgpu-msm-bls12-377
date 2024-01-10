@@ -372,6 +372,12 @@ export const convert_point_coords_and_decompose_shaders = async (
     const point_y_sb = create_sb(device, input_size * num_words * 4)
     const scalar_chunks_sb = create_sb(device, input_size * num_subtasks * 4)
 
+    // Uniform param buffer
+    const params_bytes = numbers_to_u8s_for_gpu(
+        [input_size],
+    )
+    const params_ub = create_and_write_ub(device, params_bytes)
+
     const bindGroupLayout = create_bind_group_layout(
         device,
         [
@@ -381,6 +387,7 @@ export const convert_point_coords_and_decompose_shaders = async (
             'storage',
             'storage',
             'storage',
+            'uniform',
         ],
     )
     const bindGroup = create_bind_group(
@@ -393,6 +400,7 @@ export const convert_point_coords_and_decompose_shaders = async (
             point_x_sb,
             point_y_sb,
             scalar_chunks_sb,
+            params_ub,
         ],
     )
 
