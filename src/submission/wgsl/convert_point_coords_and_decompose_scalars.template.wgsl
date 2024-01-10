@@ -21,11 +21,14 @@ var<storage, read_write> point_y: array<BigInt>;
 @group(0) @binding(5)
 var<storage, read_write> chunks: array<u32>;
 
+// Uniform buffer for parameters
+@group(0) @binding(6)
+var<uniform> input_size: u32;
+
 const NUM_SUBTASKS = {{ num_subtasks }}u;
 
 // Scalar chunk bitwidth
 const CHUNK_SIZE = {{ chunk_size }}u;
-const INPUT_SIZE = {{ input_size }};
 
 fn get_r() -> BigInt {
     var r: BigInt;
@@ -39,6 +42,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let gidx = global_id.x; 
     let gidy = global_id.y; 
     let id = gidx * {{ num_y_workgroups }} + gidy;
+
+    let INPUT_SIZE = input_size;
 
     // Store the x and y coordinates as byte arrays for easier indexing
     var x_bytes: array<u32, 16>;

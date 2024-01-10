@@ -7,7 +7,7 @@ export const full_benchmarks = async (
     {}: bigint[]
 ): Promise<{x: bigint, y: bigint}> => {
     const DELAY = 100
-    const NUM_RUNS = 4
+    const NUM_RUNS = 5
 
     // Inclusive
     const START_POWER: PowersTestCase = 16
@@ -16,9 +16,18 @@ export const full_benchmarks = async (
     const all_results: any = {}
     console.log(`Running benchmarks for powers ${START_POWER} to ${END_POWER} (inclusive)`)
 
+    let do_recompile = true
+
+    // Load testcases in advance
+    const testcases: any = {}
+    for (let power = START_POWER; power <= END_POWER; power ++) {
+        const testcase = await loadTestCase(power)
+        testcases[power] = testcase
+    }
+
     for (let power = START_POWER; power <= END_POWER; power ++) {
         console.log(`Running ${NUM_RUNS + 1} invocations of cuzk_gpu() for 2^${power} inputs, please wait...`)
-        const testcase = await loadTestCase(power)
+        const testcase = testcases[power]
 
         /*
           Iterate test cases of powers 16 to 20 inclusive
@@ -38,8 +47,13 @@ export const full_benchmarks = async (
             testcase.baseAffinePoints,
             testcase.scalars,
             false,
-            true,
+            do_recompile,
         )
+
+        // Only recompile on the 1st run, regardless of power.
+        // This should simulate the performance during judging more accurately.
+        do_recompile = false
+
         const first_run_elapsed = Date.now() - first_run_start
 
         const expected = testcase.expectedResult
@@ -110,6 +124,10 @@ export const full_benchmarks = async (
     }
 
     console.log(header + body.trim())
+
+    if (START_POWER < END_POWER) {
+        console.log(`Note that shaders were forced to recompile only for MSM size 2^${START_POWER}`)
+    }
     return { x: BigInt(0), y: BigInt(1) }
 }
 
