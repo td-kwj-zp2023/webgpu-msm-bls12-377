@@ -719,14 +719,14 @@ export const smvp_gpu = async (
         const bucket_sum_t_sb_result = u8s_to_bigints(data[6], num_words, word_size)
         const bucket_sum_z_sb_result = u8s_to_bigints(data[7], num_words, word_size)
 
-        // Assertion checks takes ~25 minutes
+        // Assertion checks take a long time!
         for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx++) {
             // Convert GPU output out of Montgomery coordinates
             const bigIntPointToExtPointType = (bip: BigIntPoint): ExtPointType => {
                 return fieldMath.createPoint(bip.x, bip.y, bip.t, bip.z)
             }
             const output_points_gpu: ExtPointType[] = []
-            for (let i = subtask_idx * (num_csr_cols / 2); i < subtask_idx * (num_csr_cols / 2) + (num_csr_cols / 2) + 1; i++) {
+            for (let i = subtask_idx * (num_csr_cols / 2); i < subtask_idx * (num_csr_cols / 2) + (num_csr_cols / 2); i++) {
                 const non = {
                     x: fieldMath.Fp.mul(bucket_sum_x_sb_result[i], rinv),
                     y: fieldMath.Fp.mul(bucket_sum_y_sb_result[i], rinv),
