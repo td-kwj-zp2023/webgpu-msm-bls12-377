@@ -46,7 +46,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     var gidy = global_id.y;
     var gidz = global_id.z;
     let id = (gidx * num_y_workgroups + gidy) * num_z_workgroups + gidz;
-    /*let id = gidx * num_y_workgroups + gidy;*/
 
     let a_x = point_x[id * 2u];
     let a_y = point_y[id * 2u];

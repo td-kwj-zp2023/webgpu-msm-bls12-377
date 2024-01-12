@@ -117,9 +117,8 @@ export const shader_invocation = async (
         'main',
     )
 
-    // execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1)
-    execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, num_z_workgroups)
-
+    execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, num_z_workgroups * 16)
+ 
     const size = Math.ceil(num_points / 2) * 4 * num_words
     commandEncoder.copyBufferToBuffer(out_x_sb, 0, x_coords_sb, 0, size)
     commandEncoder.copyBufferToBuffer(out_y_sb, 0, y_coords_sb, 0, size)
