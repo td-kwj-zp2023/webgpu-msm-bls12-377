@@ -60,6 +60,7 @@ export const read_from_gpu = async (
     const staging_buffers: GPUBuffer[] = []
     for (const storage_buffer of storage_buffers) {
         const size = custom_size === 0 ? storage_buffer.size : custom_size
+        console.log("size is: ", size)
         const staging_buffer = device.createBuffer({
             size,
             usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST

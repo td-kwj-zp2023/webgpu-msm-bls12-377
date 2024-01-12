@@ -106,6 +106,15 @@ export const cuzk_gpu = async (
     const bucket_sum_z_sb = create_sb(device, bucket_sum_coord_bytelength)
 
     // Used by the tree summation method in bucket_points_reduction
+    //
+    // Storage analyis:
+    //      bucket_sum_coord_bytelength size: 41,944,320 bytes (41,944,320 / 80 = 524,304 bytes per coordinates required output buffer size)
+    //      Max buffer size is: 268,435,456 bytes
+    //      Max binding size: 134,217,728 bytes 
+    //      Required buffer size per coordinate: bucket_sum_coord_bytelength / 2 == 20,972,160 bytes per coordinate < 134,217,728 bytes
+    //      Representing 2^16 points = 4 coordinates * 20,972,160 bytes per coordinate (equaling 20,972,160 / 80 / 4 = 2^15 curve points) = 83,888,640 bytes (~83 MB)
+    //      
+    //      This means we can do the bucket aggregation in a single step for < 2^20 points. 
     const out_x_sb = create_sb(device, bucket_sum_coord_bytelength / 2)
     const out_y_sb = create_sb(device, bucket_sum_coord_bytelength / 2)
     const out_t_sb = create_sb(device, bucket_sum_coord_bytelength / 2)
@@ -144,25 +153,26 @@ export const cuzk_gpu = async (
         bucket_sum_z_sb,
     )
 
+    // Bucket aggregation
+    await bucket_aggregation(
+        device,
+        commandEncoder,
+        out_x_sb,
+        out_y_sb,
+        out_t_sb,
+        out_z_sb,
+        bucket_sum_x_sb,
+        bucket_sum_y_sb,
+        bucket_sum_t_sb,
+        bucket_sum_z_sb,
+        num_columns / 2,
+        // true
+    )
+
+    // Perform rounds of copying 
     // for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx ++) {
     //     const start = Date.now()
     //     const commandEncoder = device.createCommandEncoder()
-
-    //     // Bucket aggregation
-    //     await bucket_aggregation(
-    //         device,
-    //         commandEncoder,
-    //         out_x_sb,
-    //         out_y_sb,
-    //         out_t_sb,
-    //         out_z_sb,
-    //         bucket_sum_x_sb,
-    //         bucket_sum_y_sb,
-    //         bucket_sum_t_sb,
-    //         bucket_sum_z_sb,
-    //         num_columns / 2,
-    //     )
-
     //     commandEncoder.copyBufferToBuffer(
     //         out_x_sb,
     //         0,
@@ -866,7 +876,6 @@ export const bucket_aggregation = async (
         )
     }
 
-    //let num_invocations = 0
     let s = num_columns
     while (s > 1) {
         await shader_invocation(
@@ -885,7 +894,6 @@ export const bucket_aggregation = async (
             num_words,
             workgroup_size,
         )
-        //num_invocations ++
 
         const e = s
         s = Math.ceil(s / 2)
@@ -893,7 +901,7 @@ export const bucket_aggregation = async (
             break
         }
     }
-    
+
     if (
         debug
         && original_bucket_sum_x_sb != undefined // prevent TS warnings
@@ -921,37 +929,40 @@ export const bucket_aggregation = async (
         const t_mont_coords_result = u8s_to_bigints(data[2], num_words, word_size)
         const z_mont_coords_result = u8s_to_bigints(data[3], num_words, word_size)
 
-        // Convert the resulting point coordiantes out of Montgomery form
-        const result = fieldMath.createPoint(
-            fieldMath.Fp.mul(x_mont_coords_result[0], rinv),
-            fieldMath.Fp.mul(y_mont_coords_result[0], rinv),
-            fieldMath.Fp.mul(t_mont_coords_result[0], rinv),
-            fieldMath.Fp.mul(z_mont_coords_result[0], rinv),
-        )
+        for (let subtask_idx = 1; subtask_idx < 2; subtask_idx++) {
+            // Convert the resulting point coordiantes out of Montgomery form
+            const result = fieldMath.createPoint(
+                fieldMath.Fp.mul(x_mont_coords_result[subtask_idx * (num_columns)], rinv),
+                fieldMath.Fp.mul(y_mont_coords_result[subtask_idx * (num_columns)], rinv),
+                fieldMath.Fp.mul(t_mont_coords_result[subtask_idx * (num_columns)], rinv),
+                fieldMath.Fp.mul(z_mont_coords_result[subtask_idx * (num_columns)], rinv),
+            )
 
-        // Check that the sum of the points is correct
-        const bucket_x_mont = u8s_to_bigints(data[4], num_words, word_size)
-        const bucket_y_mont = u8s_to_bigints(data[5], num_words, word_size)
-        const bucket_t_mont = u8s_to_bigints(data[6], num_words, word_size)
-        const bucket_z_mont = u8s_to_bigints(data[7], num_words, word_size)
+            // Check that the sum of the points is correct
+            const bucket_x_mont = u8s_to_bigints(data[4], num_words, word_size)
+            const bucket_y_mont = u8s_to_bigints(data[5], num_words, word_size)
+            const bucket_t_mont = u8s_to_bigints(data[6], num_words, word_size)
+            const bucket_z_mont = u8s_to_bigints(data[7], num_words, word_size)
 
-        const points: ExtPointType[] = []
-        for (let i = 0; i < num_columns; i ++) {
-            points.push(fieldMath.createPoint(
-                fieldMath.Fp.mul(bucket_x_mont[i], rinv),
-                fieldMath.Fp.mul(bucket_y_mont[i], rinv),
-                fieldMath.Fp.mul(bucket_t_mont[i], rinv),
-                fieldMath.Fp.mul(bucket_z_mont[i], rinv),
-            ))
+            const points: ExtPointType[] = []
+            for (let i = subtask_idx * num_columns; i < subtask_idx * num_columns + num_columns; i++) {
+                points.push(fieldMath.createPoint(
+                    fieldMath.Fp.mul(bucket_x_mont[i], rinv),
+                    fieldMath.Fp.mul(bucket_y_mont[i], rinv),
+                    fieldMath.Fp.mul(bucket_t_mont[i], rinv),
+                    fieldMath.Fp.mul(bucket_z_mont[i], rinv),
+                ))
+            }
+
+            // Add up the original points
+            let expected = points[0]
+            for (let i = 1; i < points.length; i ++) {
+                expected = expected.add(points[i])
+            }
+            assert(are_point_arr_equal([result], [expected]))
         }
 
-        // Add up the original points
-        let expected = points[0]
-        for (let i = 1; i < points.length; i ++) {
-            expected = expected.add(points[i])
-        }
-
-        assert(are_point_arr_equal([result], [expected]))
+        console.log("passed assertion checks!")
     }
 
     return {
