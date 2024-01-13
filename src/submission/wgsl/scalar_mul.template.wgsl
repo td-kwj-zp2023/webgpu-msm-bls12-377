@@ -114,15 +114,19 @@ fn booth(point: Point, scalar: u32) -> Point {
     // Set result to the point at infinity
     var result: Point;
     result.y = get_r();
-    result.z = get_r();
+    result.z = result.y;
 
     var temp = point;
     for (var i = 0u; i < max_idx + 1u; i ++) {
-        if (a[i] == 1u) {
-            result = add_points(result, temp);
-        } else if (a[i] == 2u) {
-            result = add_points(result, negate_point(temp));
+        var t = temp;
+        if (a[i] == 2u) {
+            t = negate_point(t);
         }
+
+        if (a[i] == 1u || a[i] == 2u) {
+            result = add_points(result, t);
+        }
+
         temp = double_point(temp);
     }
 
@@ -206,11 +210,15 @@ fn booth_new(point: Point, scalar: u32) -> Point {
         let i = 15u - idx;
         let x = (booth >> (i * 2u)) & 3u;
 
-        if (x == 1u) {
-            result = add_points(result, temp);
-        } else if (x == 2u) {
-            result = add_points(result, negate_point(temp));
+        var t = temp;
+        if (x == 2u) {
+            t = negate_point(t);
         }
+
+        if (x == 1u || x == 2u) {
+            result = add_points(result, t);
+        }
+
         temp = double_point(temp);
     }
 
