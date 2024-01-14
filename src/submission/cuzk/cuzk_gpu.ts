@@ -1,6 +1,6 @@
 import assert from 'assert'
 import { BigIntPoint } from "../../reference/types"
-import { ExtPointType } from "@noble/curves/abstract/edwards";
+import { ExtPointType } from "@noble/curves/abstract/edwards"
 import { ShaderManager } from '../shader_manager'
 import {
     get_device,
@@ -24,7 +24,7 @@ import {
     are_point_arr_equal,
 } from '../utils'
 import { cpu_transpose } from './transpose'
-import { cpu_smvp_signed } from './smvp';
+import { cpu_smvp_signed } from './smvp'
 import { shader_invocation } from '../bucket_points_reduction'
 
 const p = BigInt('8444461749428370424248824938781546531375899335154063827935233455917409239041')
@@ -195,7 +195,7 @@ export const cuzk_gpu = async (
     )
 
     const half_num_columns = num_columns / 2
-    let s_workgroup_size = 64
+    let s_workgroup_size = 256
     let s_num_x_workgroups = 64
     let s_num_y_workgroups = (half_num_columns / s_workgroup_size / s_num_x_workgroups)
     let s_num_z_workgroups = num_subtasks
@@ -215,8 +215,6 @@ export const cuzk_gpu = async (
 
     const smvp_shader = shaderManager.gen_smvp_shader(
         s_workgroup_size,
-        s_num_y_workgroups,
-        s_num_z_workgroups,
         num_columns,
     )
 
@@ -271,7 +269,6 @@ export const cuzk_gpu = async (
     commandEncoder.copyBufferToBuffer(out_z_sb, 0, subtask_sum_z_sb, 0, os)
 
     // Read the subtask sums from the GPU
-    const start = Date.now()
     const subtask_sum_data = await read_from_gpu(
         device,
         commandEncoder,
@@ -308,8 +305,6 @@ export const cuzk_gpu = async (
         result = result.multiply(m)
         result = result.add(points[i])
     }
-    const elapsed = Date.now() - start
-    console.log(`Final steps (reading subtask sums, conversion out of Montgomery form, and Horner's rule) took ${elapsed}ms`)
 
     if (log_result) {
         console.log(result.toAffine())
@@ -460,7 +455,7 @@ export const convert_point_coords_and_decompose_shaders = async (
         const expected = decompose_scalars_signed(scalars, num_subtasks, chunk_size)
 
         for (let j = 0; j < expected.length; j++) {
-            let z = 0;
+            let z = 0
             for (let i = j * input_size; i < (j + 1) * input_size; i++) {
                 if (computed_chunks[i] !== expected[j][z]) {
                     throw Error(`scalar decomp mismatch at ${i}`)
@@ -617,7 +612,7 @@ export const smvp_gpu = async (
     debug = false,
 ) => {
     const params_bytes = numbers_to_u8s_for_gpu(
-        [input_size],
+        [input_size, num_y_workgroups, num_z_workgroups],
     )
     const params_ub = create_and_write_ub(device, params_bytes)
 
