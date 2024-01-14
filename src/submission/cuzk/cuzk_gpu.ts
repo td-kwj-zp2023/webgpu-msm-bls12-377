@@ -239,15 +239,13 @@ export const cuzk_gpu = async (
         bucket_sum_z_sb,
     )
 
-    const b_workgroup_size = 32
     const bucket_reduction_shader = shaderManager.gen_bucket_reduction_shader(
-        b_workgroup_size,
+        num_subtasks
     )
 
     // Bucket aggregation
     await bucket_aggregation(
         bucket_reduction_shader,
-        b_workgroup_size,
         device,
         commandEncoder,
         out_x_sb,
@@ -787,7 +785,6 @@ export const smvp_gpu = async (
  */
 export const bucket_aggregation = async (
     shaderCode: string,
-    workgroup_size: number,
     device: GPUDevice,
     commandEncoder: GPUCommandEncoder,
     out_x_sb: GPUBuffer,
