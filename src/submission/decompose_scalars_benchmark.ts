@@ -41,7 +41,7 @@ export const decompose_scalars_ts_benchmark = async (
     console.log()
 
     console.log('GPU benchmarks:')
-    for (let word_size = 8; word_size < 17; word_size ++) {
+    for (let word_size = 16; word_size < 17; word_size ++) {
         const params = compute_misc_params(p, word_size)
         const num_words = params.num_words
         await decompose_scalars_gpu(scalars, num_words, word_size)
