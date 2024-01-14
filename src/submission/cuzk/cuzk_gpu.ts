@@ -100,24 +100,24 @@ export const cuzk_gpu = async (
         c_num_x_workgroups = 4
         c_num_y_workgroups = input_size / c_workgroup_size / c_num_x_workgroups
     } else if (input_size > 32768 && input_size <= 65536) {
-        c_workgroup_size = 64
-        c_num_x_workgroups = 32
+        c_workgroup_size = 256
+        c_num_x_workgroups = 8
         c_num_y_workgroups = input_size / c_workgroup_size / c_num_x_workgroups
     } else if (input_size > 65536 && input_size <= 131072) {
-        c_workgroup_size = 64
-        c_num_x_workgroups = 64
+        c_workgroup_size = 256
+        c_num_x_workgroups = 8
         c_num_y_workgroups = input_size / c_workgroup_size / c_num_x_workgroups
     } else if (input_size > 131072 && input_size <= 262144) {
-        c_workgroup_size = 64
-        c_num_x_workgroups = 128
+        c_workgroup_size = 256
+        c_num_x_workgroups = 32
         c_num_y_workgroups = input_size / c_workgroup_size / c_num_x_workgroups
     } else if (input_size > 262144 && input_size <= 524288) {
-        c_workgroup_size = 64
-        c_num_x_workgroups = 128
+        c_workgroup_size = 256
+        c_num_x_workgroups = 32
         c_num_y_workgroups = input_size / c_workgroup_size / c_num_x_workgroups
     } else if (input_size > 524288 && input_size <= 1048576) {
-        c_workgroup_size = 64
-        c_num_x_workgroups = 128
+        c_workgroup_size = 256
+        c_num_x_workgroups = 32
         c_num_y_workgroups = input_size / c_workgroup_size / c_num_x_workgroups
     }
 
@@ -240,9 +240,7 @@ export const cuzk_gpu = async (
         bucket_sum_z_sb,
     )
 
-    const bucket_reduction_shader = shaderManager.gen_bucket_reduction_shader(
-        num_subtasks
-    )
+    const bucket_reduction_shader = shaderManager.gen_bucket_reduction_shader()
 
     // Bucket aggregation
     await bucket_aggregation(
