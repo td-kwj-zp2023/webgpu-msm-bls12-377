@@ -29,7 +29,7 @@ export const decompose_scalars_ts_benchmark = async (
     console.log('Decomposing', scalars.length, 'scalars')
 
     console.log('Typescript benchmarks:')
-    for (let word_size = 16; word_size < 17; word_size ++) {
+    for (let word_size = 8; word_size < 17; word_size ++) {
         const params = compute_misc_params(p, word_size)
         const num_words = params.num_words
 
@@ -40,6 +40,28 @@ export const decompose_scalars_ts_benchmark = async (
     }
     console.log()
 
+<<<<<<< HEAD
+=======
+    console.log('WASM benchmarks:')
+    for (let word_size = 8; word_size < 17; word_size ++) {
+        const params = compute_misc_params(p, word_size)
+        const num_words = params.num_words
+
+        const start_wasm = Date.now()
+        wasm.decompose_scalars(scalars, num_words, word_size).get_result()
+        const elapsed_wasm = Date.now() - start_wasm
+        console.log(`WASM with ${word_size}-bit windows took ${elapsed_wasm}ms`)
+    }
+    console.log()
+
+    const num_words = 20
+    const word_size = 13
+    const ts_r = decompose_scalars(scalars, num_words, word_size).flat()
+    const wasm_r = wasm.decompose_scalars(scalars, num_words, word_size).get_result()
+    assert(ts_r.toString() === wasm_r.toString())
+    //console.log('ok')
+
+>>>>>>> 9619f41 (wj comments)
     console.log('GPU benchmarks:')
     for (let word_size = 16; word_size < 17; word_size ++) {
         const params = compute_misc_params(p, word_size)

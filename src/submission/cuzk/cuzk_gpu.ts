@@ -121,20 +121,22 @@ export const cuzk_gpu = async (
     const out_t_sb = create_sb(device, bucket_sum_coord_bytelength / 2)
     const out_z_sb = create_sb(device, bucket_sum_coord_bytelength / 2)
 
+    // Create single command encoder for device
+    const commandEncoder = device.createCommandEncoder()
+
     // Transpose
     const {
         all_csc_col_ptr_sb,
         all_csc_val_idxs_sb,
     } = await transpose_gpu(
         device,
+        commandEncoder,
         input_size,
         num_columns,
         num_rows,
         num_subtasks,    
         scalar_chunks_sb,
     )
-
-    const commandEncoder = device.createCommandEncoder()
 
     // SMVP and multiplication by the bucket index
     await smvp_gpu(
@@ -403,11 +405,6 @@ export const convert_point_coords_and_decompose_shaders = async (
         }
     }
 
-    // Destroy unused intermediate buffers
-    x_coords_sb.destroy()
-    y_coords_sb.destroy()
-    scalars_sb.destroy()
-
     return { point_x_sb, point_y_sb, scalar_chunks_sb }
 }
 
@@ -466,6 +463,7 @@ const genConvertPointCoordsAndDecomposeScalarsShaderCode = (
 
 export const transpose_gpu = async (
     device: GPUDevice,
+    commandEncoder: GPUCommandEncoder,
     input_size: number,
     num_columns: number,
     num_rows: number,
@@ -543,13 +541,11 @@ export const transpose_gpu = async (
         shaderCode,
         'main',
     )
-
-    const commandEncoder = device.createCommandEncoder()
     
     const start = Date.now()
+    
     execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1)
-    device.queue.submit([commandEncoder.finish()])
-    await device.queue.onSubmittedWorkDone()
+
     const elapsed = Date.now() - start
     console.log(`transpose took ${elapsed}ms`)
 
@@ -580,11 +576,6 @@ export const transpose_gpu = async (
         assert(expected.all_csc_col_ptr.toString() === all_csc_col_ptr_result.toString(), 'all_csc_col_ptr mismatch')
         assert(expected.all_csc_vals.toString() === all_csc_val_idxs_result.toString(), 'all_csc_vals mismatch')
     }
-
-    // Destroy unused intermediate buffers
-    scalar_chunks_sb.destroy()
-    all_curr_sb.destroy()
-    params_ub.destroy()
 
     return {
         all_csc_col_ptr_sb,
