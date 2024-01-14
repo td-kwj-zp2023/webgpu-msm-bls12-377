@@ -28,6 +28,9 @@ fn gen_p_medium_wide() -> BigIntMediumWide {
     return m;
 }
 
+// The CIOS method for Montgomery multiplication from Tolga Acar's thesis:
+// High-Speed Algorithms & Architectures For Number-Theoretic Cryptosystems
+// https://www.proquest.com/openview/1018972f191afe55443658b28041c118/1
 fn montgomery_product(a: ptr<function, BigInt>, b: ptr<function, BigInt>) -> BigInt {
     var n = gen_p_medium_wide();
     var n0 = 65535u;
@@ -105,7 +108,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     var a: BigInt = buf[gidx * 2u];
     var b: BigInt = buf[(gidx * 2u) + 1u];
 
-    /*var result = montgomery_product(&a, &b);*/
     var c = montgomery_product(&a, &a);
     for (var i = 1u; i < COST - 1u; i ++) {
         c = montgomery_product(&c, &a);

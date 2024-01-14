@@ -38,9 +38,13 @@ fn get_paf() -> Point {
     return result;
 }
 
+// This shader is executed multiple times until the result is the sum of all
+// the input points.
 @compute
 @workgroup_size(1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
+    // We pass in these parametes via a uniform buffer to avoid shader
+    // recompilation.
     let num_y_workgroups = params[0];
     let num_z_workgroups = params[1];
 
@@ -61,6 +65,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let b_z = point_z[id * 2u + 1u];
     var pt_b = Point(b_x, b_y, b_t, b_z);
 
+    // Add two points.
     let result = add_points(pt_a, pt_b);
 
     out_x[id] = result.x;

@@ -45,7 +45,7 @@ export const mont_mul_benchmarks = async(
         return (c * b * r) % p
     }
 
-    const num_runs = 1
+    const num_runs = 5
 
     const timings: any = {}
 
@@ -59,12 +59,12 @@ export const mont_mul_benchmarks = async(
         const r = misc_params.r
         const two_pow_word_size = 2 ** word_size
 
-        //console.log(
-        //`Limb size: ${word_size}, Number of limbs: ${num_words}, ` +
-        //`N: ${word_size * num_words}, ` + 
-        //`Max terms: ${misc_params.max_terms}, k: ${misc_params.k}, ` +
-        //`nSafe: ${misc_params.nsafe}`
-        //)
+        console.log(
+            `Limb size: ${word_size}, Number of limbs: ${num_words}, ` +
+            `N: ${word_size * num_words}, ` + 
+            `Max terms: ${misc_params.max_terms}, k: ${misc_params.k}, ` +
+            `nSafe: ${misc_params.nsafe}`
+        )
         const p_limbs = gen_p_limbs(p, num_words, word_size)
 
         let shaderCode = ''
@@ -107,6 +107,7 @@ export const mont_mul_benchmarks = async(
                 },
                 {
                     structs,
+                    bigint_functions,
                 }
             )
         } else if (word_size === 16) {

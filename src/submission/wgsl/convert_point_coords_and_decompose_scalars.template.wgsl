@@ -2,9 +2,6 @@
 {{> bigint_funcs }}
 {{> field_funcs }}
 {{> barrett_funcs }}
-
-// Bitwidth of each limb of the point coordinates
-/*const WORD_SIZE = {{ word_size }}u;*/
 {{> montgomery_product_funcs }}
 {{ > extract_word_from_bytes_le_funcs }}
 
@@ -43,7 +40,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let gidy = global_id.y; 
     let id = gidx * {{ num_y_workgroups }} + gidy;
 
-    // Convert x and y coordinates to byte arrays
+    // Store the x and y coordinates as byte arrays for easier indexing
     var x_bytes: array<u32, 16>;
     var y_bytes: array<u32, 16>;
     for (var i = 0u; i < 16u; i ++) {
@@ -67,6 +64,9 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     var r = get_r();
     point_x[id] = field_mul(&x_bigint, &r);
     point_y[id] = field_mul(&y_bigint, &r);
+
+    // Note that we only compute the t and z coordinates in the SMVP shader
+    // as WebGPU limits the number of buffers per shader to 8.
 
     // Decompose scalars
     var scalar_bytes: array<u32, 16>;
@@ -100,6 +100,10 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     for (var i = 0u; i < NUM_SUBTASKS; i++) {
         let offset = i * INPUT_SIZE;
+
+        // Note that we add s (half_num_columns) to the bucket index so we
+        // don't store negative values, while retaining information about the
+        // sign of the original index.
         chunks[id + offset] = u32(signed_slices[i]) + s;
     }
 }
