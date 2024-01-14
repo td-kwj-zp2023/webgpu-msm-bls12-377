@@ -23,7 +23,7 @@ var<storage, read_write> out_t: array<BigInt>;
 @group(0) @binding(7)
 var<storage, read_write> out_z: array<BigInt>;
 @group(0) @binding(8)
-var<uniform> params: vec3<u32>;
+var<uniform> params: vec2<u32>;
 
 fn get_paf() -> Point {
     var result: Point;
@@ -33,20 +33,16 @@ fn get_paf() -> Point {
     return result;
 }
 
-// @workgroup_size({{ workgroup_size }})
-
 @compute
 @workgroup_size(1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
-    let num_points = params[0];
-    let num_y_workgroups = params[1];
-    let num_z_workgroups = params[2];
+    let num_y_workgroups = params[0];
+    let num_z_workgroups = params[1];
 
     var gidx = global_id.x;
     var gidy = global_id.y;
     var gidz = global_id.z;
     let id = (gidx * num_y_workgroups + gidy) * num_z_workgroups + gidz;
-    /*let id = gidx * num_y_workgroups + gidy;*/
 
     let a_x = point_x[id * 2u];
     let a_y = point_y[id * 2u];
@@ -59,12 +55,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let b_t = point_t[id * 2u + 1u];
     let b_z = point_z[id * 2u + 1u];
     var pt_b = Point(b_x, b_y, b_t, b_z);
-
-    // If the number of points is odd, and id is at or past the last point,
-    // assign the point at infinity to B
-    if (num_points % 2u == 1u && id * 2u + 1u >= num_points) {
-        pt_b = get_paf();
-    } 
 
     let result = add_points(pt_a, pt_b);
 
