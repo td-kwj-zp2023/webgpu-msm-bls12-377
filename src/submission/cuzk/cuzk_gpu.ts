@@ -177,6 +177,12 @@ export const cuzk_gpu = async (
     let s_num_y_workgroups = (half_num_columns / s_workgroup_size / s_num_x_workgroups)
     let s_num_z_workgroups = 16
 
+    if (half_num_columns <= 32768) {
+        s_workgroup_size = 64
+        s_num_x_workgroups = 1
+        s_num_y_workgroups = Math.ceil(half_num_columns / s_workgroup_size / s_num_x_workgroups)
+    }
+
     if (num_columns < 256) {
         s_workgroup_size = 1
         s_num_x_workgroups = half_num_columns
