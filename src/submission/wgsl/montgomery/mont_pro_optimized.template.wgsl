@@ -1,9 +1,7 @@
 {{> structs }}
-{{> montgomery_product_funcs }}
 {{> field_functions }}
 {{> bigint_functions }}
-{{> curve_parameters }}
-{{> curve_functions }}
+{{> montgomery_product_funcs }}
 
 @group(0)
 @binding(0)
@@ -12,7 +10,7 @@ var<storage, read_write> buf: array<BigInt>;
 const COST = {{ cost }}u;
 
 @compute
-@workgroup_size(256)
+@workgroup_size(1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let gidx = global_id.x; 
     var a: BigInt = buf[gidx * 2u];

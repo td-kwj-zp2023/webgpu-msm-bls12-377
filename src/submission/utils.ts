@@ -5,6 +5,7 @@ import { BigIntPoint } from "../reference/types"
 import { FieldMath } from "../reference/utils/FieldMath";
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import { toBufferLE } from 'bigint-buffer'
+import { EDWARDS_D } from '../reference/params/AleoConstants'
 
 /*
  * Converts the BigInts in vals to byte arrays in the form of
@@ -301,6 +302,14 @@ export const gen_r_limbs = (
     return gen_wgsl_limbs_code(r, 'r', num_words, word_size)
 }
 
+export const gen_d_limbs = (
+    d: bigint,
+    num_words: number,
+    word_size: number,
+): string => {
+    return gen_wgsl_limbs_code(d, 'd', num_words, word_size)
+}
+
 export const gen_mu_limbs = (
     p: bigint,
     num_words: number,
@@ -375,6 +384,7 @@ export const compute_misc_params = (
         nsafe: number,
         n0: bigint
         r: bigint
+        edwards_d: bigint
         rinv: bigint
         barrett_domb_m: bigint,
 } => {
@@ -419,8 +429,9 @@ export const compute_misc_params = (
     const z = num_words * word_size - p_width
     const barrett_domb_m = BigInt(2 ** (2 * p_width + z)) / p
     //m, _ = divmod(2 ** (2 * n + z), s)  # prime approximation, n + 1 bits
+    const edwards_d = EDWARDS_D * r % p
 
-    return { num_words, max_terms, k, nsafe, n0, r: r % p, rinv, barrett_domb_m }
+    return { num_words, max_terms, k, nsafe, n0, r: r % p, edwards_d, rinv, barrett_domb_m }
 }
 
 export const genRandomFieldElement = (p: bigint): bigint => {

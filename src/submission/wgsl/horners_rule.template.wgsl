@@ -3,12 +3,17 @@
 {{> field_funcs }}
 {{> ec_funcs }}
 {{> montgomery_product_funcs }}
-{{> curve_parameters }}
 
 @group(0) @binding(0)
 var<storage, read_write> point_x_y: array<BigInt>;
 @group(0) @binding(1)
 var<storage, read_write> point_t_z: array<BigInt>;
+
+fn get_r() -> BigInt {
+    var r: BigInt;
+{{{ r_limbs }}}
+    return r;
+}
 
 // TODO: refactor this and scalar_mul.template.wgsl as the code is repeated
 fn get_paf() -> Point {
