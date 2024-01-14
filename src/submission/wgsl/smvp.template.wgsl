@@ -160,4 +160,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         bucket_sum_z[id] = sum.z;
         bucket_sum_t[id] = sum.t;
     }
+
+    {{{ recompile }}}
 }
