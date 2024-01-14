@@ -145,6 +145,7 @@ export class ShaderManager {
     public gen_smvp_shader(
         workgroup_size: number,
         num_y_workgroups: number,
+        num_z_workgroups: number,
         num_csr_cols: number,
     ) {
         const shaderCode = mustache.render(
@@ -161,6 +162,7 @@ export class ShaderManager {
                 index_shift: this.index_shift,
                 workgroup_size,
                 num_y_workgroups,
+                num_z_workgroups,
                 num_columns: num_csr_cols,
                 half_num_columns: num_csr_cols / 2,
                 recompile: this.recompile,
