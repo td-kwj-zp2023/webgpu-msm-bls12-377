@@ -105,7 +105,7 @@ export const cuzk_gpu = async (
     const bucket_sum_t_sb = create_sb(device, bucket_sum_coord_bytelength)
     const bucket_sum_z_sb = create_sb(device, bucket_sum_coord_bytelength)
 
-    // Used by the tree summation method in bucket_points_reduction
+    // Used by the parallel tree summation method in bucket_points_reduction
     //
     // Storage analyis:
     //      bucket_sum_coord_bytelength size: 41,944,320 bytes (41,944,320 / 80 = 524,304 bytes per coordinates required output buffer size)
@@ -166,87 +166,77 @@ export const cuzk_gpu = async (
         bucket_sum_t_sb,
         bucket_sum_z_sb,
         num_columns / 2,
-        // true
+        num_subtasks,
     )
 
-    // Perform rounds of copying 
-    // for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx ++) {
-    //     const start = Date.now()
-    //     const commandEncoder = device.createCommandEncoder()
-    //     commandEncoder.copyBufferToBuffer(
-    //         out_x_sb,
-    //         0,
-    //         subtask_sum_x_sb,
-    //         subtask_idx * num_words * 4,
-    //         num_words * 4,
-    //     )
-    //     commandEncoder.copyBufferToBuffer(
-    //         out_y_sb,
-    //         0,
-    //         subtask_sum_y_sb,
-    //         subtask_idx * num_words * 4,
-    //         num_words * 4,
-    //     )
-    //     commandEncoder.copyBufferToBuffer(
-    //         out_t_sb,
-    //         0,
-    //         subtask_sum_t_sb,
-    //         subtask_idx * num_words * 4,
-    //         num_words * 4,
-    //     )
-    //     commandEncoder.copyBufferToBuffer(
-    //         out_z_sb,
-    //         0,
-    //         subtask_sum_z_sb,
-    //         subtask_idx * num_words * 4,
-    //         num_words * 4,
-    //     )
+    // Perform round of copying 
+    commandEncoder.copyBufferToBuffer(
+        out_x_sb,
+        0,
+        subtask_sum_x_sb,
+        0,
+        num_subtasks * num_words * 4,
+    )
+    commandEncoder.copyBufferToBuffer(
+        out_y_sb,
+        0,
+        subtask_sum_y_sb,
+        0,
+        num_subtasks * num_words * 4,
+    )
+    commandEncoder.copyBufferToBuffer(
+        out_t_sb,
+        0,
+        subtask_sum_t_sb,
+        0,
+        num_subtasks * num_words * 4,
+    )
+    commandEncoder.copyBufferToBuffer(
+        out_z_sb,
+        0,
+        subtask_sum_z_sb,
+        0,
+        num_subtasks * num_words * 4,
+    )
 
-    //     device.queue.submit([commandEncoder.finish()])
-    //     await device.queue.onSubmittedWorkDone()
-    //     const elapsed = Date.now() - start
-    //     console.log(`iteration ${subtask_idx} took ${elapsed}ms (SMVP and bucket aggregation)`)
-    // }
+    const start = Date.now()
+    const subtask_sum_data = await read_from_gpu(
+        device,
+        commandEncoder,
+        [ subtask_sum_x_sb, subtask_sum_y_sb, subtask_sum_t_sb, subtask_sum_z_sb ],
+    )
+    device.destroy()
 
-    // const start = Date.now()
-    // const commandEncoder = device.createCommandEncoder()
-    // const subtask_sum_data = await read_from_gpu(
-    //     device,
-    //     commandEncoder,
-    //     [ subtask_sum_x_sb, subtask_sum_y_sb, subtask_sum_t_sb, subtask_sum_z_sb ],
-    // )
-    // device.destroy()
+    const x_mont_coords = u8s_to_bigints(subtask_sum_data[0], num_words, word_size)
+    const y_mont_coords = u8s_to_bigints(subtask_sum_data[1], num_words, word_size)
+    const t_mont_coords = u8s_to_bigints(subtask_sum_data[2], num_words, word_size)
+    const z_mont_coords = u8s_to_bigints(subtask_sum_data[3], num_words, word_size)
 
-    // const x_mont_coords = u8s_to_bigints(subtask_sum_data[0], num_words, word_size)
-    // const y_mont_coords = u8s_to_bigints(subtask_sum_data[1], num_words, word_size)
-    // const t_mont_coords = u8s_to_bigints(subtask_sum_data[2], num_words, word_size)
-    // const z_mont_coords = u8s_to_bigints(subtask_sum_data[3], num_words, word_size)
+    // Convert each point out of Montgomery form
+    const points: ExtPointType[] = []
+    for (let i = 0; i < num_subtasks; i ++) {
+        const pt = fieldMath.createPoint(
+            fieldMath.Fp.mul(x_mont_coords[i], rinv),
+            fieldMath.Fp.mul(y_mont_coords[i], rinv),
+            fieldMath.Fp.mul(t_mont_coords[i], rinv),
+            fieldMath.Fp.mul(z_mont_coords[i], rinv),
+        )
+        points.push(pt)
+    }
 
-    // // Convert each point out of Montgomery form
-    // const points: ExtPointType[] = []
-    // for (let i = 0; i < num_subtasks; i ++) {
-    //     const pt = fieldMath.createPoint(
-    //         fieldMath.Fp.mul(x_mont_coords[i], rinv),
-    //         fieldMath.Fp.mul(y_mont_coords[i], rinv),
-    //         fieldMath.Fp.mul(t_mont_coords[i], rinv),
-    //         fieldMath.Fp.mul(z_mont_coords[i], rinv),
-    //     )
-    //     points.push(pt)
-    // }
+    // Horner's rule
+    const m = BigInt(2) ** BigInt(chunk_size)
+    // The last scalar chunk is the most significant digit (base m)
+    let result = points[points.length - 1]
+    for (let i = points.length - 2; i >= 0; i --) {
+        result = result.multiply(m)
+        result = result.add(points[i])
+    }
+    const elapsed = Date.now() - start
+    console.log(`Final steps (reading subtask sums, conversion out of Montgomery form, and Horner's rule) took ${elapsed}ms`)
 
-    // // Horner's rule
-    // const m = BigInt(2) ** BigInt(chunk_size)
-    // // The last scalar chunk is the most significant digit (base m)
-    // let result = points[points.length - 1]
-    // for (let i = points.length - 2; i >= 0; i --) {
-    //     result = result.multiply(m)
-    //     result = result.add(points[i])
-    // }
-    // const elapsed = Date.now() - start
-    // console.log(`Final steps (reading subtask sums, conversion out of Montgomery form, and Horner's rule) took ${elapsed}ms`)
-
-    // return result.toAffine()
-    return { x: BigInt(0), y: BigInt(1) }
+    return result.toAffine()
+    // return { x: BigInt(0), y: BigInt(1) }
 }
 
 /*
@@ -801,6 +791,7 @@ export const bucket_aggregation = async (
     bucket_sum_t_sb: GPUBuffer,
     bucket_sum_z_sb: GPUBuffer,
     num_columns: number,
+    num_subtasks: number,
     debug = false,
 ) => {
     const params = compute_misc_params(p, word_size)
@@ -877,6 +868,7 @@ export const bucket_aggregation = async (
     }
 
     let s = num_columns
+    let num_iterations = 0;
     while (s > 1) {
         await shader_invocation(
             device,
@@ -894,6 +886,7 @@ export const bucket_aggregation = async (
             num_words,
             workgroup_size,
         )
+        num_iterations++
 
         const e = s
         s = Math.ceil(s / 2)
@@ -929,13 +922,13 @@ export const bucket_aggregation = async (
         const t_mont_coords_result = u8s_to_bigints(data[2], num_words, word_size)
         const z_mont_coords_result = u8s_to_bigints(data[3], num_words, word_size)
 
-        for (let subtask_idx = 1; subtask_idx < 2; subtask_idx++) {
+        for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx++) {
             // Convert the resulting point coordiantes out of Montgomery form
             const result = fieldMath.createPoint(
-                fieldMath.Fp.mul(x_mont_coords_result[subtask_idx * (num_columns)], rinv),
-                fieldMath.Fp.mul(y_mont_coords_result[subtask_idx * (num_columns)], rinv),
-                fieldMath.Fp.mul(t_mont_coords_result[subtask_idx * (num_columns)], rinv),
-                fieldMath.Fp.mul(z_mont_coords_result[subtask_idx * (num_columns)], rinv),
+                fieldMath.Fp.mul(x_mont_coords_result[subtask_idx], rinv),
+                fieldMath.Fp.mul(y_mont_coords_result[subtask_idx], rinv),
+                fieldMath.Fp.mul(t_mont_coords_result[subtask_idx], rinv),
+                fieldMath.Fp.mul(z_mont_coords_result[subtask_idx], rinv),
             )
 
             // Check that the sum of the points is correct
@@ -961,8 +954,6 @@ export const bucket_aggregation = async (
             }
             assert(are_point_arr_equal([result], [expected]))
         }
-
-        console.log("passed assertion checks!")
     }
 
     return {

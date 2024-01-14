@@ -24,8 +24,6 @@ export const shader_invocation = async (
     num_words: number,
     workgroup_size: number,
 ) => {
-    assert(num_points <= 2 ** 15)
-
     let num_z_workgroups = 2
     const compute_ideal_num_workgroups = (num_points: number) => {
 
@@ -53,7 +51,7 @@ export const shader_invocation = async (
 //     const compute_ideal_num_workgroups = (num_points: number) => {
 
         const m = Math.ceil(Math.log2(Math.sqrt(num_points / num_z_workgroups)))
-        let num_x_workgroups = 2 ** m
+        let num_x_workgroups = 2 ** m 
         let num_y_workgroups = 2 ** m
 
         if (num_x_workgroups * num_y_workgroups == (num_points / 2)) {
@@ -73,9 +71,8 @@ export const shader_invocation = async (
 
     const params_bytes = numbers_to_u8s_for_gpu(
         [
-            num_points,
             num_y_workgroups,
-            num_z_workgroups,
+            num_z_workgroups * 16,
         ],
     )
     const params_ub = create_and_write_ub(device, params_bytes)
@@ -118,8 +115,8 @@ export const shader_invocation = async (
     )
 
     execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, num_z_workgroups * 16)
- 
-    const size = Math.ceil(num_points / 2) * 4 * num_words
+
+    const size = (Math.ceil(num_points / 2) * 4 * num_words) * 16
     commandEncoder.copyBufferToBuffer(out_x_sb, 0, x_coords_sb, 0, size)
     commandEncoder.copyBufferToBuffer(out_y_sb, 0, y_coords_sb, 0, size)
     commandEncoder.copyBufferToBuffer(out_t_sb, 0, t_coords_sb, 0, size)
