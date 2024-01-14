@@ -127,12 +127,17 @@ export const cuzk_gpu = async (
         num_subtasks,
         num_columns,
     )
+
+    // Create single command encoder for device
+    const commandEncoder = device.createCommandEncoder()
+
     const { point_x_sb, point_y_sb, scalar_chunks_sb } =
         await convert_point_coords_and_decompose_shaders(
             c_shader,
             c_num_x_workgroups,
             c_num_y_workgroups,
             device,
+            commandEncoder,
             baseAffinePoints,
             num_words, 
             word_size,
@@ -173,8 +178,6 @@ export const cuzk_gpu = async (
     const out_z_sb = create_sb(device, bucket_sum_coord_bytelength / 2)
 
     const t_shader = shaderManager.gen_transpose_shader(num_subtasks)
-    // Create single command encoder for device
-    const commandEncoder = device.createCommandEncoder()
 
     // Transpose
     const {
@@ -261,34 +264,11 @@ export const cuzk_gpu = async (
     )
 
     // Perform round of copying 
-    commandEncoder.copyBufferToBuffer(
-        out_x_sb,
-        0,
-        subtask_sum_x_sb,
-        0,
-        num_subtasks * num_words * 4,
-    )
-    commandEncoder.copyBufferToBuffer(
-        out_y_sb,
-        0,
-        subtask_sum_y_sb,
-        0,
-        num_subtasks * num_words * 4,
-    )
-    commandEncoder.copyBufferToBuffer(
-        out_t_sb,
-        0,
-        subtask_sum_t_sb,
-        0,
-        num_subtasks * num_words * 4,
-    )
-    commandEncoder.copyBufferToBuffer(
-        out_z_sb,
-        0,
-        subtask_sum_z_sb,
-        0,
-        num_subtasks * num_words * 4,
-    )
+    const os = num_subtasks * num_words * 4
+    commandEncoder.copyBufferToBuffer(out_x_sb, 0, subtask_sum_x_sb, 0, os)
+    commandEncoder.copyBufferToBuffer(out_y_sb, 0, subtask_sum_y_sb, 0, os)
+    commandEncoder.copyBufferToBuffer(out_t_sb, 0, subtask_sum_t_sb, 0, os)
+    commandEncoder.copyBufferToBuffer(out_z_sb, 0, subtask_sum_z_sb, 0, os)
 
     // Read the subtask sums from the GPU
     const start = Date.now()
@@ -367,6 +347,7 @@ export const convert_point_coords_and_decompose_shaders = async (
     num_x_workgroups: number,
     num_y_workgroups: number,
     device: GPUDevice,
+    commandEncoder: GPUCommandEncoder,
     baseAffinePoints: BigIntPoint[],
     num_words: number,
     word_size: number,
@@ -444,14 +425,7 @@ export const convert_point_coords_and_decompose_shaders = async (
         'main',
     )
 
-    const commandEncoder = device.createCommandEncoder()
-
-    const start = Date.now()
     execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1)
-    device.queue.submit([commandEncoder.finish()])
-    await device.queue.onSubmittedWorkDone()
-    const elapsed = Date.now() - start
-    console.log(`convert_point_coords_and_decompose_scalars took ${elapsed}ms`)
 
     // Debug the output of the shader. This should **not** be run in
     // production.
@@ -579,15 +553,10 @@ export const transpose_gpu = async (
         'main',
     )
     
-    const start = Date.now()
-    
     execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1)
 
     // Debug the output of the shader. This should **not** be run in
     // production.
-    const elapsed = Date.now() - start
-    console.log(`transpose took ${elapsed}ms`)
-
     if (debug) {
         const data = await read_from_gpu(
             device,
