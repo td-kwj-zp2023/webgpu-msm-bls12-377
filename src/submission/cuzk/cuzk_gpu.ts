@@ -87,17 +87,37 @@ export const cuzk_gpu = async (
     // Convert the affine points to Montgomery form and decompose the scalars
     // using a single shader
 
-    let c_workgroup_size = 256
-    let c_num_x_workgroups = 1
+    let c_workgroup_size = 64
+    let c_num_x_workgroups = 128
     let c_num_y_workgroups = input_size / c_workgroup_size / c_num_x_workgroups
 
-    if (input_size < 256) {
+    if (input_size <= 256) {
         c_workgroup_size = input_size
         c_num_x_workgroups = 1
         c_num_y_workgroups = 1
-    } else if (input_size >= 256 && input_size < 65536) {
-        c_workgroup_size = 256
-        c_num_x_workgroups = input_size / c_workgroup_size
+    } else if (input_size > 256 && input_size <= 32768) {
+        c_workgroup_size = 64
+        c_num_x_workgroups = 4
+        c_num_y_workgroups = input_size / c_workgroup_size / c_num_x_workgroups
+    } else if (input_size > 32768 && input_size <= 65536) {
+        c_workgroup_size = 64
+        c_num_x_workgroups = 32
+        c_num_y_workgroups = input_size / c_workgroup_size / c_num_x_workgroups
+    } else if (input_size > 65536 && input_size <= 131072) {
+        c_workgroup_size = 64
+        c_num_x_workgroups = 64
+        c_num_y_workgroups = input_size / c_workgroup_size / c_num_x_workgroups
+    } else if (input_size > 131072 && input_size <= 262144) {
+        c_workgroup_size = 64
+        c_num_x_workgroups = 128
+        c_num_y_workgroups = input_size / c_workgroup_size / c_num_x_workgroups
+    } else if (input_size > 262144 && input_size <= 524288) {
+        c_workgroup_size = 64
+        c_num_x_workgroups = 128
+        c_num_y_workgroups = input_size / c_workgroup_size / c_num_x_workgroups
+    } else if (input_size > 524288 && input_size <= 1048576) {
+        c_workgroup_size = 64
+        c_num_x_workgroups = 128
         c_num_y_workgroups = input_size / c_workgroup_size / c_num_x_workgroups
     }
 
@@ -131,7 +151,7 @@ export const cuzk_gpu = async (
 
     // Buffers to  store the SMVP result (the bucket sum). They are overwritten
     // per iteration
-    const bucket_sum_coord_bytelength = (num_columns / 2 + 1) * num_words * 4 * 16
+    const bucket_sum_coord_bytelength = (num_columns / 2 + 1) * num_words * 4 * num_subtasks
     const bucket_sum_x_sb = create_sb(device, bucket_sum_coord_bytelength)
     const bucket_sum_y_sb = create_sb(device, bucket_sum_coord_bytelength)
     const bucket_sum_t_sb = create_sb(device, bucket_sum_coord_bytelength)
@@ -172,13 +192,13 @@ export const cuzk_gpu = async (
     )
 
     const half_num_columns = num_columns / 2
-    let s_workgroup_size = 128
-    let s_num_x_workgroups = 256
+    let s_workgroup_size = 64
+    let s_num_x_workgroups = 64
     let s_num_y_workgroups = (half_num_columns / s_workgroup_size / s_num_x_workgroups)
-    let s_num_z_workgroups = 16
+    let s_num_z_workgroups = num_subtasks
 
-    if (half_num_columns <= 32768) {
-        s_workgroup_size = 64
+    if (half_num_columns < 32768) {
+        s_workgroup_size = 32
         s_num_x_workgroups = 1
         s_num_y_workgroups = Math.ceil(half_num_columns / s_workgroup_size / s_num_x_workgroups)
     }
@@ -197,17 +217,12 @@ export const cuzk_gpu = async (
         num_columns,
     )
 
-    const b_workgroup_size = 32
-    const bucket_reduction_shader = shaderManager.gen_bucket_reduction_shader(
-        b_workgroup_size,
-    )
-
     // SMVP and multiplication by the bucket index
     await smvp_gpu(
         smvp_shader,
         s_num_x_workgroups,
         s_num_y_workgroups,
-        s_workgroup_size,
+        s_num_z_workgroups,
         device,
         commandEncoder,
         num_subtasks,
@@ -222,6 +237,11 @@ export const cuzk_gpu = async (
         bucket_sum_y_sb,
         bucket_sum_t_sb,
         bucket_sum_z_sb,
+    )
+
+    const b_workgroup_size = 32
+    const bucket_reduction_shader = shaderManager.gen_bucket_reduction_shader(
+        b_workgroup_size,
     )
 
     // Bucket aggregation
@@ -612,7 +632,7 @@ export const smvp_gpu = async (
     shaderCode: string,
     num_x_workgroups: number,
     num_y_workgroups: number,
-    workgroup_size: number,
+    num_z_workgroups: number,
     device: GPUDevice,
     commandEncoder: GPUCommandEncoder,
     num_subtasks: number,
@@ -633,16 +653,6 @@ export const smvp_gpu = async (
         [input_size],
     )
     const params_ub = create_and_write_ub(device, params_bytes)
-    const half_num_columns = num_csr_cols / 2
-
-    let num_z_workgroups = 16
-
-    if (num_csr_cols < 256) {
-        workgroup_size = 1
-        num_x_workgroups = half_num_columns
-        num_y_workgroups = 1
-        num_z_workgroups = 1
-    }
 
     const bindGroupLayout = create_bind_group_layout(
         device,
@@ -854,7 +864,7 @@ export const bucket_aggregation = async (
             out_z_sb,
             s,
             num_words,
-            workgroup_size,
+            num_subtasks,
         )
 
         const e = s

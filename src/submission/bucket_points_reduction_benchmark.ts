@@ -125,7 +125,7 @@ export const test_bucket_points_reduction = async (
             out_z_sb,
             s,
             num_words,
-            workgroup_size,
+            1,
         )
         num_invocations ++
 
