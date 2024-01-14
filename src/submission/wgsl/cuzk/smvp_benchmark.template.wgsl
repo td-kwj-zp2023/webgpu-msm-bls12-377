@@ -2,7 +2,6 @@
 {{> montgomery_product_funcs }}
 {{> field_functions }}
 {{> bigint_functions }}
-{{> curve_parameters }}
 {{> curve_functions }}
 
 @group(0) @binding(0)
@@ -18,6 +17,12 @@ var<storage, read> points: array<Point>;
 var<storage, read_write> loop_index: u32;
 
 const N = {{ NUM_ROWS_GPU }}u;
+
+fn get_r() -> BigInt {
+    var r: BigInt;
+{{{ r_limbs }}}
+    return r;
+}
 
 @compute
 @workgroup_size(N)

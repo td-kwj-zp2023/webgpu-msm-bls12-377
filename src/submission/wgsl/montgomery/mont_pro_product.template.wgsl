@@ -10,6 +10,8 @@ fn get_p() -> BigInt {
     return p;
 }
 
+// The optimised variant of the Montgomery product algorithm from
+// https://github.com/mitschabaude/montgomery#13-x-30-bit-multiplication
 fn montgomery_product(x: ptr<function, BigInt>, y: ptr<function, BigInt>) -> BigInt {
     var s: BigInt;
     var p = get_p();

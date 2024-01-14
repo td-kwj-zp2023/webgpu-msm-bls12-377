@@ -4,7 +4,7 @@ import { BigIntPoint } from "../reference/types"
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import { FieldMath } from "../reference/utils/FieldMath";
 import { genRandomFieldElement } from './utils'
-import { compute_misc_params, u8s_to_points, points_to_u8s_for_gpu, gen_p_limbs } from './utils'
+import { to_words_le, compute_misc_params, u8s_to_points, points_to_u8s_for_gpu, gen_p_limbs, gen_d_limbs } from './utils'
 import { add_points_any_a, add_points_a_minus_one } from './add_points'
 import { GPUExecution, IEntryInfo, IGPUInput, IGPUResult, IShaderCode, multipassEntryCreator } from "./entries/multipassEntryCreator";
 
@@ -19,12 +19,14 @@ import montgomery_product_funcs from './wgsl/montgomery/mont_pro_product.templat
 const setup_shader_code = (
     shader: string,
     p: bigint,
+    d: bigint,
     num_words: number,
     word_size: number,
     n0: bigint,
     cost: number,
 ) => {
     const p_limbs = gen_p_limbs(p, num_words, word_size)
+    const d_limbs = gen_d_limbs(d, num_words, word_size)
     const shaderCode = mustache.render(
         shader,
         {
@@ -33,6 +35,7 @@ const setup_shader_code = (
             n0,
             cost,
             p_limbs,
+            d_limbs,
             mask: BigInt(2) ** BigInt(word_size) - BigInt(1),
             two_pow_word_size: BigInt(2) ** BigInt(word_size),
         },
@@ -63,10 +66,10 @@ const expensive_computation = (
     return c
 }
 export const add_points_benchmarks = async(
-    baseAffinePoints: BigIntPoint[],
-    scalars: bigint[]
+    {}: BigIntPoint[],
+    {}: bigint[]
 ): Promise<{x: bigint, y: bigint}> => {
-    const cost = 10240 * 3
+    const cost = 2
     const fieldMath = new FieldMath();
     fieldMath.aleoD = BigInt(-1)
     const p = BigInt('0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001')
@@ -91,7 +94,7 @@ export const add_points_benchmarks = async(
     const num_x_workgroups = 1;
     const word_size = 13
 
-    const num_runs = 5
+    const num_runs = 1
 
     console.log('Cost:', cost)
     const print_avg_timings = (timings: any[]) => {
@@ -174,6 +177,7 @@ const do_benchmark = async (
     const num_words = params.num_words
     const r = params.r
     const rinv = params.rinv
+    const d = params.edwards_d
 
     // Convert to Mont form
     const points_with_mont_coords: BigIntPoint[] = []
@@ -189,7 +193,7 @@ const do_benchmark = async (
     }
 
     const points_bytes = points_to_u8s_for_gpu(points_with_mont_coords, num_words, word_size)
-    const shaderCode = setup_shader_code(shader, p, num_words, word_size, n0, cost)
+    const shaderCode = setup_shader_code(shader, p, d, num_words, word_size, n0, cost)
 
     const executionSteps: GPUExecution[] = [];
     const addPointsShader: IShaderCode = {
@@ -247,8 +251,8 @@ const do_benchmark = async (
 
     //console.log(expected_cpu.toAffine())
 
-    assert(output_points_non_mont_and_affine[0].x === expected_cpu_affine.x)
-    assert(output_points_non_mont_and_affine[0].y === expected_cpu_affine.y)
+    assert(output_points_non_mont_and_affine[0].x === expected_cpu_affine.x, 'point mismatch')
+    assert(output_points_non_mont_and_affine[0].y === expected_cpu_affine.y, 'point mismatch')
 
     return { elapsed_cpu, elapsed_gpu }
 }

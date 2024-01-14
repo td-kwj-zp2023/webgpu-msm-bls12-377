@@ -3,15 +3,21 @@ import { BigIntPoint } from "../reference/types"
 import {
     compute_misc_params,
     genRandomFieldElement,
-    from_words_le,
     gen_p_limbs,
     bigints_to_u8_for_gpu,
+    u8s_to_bigints,
 } from './utils'
-import { get_device } from './gpu'
+import {
+    get_device,
+    create_and_write_sb,
+    create_bind_group,
+    create_bind_group_layout,
+    create_compute_pipeline,
+    execute_pipeline,
+    read_from_gpu,
+} from './gpu'
 import structs from './wgsl/struct/structs.template.wgsl'
 import bigint_functions from './wgsl/bigint/bigint.template.wgsl'
-import curve_functions from './wgsl/curve/ec.template.wgsl'
-import curve_parameters from './wgsl/curve/parameters.template.wgsl'
 import field_functions from './wgsl/field/field.template.wgsl'
 import mont_pro_optimised_shader from './wgsl/montgomery/mont_pro_optimized.template.wgsl'
 import mont_pro_modified_shader from './wgsl/montgomery/mont_pro_modified.template.wgsl'
@@ -19,13 +25,13 @@ import mont_pro_cios_shader from './wgsl/montgomery/mont_pro_cios.template.wgsl'
 import montgomery_product_funcs from './wgsl/montgomery/mont_pro_product.template.wgsl'
 
 export const mont_mul_benchmarks = async(
-    baseAffinePoints: BigIntPoint[],
-    scalars: bigint[]
+    {}: BigIntPoint[],
+    {}: bigint[]
 ): Promise<{x: bigint, y: bigint}> => {
     // Define and generate params
     const num_inputs = 1
     const num_x_workgroups = 1
-    const cost = 8192
+    const cost = 2 ** 16
 
     const p = BigInt('0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001')
 
@@ -80,8 +86,6 @@ export const mont_mul_benchmarks = async(
                 {
                     structs,
                     bigint_functions,
-                    curve_functions,
-                    curve_parameters,
                     field_functions,
                     montgomery_product_funcs,
                 }
@@ -148,71 +152,35 @@ export const mont_mul_benchmarks = async(
 
             const device = await get_device()
 
-            // 2: Create a shader module from the shader template literal
-            const shaderModule = device.createShaderModule({
-                code: shaderCode
-            })
-
-            const a_storage_buffer = device.createBuffer({
-                size: input_bytes.length,
-                usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST
-            });
-            device.queue.writeBuffer(a_storage_buffer, 0, input_bytes);
-
+            const a_storage_buffer = create_and_write_sb(device, input_bytes)
 
             const stagingBuffer = device.createBuffer({
                 size: input_bytes.length,
                 usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST
             });
 
-            const bindGroupLayout = device.createBindGroupLayout({
-                entries: [
-                    {
-                        binding: 0,
-                        visibility: GPUShaderStage.COMPUTE,
-                        buffer: {
-                            type: "storage"
-                        },
-                    },
-                ]
-            });
+            const bindGroupLayout = create_bind_group_layout(
+                device,
+                ['storage'],
+            )
+            const bindGroup = create_bind_group(
+                device,
+                bindGroupLayout,
+                [a_storage_buffer],
+            )
 
-            const bindGroup = device.createBindGroup({
-                layout: bindGroupLayout,
-                entries: [
-                    {
-                        binding: 0,
-                        resource: {
-                            buffer: a_storage_buffer,
-                        }
-                    },
-                ]
-            });
+            const computePipeline = await create_compute_pipeline(
+                device,
+                [bindGroupLayout],
+                shaderCode,
+                'main',
+            )
 
-            const computePipeline = device.createComputePipeline({
-                layout: device.createPipelineLayout({
-                    bindGroupLayouts: [bindGroupLayout]
-                }),
-                compute: {
-                    module: shaderModule,
-                    entryPoint: 'main'
-                }
-            });
-
-            // 5: Create GPUCommandEncoder to issue commands to the GPU
-            const commandEncoder = device.createCommandEncoder();
+            const commandEncoder = device.createCommandEncoder()
 
             const start = Date.now()
-            // 6: Initiate render pass
-            const passEncoder = commandEncoder.beginComputePass();
 
-            // 7: Issue commands
-            passEncoder.setPipeline(computePipeline);
-            passEncoder.setBindGroup(0, bindGroup);
-            passEncoder.dispatchWorkgroups(num_x_workgroups)
-
-            // End the render pass
-            passEncoder.end();
+            await execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups)
 
             commandEncoder.copyBufferToBuffer(
                 a_storage_buffer,
@@ -222,33 +190,15 @@ export const mont_mul_benchmarks = async(
                 input_bytes.length
             );
 
-            // 8: End frame by passing array of command buffers to command queue for execution
-            device.queue.submit([commandEncoder.finish()]);
+            //device.queue.submit([commandEncoder.finish()]);
+            //await device.queue.onSubmittedWorkDone()
 
-            // map staging buffer to read results back to JS
-            await stagingBuffer.mapAsync(
-                GPUMapMode.READ,
-                0, // Offset
-                input_bytes.length
-            );
-
-            const copyArrayBuffer = stagingBuffer.getMappedRange(0, input_bytes.length)
-            const data = copyArrayBuffer.slice(0);
-            stagingBuffer.unmap();
-
-            const dataBuf = new Uint32Array(data);
+            const data = await read_from_gpu(device, commandEncoder, [a_storage_buffer])
             const elapsed = Date.now() - start
 
-            timings[word_size].push(elapsed)
+            const results = u8s_to_bigints(data[0], num_words, word_size)
 
-            const results: bigint[] = []
-            for (let i = 0; i < num_inputs; i ++) {
-                const r: number[] = []
-                for (let j = 0; j < num_words; j ++) {
-                    r.push(dataBuf[i * num_words + j])
-                }
-                results.push(from_words_le(new Uint16Array(r), num_words, word_size))
-            }
+            timings[word_size].push(elapsed)
 
             for (let i = 0; i < num_inputs; i ++) {
                 if (results[i] !== expected[i]) {

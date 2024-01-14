@@ -2,7 +2,6 @@
 {{> bigint_funcs }}
 {{> field_funcs }}
 {{> ec_funcs }}
-{{> curve_parameters }}
 {{> montgomery_product_funcs }}
 
 @group(0) @binding(0)
@@ -24,6 +23,12 @@ var<storage, read_write> out_t: array<BigInt>;
 var<storage, read_write> out_z: array<BigInt>;
 @group(0) @binding(8)
 var<uniform> params: vec2<u32>;
+
+fn get_r() -> BigInt {
+    var r: BigInt;
+{{{ r_limbs }}}
+    return r;
+}
 
 fn get_paf() -> Point {
     var result: Point;

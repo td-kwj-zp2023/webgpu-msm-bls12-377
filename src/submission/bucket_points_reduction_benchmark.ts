@@ -5,31 +5,27 @@ import { FieldMath } from "../reference/utils/FieldMath";
 import {
     get_device,
     create_and_write_sb,
-    create_bind_group,
-    create_bind_group_layout,
-    create_compute_pipeline,
     create_sb,
     read_from_gpu,
-    execute_pipeline,
 } from './gpu'
 import structs from './wgsl/struct/structs.template.wgsl'
 import bigint_funcs from './wgsl/bigint/bigint.template.wgsl'
 import field_funcs from './wgsl/field/field.template.wgsl'
 import ec_funcs from './wgsl/curve/ec.template.wgsl'
-import curve_parameters from './wgsl/curve/parameters.template.wgsl'
 import montgomery_product_funcs from './wgsl/montgomery/mont_pro_product.template.wgsl'
 import bucket_points_reduction_shader from './wgsl/bucket_points_reduction.template.wgsl'
-import { are_point_arr_equal, compute_misc_params, u8s_to_bigints, numbers_to_u8s_for_gpu, gen_p_limbs, bigints_to_u8_for_gpu } from './utils'
+import { are_point_arr_equal, compute_misc_params, u8s_to_bigints, gen_p_limbs, gen_r_limbs, bigints_to_u8_for_gpu } from './utils'
 import { shader_invocation } from './bucket_points_reduction'
 
 export const bucket_points_reduction = async (
     baseAffinePoints: BigIntPoint[],
-    scalars: bigint[]
+    {}: bigint[]
 ): Promise<{x: bigint, y: bigint}> => {
-    //for (let i = 2; i < 64; i ++) {
-        //await test_bucket_points_reduction(baseAffinePoints, i)
-    //}
-    await test_bucket_points_reduction(baseAffinePoints, baseAffinePoints.length)
+    for (let i = 2; i < 64; i ++) {
+        await test_bucket_points_reduction(baseAffinePoints, i)
+    }
+    const points = baseAffinePoints.slice(0, 2 ** 15)
+    await test_bucket_points_reduction(points, points.length)
     return { x: BigInt(0), y: BigInt(0) }
 }
 
@@ -50,6 +46,7 @@ export const test_bucket_points_reduction = async (
     const r = params.r
     const rinv = params.rinv
     const p_limbs = gen_p_limbs(p, num_words, word_size)
+    const r_limbs = gen_r_limbs(r, num_words, word_size)
 
     const x_coords: bigint[] = []
     const y_coords: bigint[] = []
@@ -96,6 +93,7 @@ export const test_bucket_points_reduction = async (
             num_words,
             n0,
             p_limbs,
+            r_limbs,
             mask: BigInt(2) ** BigInt(word_size) - BigInt(1),
             two_pow_word_size: BigInt(2) ** BigInt(word_size),
             workgroup_size,
@@ -105,7 +103,6 @@ export const test_bucket_points_reduction = async (
             bigint_funcs,
             field_funcs,
             ec_funcs,
-            curve_parameters,
             montgomery_product_funcs,
         },
     )
