@@ -26,6 +26,7 @@ import { smvp } from '../submission/cuzk/smvp_wgsl';
 import { data_transfer_cost_benchmarks } from '../submission/data_transfer_cost_benchmarks'
 import { bucket_points_reduction } from '../submission/bucket_points_reduction_benchmark'
 import { horners_rule_benchmark } from '../submission/horners_rule_benchmark'
+import { print_device_limits } from '../submission/print_device_limits'
 
 export const AllBenchmarks: React.FC = () => {
   const initialDefaultInputSize = 2 ** 16
@@ -167,6 +168,16 @@ export const AllBenchmarks: React.FC = () => {
         scalars={bigIntScalars}
         expectedResult={expectedResult}
         msmFunc={horners_rule_benchmark}
+        postResult={postResult}
+        bold={true}
+      />
+      <Benchmark
+        name={'Print device limits'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={print_device_limits}
         postResult={postResult}
         bold={true}
       />
