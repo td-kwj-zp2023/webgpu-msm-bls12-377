@@ -26,6 +26,7 @@ import { smvp } from '../submission/cuzk/smvp_wgsl';
 import { data_transfer_cost_benchmarks } from '../submission/data_transfer_cost_benchmarks'
 import { bucket_points_reduction } from '../submission/bucket_points_reduction_benchmark'
 import { horners_rule_benchmark } from '../submission/horners_rule_benchmark'
+import { bls12_377_benchmark } from '../submission/bls12_377'
 
 export const AllBenchmarks: React.FC = () => {
   const initialDefaultInputSize = 2 ** 16
@@ -140,6 +141,16 @@ export const AllBenchmarks: React.FC = () => {
         <CSVExportButton data={benchmarkResults} filename={'msm-benchmark'} />
       </div>
 
+      <Benchmark
+        name={'BLS12-377 benchmarks'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={bls12_377_benchmark}
+        postResult={postResult}
+        bold={true}
+      />
       <Benchmark
         name={'cuZK in WebGPU'}
         disabled={disabledBenchmark}
