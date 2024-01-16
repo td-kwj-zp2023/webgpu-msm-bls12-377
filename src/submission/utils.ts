@@ -388,9 +388,9 @@ export const compute_misc_params = (
         rinv: bigint
         barrett_domb_m: bigint,
 } => {
-    const max_int_width = 32
     assert(word_size > 0)
     const p_width = p.toString(2).length
+    const max_int_width = Math.ceil(p_width / 8)
     const num_words = calc_num_words(word_size, p_width)
     const max_terms = num_words * 2
 
@@ -407,20 +407,19 @@ export const compute_misc_params = (
 
     // Returns triple (g, rinv, pprime)
     const egcdResult: {g: bigint, x: bigint, y: bigint} = bigintCryptoUtils.eGcd(r, p);
-    const rinv = egcdResult.x
+    let rinv = egcdResult.x
     const pprime = egcdResult.y
 
     if (rinv < BigInt(0)) {
         assert((r * rinv - p * pprime) % p + p === BigInt(1))
         assert((r * rinv) % p + p == BigInt(1))
         assert((p * pprime) % r == BigInt(1))
+        rinv = (p + rinv) % p
     } else {
         assert((r * rinv - p * pprime) % p === BigInt(1))
         assert((r * rinv) % p == BigInt(1))
         assert((p * pprime) % r + r == BigInt(1))
     }
-
-    //console.log(to_words_le((r * BigInt(2)) % p, num_words, word_size))
 
     const neg_n_inv = r - pprime
     const n0 = neg_n_inv % (BigInt(2) ** BigInt(word_size))
