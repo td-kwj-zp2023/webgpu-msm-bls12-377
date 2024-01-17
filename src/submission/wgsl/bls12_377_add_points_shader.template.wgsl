@@ -19,7 +19,7 @@ struct SWPoint {
 }
 
 // Assumes that p1.z and p2.z are both equal to 1
-https://www.hyperelliptic.org/EFD/g1p/auto-shortw-projective.html#addition-mmadd-1998-cmo
+// https://www.hyperelliptic.org/EFD/g1p/auto-shortw-projective.html#addition-mmadd-1998-cmo
 fn add_affine_points(p1: SWPoint, p2: SWPoint) -> SWPoint {
     /*
       u = Y2-Y1
