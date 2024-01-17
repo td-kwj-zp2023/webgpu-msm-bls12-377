@@ -17,12 +17,8 @@ const rand = () => {
     return rng()
 }
 
-describe('Montgomery multiplication algorithms', () => {
-    //describe('for the 377-bit field', () => {
-    //})
-
-    describe('for the 253-bit field', () => {
-        const p = BigInt('0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001')
+const do_tests = (desc: string, p: bigint) => {
+    describe(desc, () => {
         const p_width = p.toString(2).length
         const params: any = {}
         const inputs: any = {}
@@ -189,6 +185,11 @@ describe('Montgomery multiplication algorithms', () => {
             ).toThrow()
         })
     })
+}
+
+describe('Montgomery multiplication algorithms', () => {
+    do_tests('for the 253-bit field', BigInt('0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001'))
+    do_tests('for the 377-bit field', BigInt('0x01ae3a4617c510eac63b05c06ca1493b1a22d9f300f5138f1ef3622fba094800170b5d44300000008508c00000000001'))
 })
 
 // Suitable for all word sizes below 16
@@ -231,7 +232,6 @@ const mont_iterative = (
     const v = from_words_le(new Uint16Array(s), num_words, word_size)
     const p_b = from_words_le(p, num_words, word_size)
     if (v > p_b) {
-        debugger
         return to_words_le(v % p_b, num_words, word_size)
     }
     return new Uint16Array(s)
@@ -260,13 +260,14 @@ const mont_modified = (
     const s = Array(num_words).fill(0)
 
     for (let i = 0; i < num_words; i ++) {
-        let t = s[0] + x[i] * y[0]
+        let t = machine_add(s[0], machine_mul(x[i], y[0]))
         const tprime = lo(t, lo_mask)
-        const qi = lo(n0 * tprime, lo_mask)
-        let c = hi(t + qi * p[0], word_size)
+        const qi = lo(machine_mul(n0, tprime), lo_mask)
+        let c = hi(machine_add(t, machine_mul(qi, p[0])), word_size)
 
         for (let j = 1; j < num_words - 1; j ++) {
-            t = s[j] + x[i] * y[j] + qi * p[j]
+            t = machine_add(machine_add(s[j], machine_mul(x[i], y[j])), machine_mul(qi, p[j]))
+
             if ((j - 1) % nsafe === 0) {
                 t += c
             }
@@ -280,18 +281,18 @@ const mont_modified = (
         }
 
         if ((num_words - 2) % nsafe === 0) {
-            const v = s[num_words - 1] + x[i] * y[num_words - 1] + qi * p[num_words - 1]
+            const v = machine_add(machine_add(s[num_words - 1], machine_mul(x[i], y[num_words - 1])), machine_mul(qi, p[num_words - 1]))
             c = hi(v, word_size)
             s[num_words - 2] = lo(v, lo_mask)
             s[num_words - 1] = c
         } else {
-            s[num_words - 2] = x[i] * y[num_words - 1] + qi * p[num_words - 1]
+            s[num_words - 2] = machine_add(machine_mul(x[i], y[num_words - 1]), machine_mul(qi, p[num_words - 1]))
         }
     }
 
     let c = 0
     for (let i = 0; i < num_words; i ++) {
-        const v = s[i] + c
+        const v = machine_add(s[i], c)
         c = hi(v, word_size)
         s[i] = lo(v, lo_mask)
     }
@@ -300,7 +301,6 @@ const mont_modified = (
     const v = from_words_le(new Uint16Array(s), num_words, word_size)
     const p_b = from_words_le(p, num_words, word_size)
     if (v > p_b) {
-        debugger
         return to_words_le(v % p_b, num_words, word_size)
     }
     return new Uint16Array(s)
@@ -364,7 +364,6 @@ const mont_optimised = (
     const v = from_words_le(new Uint16Array(s), num_words, word_size)
     const p_b = from_words_le(p, num_words, word_size)
     if (v > p_b) {
-        debugger
         return to_words_le(v % p_b, num_words, word_size)
     }
     return new Uint16Array(s)

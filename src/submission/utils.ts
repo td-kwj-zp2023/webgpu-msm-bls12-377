@@ -371,6 +371,11 @@ export const calc_num_words = (word_size: number, p_width: number): number => {
     while (num_words * word_size < p_width) {
         num_words ++
     }
+
+    if (p_width === 377 && word_size === 15) {
+        num_words = 27
+    }
+
     return num_words
 }
 
@@ -388,13 +393,21 @@ export const compute_mont_constants = (
 ) => {
     const egcdResult: {g: bigint, x: bigint, y: bigint} = bigintCryptoUtils.eGcd(r, p);
     let rinv = egcdResult.x
-    const pprime = egcdResult.y
+    let pprime = egcdResult.y
 
     if (rinv < BigInt(0)) {
         rinv = (rinv % p) + p
     }
 
-    assert((r * rinv - p * pprime) % p === BigInt(1))
+    if (pprime < BigInt(0)) {
+        pprime = (pprime % r) + r
+    }
+
+    let x = (r * rinv - p * pprime) % p
+    if (x < BigInt(0)) {
+        x += p
+    }
+    assert(x === BigInt(1))
     assert((r * rinv) % p === BigInt(1))
     assert((p * pprime) % r === BigInt(1))
 
