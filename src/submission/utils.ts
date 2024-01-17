@@ -368,7 +368,7 @@ export const from_words_le = (words: Uint16Array, num_words: number, word_size: 
 
 export const calc_num_words = (word_size: number, p_width: number): number => {
     let num_words = Math.floor(p_width / word_size)
-    while (num_words * word_size < p_width) {
+    while (num_words * word_size <= p_width) {
         num_words ++
     }
 
