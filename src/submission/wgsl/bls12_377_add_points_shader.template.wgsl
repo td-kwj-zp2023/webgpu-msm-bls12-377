@@ -137,9 +137,15 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     y = y_coords[1];
     var pt2 = SWPoint(x, y, z);
 
-    var result = add_points(pt, pt2);
+    var added = add_points(pt, pt2);
 
-    out_x_coords[0] = result.x;
-    out_y_coords[0] = result.y;
-    out_z_coords[0] = result.z;
+    out_x_coords[0] = added.x;
+    out_y_coords[0] = added.y;
+    out_z_coords[0] = added.z;
+
+    var doubled = double_point(pt);
+
+    out_x_coords[1] = doubled.x;
+    out_y_coords[1] = doubled.y;
+    out_z_coords[1] = doubled.z;
 }

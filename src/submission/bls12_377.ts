@@ -1,11 +1,9 @@
 import mustache from 'mustache'
 import assert from 'assert'
-import * as bigintCryptoUtils from 'bigint-crypto-utils'
 import {
     gen_p_limbs,
     gen_r_limbs,
     u8s_to_bigints,
-    calc_num_words,
     compute_misc_params,
     bigints_to_u8_for_gpu,
 } from './utils'
@@ -145,6 +143,8 @@ export const bls12_377_benchmark = async (
             out_z_coords_sb,
         ],
     )
+    device.destroy()
+
     const out_x_coords_mont = u8s_to_bigints(data[0], num_words, word_size)
     const out_y_coords_mont = u8s_to_bigints(data[1], num_words, word_size)
     const out_z_coords_mont = u8s_to_bigints(data[2], num_words, word_size)
@@ -160,21 +160,30 @@ export const bls12_377_benchmark = async (
         out_z_coords.push(out_z_coords_mont[i] * rinv % p)
     }
 
-    const idx = 0
-    const out_pt = createAffinePoint(
-    //console.log( 'out:',
-        out_x_coords[idx],
-        out_y_coords[idx],
-        out_z_coords[idx],
+    const added_pt = createAffinePoint(
+        out_x_coords[0],
+        out_y_coords[0],
+        out_z_coords[0],
     )
-    console.log('output:', get_bigint_x_y(out_pt))
+    const added_coords = get_bigint_x_y(added_pt)
+    const added_expected = points[0].add(points[1]).toAffine()
 
-    //const expected = points[idx].dbl().toAffine()
-    const expected = points[0].add(points[1]).toAffine()
+    assert(added_coords.x.toString() === added_expected.x().toBig().toString())
+    assert(added_coords.y.toString() === added_expected.y().toBig().toString())
 
-    console.log('expected:', get_bigint_x_y(expected))
+    const doubled_pt = createAffinePoint(
+        out_x_coords[1],
+        out_y_coords[1],
+        out_z_coords[1],
+    )
+    const doubled_coords = get_bigint_x_y(doubled_pt)
+    const doubled_expected = points[0].dbl().toAffine()
 
-    device.destroy()
+    assert(doubled_coords.x.toString() === doubled_expected.x().toBig().toString())
+    assert(doubled_coords.y.toString() === doubled_expected.y().toBig().toString())
+
+    console.log('add_points() and double_point() work')
+
     return { x: BigInt(1), y: BigInt(0) }
 }
 
