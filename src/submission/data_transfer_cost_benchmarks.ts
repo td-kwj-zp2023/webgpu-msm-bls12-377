@@ -1,12 +1,10 @@
 import { BigIntPoint } from "../reference/types"
-import mustache from 'mustache'
 import {
     get_device,
     create_and_write_sb,
     create_bind_group,
     create_bind_group_layout,
     create_compute_pipeline,
-    create_sb,
     read_from_gpu,
 } from './gpu'
 import {
@@ -20,8 +18,8 @@ import complex_shader from './wgsl/complex.wgsl'
  * Benchmark data transfer costs
  */
 export const data_transfer_cost_benchmarks = async (
-    baseAffinePoints: BigIntPoint[],
-    scalars: bigint[]
+    {}: BigIntPoint[],
+    {}: bigint[]
 ): Promise<{x: bigint, y: bigint}> => {
 
     let num_bytes = 1 * 1024 * 1024
@@ -72,7 +70,6 @@ const shader_benchmark = async (
         [data_sb],
     )
 
-    const workgroup_size = 1
     const num_x_workgroups = 1
 
     const computePipeline = await create_compute_pipeline(

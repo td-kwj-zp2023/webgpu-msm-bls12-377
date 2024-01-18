@@ -1,4 +1,3 @@
-import assert from 'assert'
 import {
     create_and_write_ub,
     create_bind_group,

@@ -18,8 +18,8 @@ import barrett_benchmarks_shader from './wgsl/barrett_benchmarks_shader.template
 import montgomery_product_funcs from './wgsl/montgomery/mont_pro_product.template.wgsl'
 
 export const barrett_mul_benchmarks = async(
-    baseAffinePoints: BigIntPoint[],
-    scalars: bigint[]
+    {}: BigIntPoint[],
+    {}: bigint[]
 ): Promise<{x: bigint, y: bigint}> => {
     // Define and generate params
     const num_inputs = 1

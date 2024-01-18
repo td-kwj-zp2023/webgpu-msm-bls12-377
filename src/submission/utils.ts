@@ -4,19 +4,24 @@ import * as bigintCryptoUtils from 'bigint-crypto-utils'
 import { BigIntPoint } from "../reference/types"
 import { FieldMath } from "../reference/utils/FieldMath";
 import { ExtPointType } from "@noble/curves/abstract/edwards";
-import { toBufferLE } from 'bigint-buffer'
 import { EDWARDS_D } from '../reference/params/AleoConstants'
 
 /*
  * Converts the BigInts in vals to byte arrays in the form of
  * [b0, b1, 0, 0, b2, b3, 0, 0, ...]
+ * This is slower than bigints_to_u8_for_gpu, so don't use it
  */
 export const bigints_to_16_bit_words_for_gpu = (
     vals: bigint[],
 ): Uint8Array => {
     const result = new Uint8Array(64 * vals.length)
     for (let i = 0; i < vals.length; i ++) {
-        const buf = toBufferLE(vals[i], 64)
+        // This code snippet is adapted from
+        // https://github.com/no2chem/bigint-buffer/blob/master/src/index.ts#L60
+        const hex = vals[i].toString(16)
+        const buf = Buffer.from(hex.padStart(128, '0').slice(0, 128), 'hex')
+        buf.reverse()
+
         for (let j = 0; j < buf.length; j += 2) {
             result[i * 64 + j * 2] = buf[j]
             result[i * 64 + j * 2 + 1] = buf[j + 1]

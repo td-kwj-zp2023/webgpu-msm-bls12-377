@@ -8,7 +8,6 @@ import {
     to_words_le,
     gen_p_limbs,
     gen_r_limbs,
-    gen_mu_limbs,
     gen_barrett_domb_m_limbs,
     bigints_to_u8_for_gpu,
 } from './utils'
@@ -21,8 +20,8 @@ import barrett_benchmarks_shader from './wgsl/barrett_benchmarks_shader.template
 import montgomery_product_funcs from './wgsl/montgomery/mont_pro_product.template.wgsl'
 
 export const barrett_domb_mul_benchmarks = async(
-    baseAffinePoints: BigIntPoint[],
-    scalars: bigint[]
+    {}: BigIntPoint[],
+    {}: bigint[]
 ): Promise<{x: bigint, y: bigint}> => {
     // Define and generate params
     const num_inputs = 1
