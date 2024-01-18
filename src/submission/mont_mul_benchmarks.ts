@@ -24,6 +24,8 @@ import mont_pro_modified_shader from './wgsl/montgomery/mont_pro_modified.templa
 import mont_pro_cios_shader from './wgsl/montgomery/mont_pro_cios.template.wgsl'
 import montgomery_product_funcs from './wgsl/montgomery/mont_pro_product.template.wgsl'
 
+import { BASE_FIELD } from './bls12_377'
+
 export const mont_mul_benchmarks = async(
     {}: BigIntPoint[],
     {}: bigint[]
@@ -33,7 +35,7 @@ export const mont_mul_benchmarks = async(
     const num_x_workgroups = 1
     const cost = 2 ** 16
 
-    const p = BigInt('0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001')
+    const p = BASE_FIELD
 
     const expensive_computation = (
         a: bigint,
@@ -49,7 +51,7 @@ export const mont_mul_benchmarks = async(
 
     const timings: any = {}
 
-    for (let word_size = 12; word_size < 17; word_size ++) {
+    for (let word_size = 12; word_size < 16; word_size ++) {
         timings[word_size] = []
 
         const misc_params = compute_misc_params(p, word_size)

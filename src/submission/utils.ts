@@ -433,7 +433,7 @@ export const compute_misc_params = (
 } => {
     assert(word_size > 0)
     const p_width = p.toString(2).length
-    const max_int_width = Math.ceil(p_width / 8)
+    const max_int_width = 32
     const num_words = calc_num_words(word_size, p_width)
     const max_terms = num_words * 2
 
@@ -460,14 +460,14 @@ export const compute_misc_params = (
 }
 
 export const genRandomFieldElement = (p: bigint): bigint => {
-    // Assume that p is < 32 bytes
-    const lim = BigInt('0x10000000000000000000000000000000000000000000000000000000000000000')
+    const b = Math.ceil(p.toString(2).length / 8) * 8
+    const lim = BigInt(1) << BigInt(b)
     assert(p < lim)
     const min = (lim - p) % p
 
     let rand
     while (true) {
-        rand = BigInt('0x' + crypto.randomBytes(32).toString('hex'))
+        rand = BigInt('0x' + crypto.randomBytes(b / 8).toString('hex'))
         if (rand >= min) {
             break
         }

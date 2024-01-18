@@ -3,8 +3,10 @@ import assert from 'assert'
 import * as bigintCryptoUtils from 'bigint-crypto-utils'
 import {
     gen_p_limbs,
-    calc_num_words,
+    gen_r_limbs,
     u8s_to_bigints,
+    calc_num_words,
+    compute_misc_params,
     bigints_to_u8_for_gpu,
 } from './utils'
 import {
@@ -30,28 +32,30 @@ export const bls12_377_benchmark = async (
     {}: BigIntPoint[],
     {}: bigint[]
 ): Promise<{x: bigint, y: bigint}> => {
-    const word_size = 13
-    const num_inputs = 1
-    const x_coords: bigint[] = []
-    const y_coords: bigint[] = []
-
     const p = BASE_FIELD
-    const g = createGeneratorPoint()
+    const word_size = 13
+    const num_inputs = 2
 
-    for (let i = 0; i < num_inputs; i ++) {
-        const s = createBaseF(BigInt(i + 1))
-        const pt = g.scalarMult(s.toBig())
-        const { x, y } = get_bigint_x_y(pt)
-        x_coords.push(x)
-        y_coords.push(y)
-    }
-
-    const params = compute_params(word_size)
-    console.log(params)
+    const params = compute_misc_params(p, word_size)
     const n0 = params.n0
     const num_words = params.num_words
     const r = params.r
     const rinv = params.rinv
+
+    const points: G1[] = []
+    const x_coords: bigint[] = []
+    const y_coords: bigint[] = []
+
+    const g = createGeneratorPoint()
+    for (let i = 0; i < num_inputs; i ++) {
+        const s = createBaseF(BigInt(i + 1))
+        const pt = g.scalarMult(s.toBig()).toAffine()
+        points.push(pt)
+
+        const { x, y } = get_bigint_x_y(pt)
+        x_coords.push(x)
+        y_coords.push(y)
+    }
 
     // Convert to Montgomery form
     const x_coords_mont: bigint[] = []
@@ -73,12 +77,14 @@ export const bls12_377_benchmark = async (
     const y_coords_sb = create_and_write_sb(device, y_coords_mont_bytes)
     const out_x_coords_sb = create_sb(device, x_coords_mont_bytes.length)
     const out_y_coords_sb = create_sb(device, y_coords_mont_bytes.length)
+    const out_z_coords_sb = create_sb(device, y_coords_mont_bytes.length)
 
     const bindGroupLayout = create_bind_group_layout(
         device,
         [
             'read-only-storage',
             'read-only-storage',
+            'storage',
             'storage',
             'storage',
         ],
@@ -92,10 +98,12 @@ export const bls12_377_benchmark = async (
             y_coords_sb,
             out_x_coords_sb,
             out_y_coords_sb,
+            out_z_coords_sb,
         ],
     )
 
     const p_limbs = gen_p_limbs(p, num_words, word_size)
+    const r_limbs = gen_r_limbs(r, num_words, word_size)
     const shaderCode = mustache.render(
         bls12_377_add_points_shader,
         {
@@ -103,6 +111,7 @@ export const bls12_377_benchmark = async (
             num_words,
             n0,
             p_limbs,
+            r_limbs,
             mask: BigInt(2) ** BigInt(word_size) - BigInt(1),
             two_pow_word_size: BigInt(2) ** BigInt(word_size),
         },
@@ -133,26 +142,39 @@ export const bls12_377_benchmark = async (
         [
             out_x_coords_sb,
             out_y_coords_sb,
+            out_z_coords_sb,
         ],
     )
     const out_x_coords_mont = u8s_to_bigints(data[0], num_words, word_size)
     const out_y_coords_mont = u8s_to_bigints(data[1], num_words, word_size)
+    const out_z_coords_mont = u8s_to_bigints(data[2], num_words, word_size)
 
     const out_x_coords: bigint[] = []
     const out_y_coords: bigint[] = []
+    const out_z_coords: bigint[] = []
 
     // Convert out of Montgomery form
     for (let i = 0; i < num_inputs; i ++) {
         out_x_coords.push(out_x_coords_mont[i] * rinv % p)
         out_y_coords.push(out_y_coords_mont[i] * rinv % p)
+        out_z_coords.push(out_z_coords_mont[i] * rinv % p)
     }
 
-    console.log(x_coords)
-    console.log(y_coords)
-    console.log(out_x_coords)
-    console.log(out_y_coords)
-    device.destroy()
+    const idx = 0
+    const out_pt = createAffinePoint(
+    //console.log( 'out:',
+        out_x_coords[idx],
+        out_y_coords[idx],
+        out_z_coords[idx],
+    )
+    console.log('output:', get_bigint_x_y(out_pt))
 
+    //const expected = points[idx].dbl().toAffine()
+    const expected = points[0].add(points[1]).toAffine()
+
+    console.log('expected:', get_bigint_x_y(expected))
+
+    device.destroy()
     return { x: BigInt(1), y: BigInt(0) }
 }
 
@@ -187,51 +209,15 @@ export function createAffinePoint(x: bigint, y: bigint, z: bigint) {
     return p
 }
 
-// TODO: hardcode these for the selected word_size
-export const compute_params = (
-    word_size: number,
-) => {
-    const p = BASE_FIELD
-    const p_width = p.toString(2).length
-    const max_int_width = Math.ceil(p_width / 8)
-    const num_words = calc_num_words(word_size, p_width)
-    const max_terms = num_words * 2
-
-    const rhs = 2 ** max_int_width
-    let k = 1
-    while (k * (2 ** (2 * word_size)) <= rhs) {
-        k += 1
-    }
-
-    const nsafe = Math.floor(k / 2)
-
-    // The Montgomery radix
-    const r = BigInt(2) ** BigInt(num_words * word_size)
-
-    // Returns triple (g, rinv, pprime)
-    const egcdResult: {g: bigint, x: bigint, y: bigint} = bigintCryptoUtils.eGcd(r, p);
-    let rinv = egcdResult.x
-    const pprime = egcdResult.y
-
-    if (rinv < BigInt(0)) {
-        assert((r * rinv - p * pprime) % p + p === BigInt(1))
-        assert((r * rinv) % p + p == BigInt(1))
-        assert((p * pprime) % r == BigInt(1))
-        rinv = (p + rinv) % p
-    } else {
-        assert((r * rinv - p * pprime) % p === BigInt(1))
-        assert((r * rinv) % p == BigInt(1))
-        assert((p * pprime) % r + r == BigInt(1))
-    }
-
-    const neg_n_inv = r - pprime
-    const n0 = neg_n_inv % (BigInt(2) ** BigInt(word_size))
-
-    return { num_words, max_terms, k, nsafe, n0, r: r % p, rinv }
-}
-
 export const get_bigint_x_y = (pt: G1) => {
     const x: bigint = Object(pt.x().toBig())['value']
     const y: bigint = Object(pt.y().toBig())['value']
     return { x, y }
+}
+
+export const get_bigint_x_y_z = (pt: G1) => {
+    const x: bigint = Object(pt.x().toBig())['value']
+    const y: bigint = Object(pt.y().toBig())['value']
+    const z: bigint = Object(pt.z().toBig())['value']
+    return { x, y, z }
 }
