@@ -1,5 +1,4 @@
 import assert from 'assert'
-import { from_words_le } from './utils'
 /*
  * Adapted from https://github.com/ingonyama-zk/modular_multiplication
  */

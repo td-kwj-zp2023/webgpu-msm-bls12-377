@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Benchmark } from './Benchmark';
-import { bigIntToU32Array, generateRandomFields } from '../reference/webgpu/utils';
+import { bigIntToU32Array } from '../reference/webgpu/utils';
 import { BigIntPoint, U32ArrayPoint } from '../reference/types';
 import { webgpu_compute_msm, wasm_compute_msm, webgpu_pippenger_msm, webgpu_best_msm, wasm_compute_msm_parallel } from '../reference/reference';
 import { convert_inputs_into_mont_benchmark } from '../submission/convert_inputs_into_mont_benchmarks';
@@ -9,7 +9,6 @@ import { mont_mul_benchmarks } from '../submission/mont_mul_benchmarks';
 import { barrett_mul_benchmarks } from '../submission/barrett_mul_benchmarks';
 import { barrett_domb_mul_benchmarks } from '../submission/barrett_domb_mul_benchmarks';
 import { add_points_benchmarks } from '../submission/add_points_benchmarks';
-import { smtvp } from '../submission/cuzk/smtvp_wgsl';
 import { decompose_scalars_ts_benchmark } from '../submission/decompose_scalars_benchmark';
 import {
     create_csr_precomputation_benchmark,
@@ -22,7 +21,6 @@ import { cuzk_typescript_serial, transpose_wgsl, smtvp_wgsl, smvp_wgsl } from '.
 import CSVExportButton from './CSVExportButton';
 import { TestCaseDropDown } from './TestCaseDropDown';
 import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
-import { smvp } from '../submission/cuzk/smvp_wgsl';
 import { data_transfer_cost_benchmarks } from '../submission/data_transfer_cost_benchmarks'
 import { bucket_points_reduction } from '../submission/bucket_points_reduction_benchmark'
 import { horners_rule_benchmark } from '../submission/horners_rule_benchmark'
@@ -34,8 +32,8 @@ export const AllBenchmarks: React.FC = () => {
   const [inputSizeDisabled, setInputSizeDisabled] = useState(false);
   const [baseAffineBigIntPoints, setBaseAffineBigIntPoints] = useState<BigIntPoint[]>([]);
   const [bigIntScalars, setBigIntScalars] = useState<bigint[]>([]);
-  const [u32Points, setU32Points] = useState<U32ArrayPoint[]>([]);
-  const [u32Scalars, setU32Scalars] = useState<Uint32Array[]>([]);
+  const [{}, setU32Points] = useState<U32ArrayPoint[]>([]);
+  const [{}, setU32Scalars] = useState<Uint32Array[]>([]);
   const [expectedResult, setExpectedResult] = useState<{x: bigint, y: bigint} | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [benchmarkResults, setBenchmarkResults] = useState<any[][]>([["InputSize", "MSM Func", "Time (MS)"]]);
@@ -151,56 +149,6 @@ export const AllBenchmarks: React.FC = () => {
         bold={true}
       />
       <Benchmark
-        name={'Full benchmark suite'}
-        disabled={disabledBenchmark}
-        baseAffinePoints={baseAffineBigIntPoints}
-        scalars={bigIntScalars}
-        expectedResult={expectedResult}
-        msmFunc={full_benchmarks}
-        postResult={postResult}
-        bold={true}
-      />
-      <Benchmark
-        name={'Horner\s Rule'}
-        disabled={disabledBenchmark}
-        baseAffinePoints={baseAffineBigIntPoints}
-        scalars={bigIntScalars}
-        expectedResult={expectedResult}
-        msmFunc={horners_rule_benchmark}
-        postResult={postResult}
-        bold={true}
-      />
-      <Benchmark
-        name={'Bucket points reduction'}
-        disabled={disabledBenchmark}
-        baseAffinePoints={baseAffineBigIntPoints}
-        scalars={bigIntScalars}
-        expectedResult={expectedResult}
-        msmFunc={bucket_points_reduction}
-        postResult={postResult}
-        bold={true}
-      />
-      <Benchmark
-        name={'Scalar multiplication benchmarks'}
-        disabled={disabledBenchmark}
-        baseAffinePoints={baseAffineBigIntPoints}
-        scalars={bigIntScalars}
-        expectedResult={expectedResult}
-        msmFunc={scalar_mul_benchmarks}
-        postResult={postResult}
-        bold={true}
-      />
-      <Benchmark
-        name={'Data transfer cost benchmarks'}
-        disabled={disabledBenchmark}
-        baseAffinePoints={baseAffineBigIntPoints}
-        scalars={bigIntScalars}
-        expectedResult={expectedResult}
-        msmFunc={data_transfer_cost_benchmarks}
-        postResult={postResult}
-        bold={true}
-      />
-      <Benchmark
         name={'Pippenger WebGPU MSM'}
         disabled={disabledBenchmark}
         baseAffinePoints={baseAffineBigIntPoints}
@@ -249,6 +197,64 @@ export const AllBenchmarks: React.FC = () => {
         bold={false}
       />
 
+      <div className="flex items-left">
+        <div className={`text-gray-800 w-40 px-2 font-bold'`}>{name}</div> 
+          <h1>Miscellaneous benchmarks for testing</h1>
+          <br />
+          <br />
+      </div>
+
+      <Benchmark
+        name={'Full benchmark suite'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={full_benchmarks}
+        postResult={postResult}
+        bold={false}
+      />
+      <Benchmark
+        name={'Horner\'s Rule'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={horners_rule_benchmark}
+        postResult={postResult}
+        bold={false}
+      />
+      <Benchmark
+        name={'Bucket points reduction'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={bucket_points_reduction}
+        postResult={postResult}
+        bold={false}
+      />
+      <Benchmark
+        name={'Scalar multiplication benchmarks'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={scalar_mul_benchmarks}
+        postResult={postResult}
+        bold={false}
+      />
+      <Benchmark
+        name={'Data transfer cost benchmarks'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={data_transfer_cost_benchmarks}
+        postResult={postResult}
+        bold={false}
+      />
+
       <Benchmark
         name={'Decompose scalars benchmarks'}
         disabled={disabledBenchmark}
@@ -257,7 +263,7 @@ export const AllBenchmarks: React.FC = () => {
         expectedResult={expectedResult}
         msmFunc={decompose_scalars_ts_benchmark}
         postResult={postResult}
-        bold={true}
+        bold={false}
       />
       <Benchmark
         name={'Montgomery multiplication benchmarks'}
@@ -267,7 +273,7 @@ export const AllBenchmarks: React.FC = () => {
         expectedResult={expectedResult}
         msmFunc={mont_mul_benchmarks}
         postResult={postResult}
-        bold={true}
+        bold={false}
       />
       <Benchmark
         name={'Barrett reduction benchmarks'}
@@ -277,7 +283,7 @@ export const AllBenchmarks: React.FC = () => {
         expectedResult={expectedResult}
         msmFunc={barrett_mul_benchmarks}
         postResult={postResult}
-        bold={true}
+        bold={false}
       />
       <Benchmark
         name={'Barrett-Domb reduction benchmarks'}
@@ -287,7 +293,7 @@ export const AllBenchmarks: React.FC = () => {
         expectedResult={expectedResult}
         msmFunc={barrett_domb_mul_benchmarks}
         postResult={postResult}
-        bold={true}
+        bold={false}
       />
       <Benchmark
         name={'Convert point coordinates to Mont form benchmarks'}
@@ -297,7 +303,7 @@ export const AllBenchmarks: React.FC = () => {
         expectedResult={expectedResult}
         msmFunc={convert_inputs_into_mont_benchmark}
         postResult={postResult}
-        bold={true}
+        bold={false}
       />
       <Benchmark
         name={'BigInts to bytes benchmarks'}
@@ -307,7 +313,7 @@ export const AllBenchmarks: React.FC = () => {
         expectedResult={expectedResult}
         msmFunc={convert_bigints_to_bytes_benchmark}
         postResult={postResult}
-        bold={true}
+        bold={false}
       />
       <Benchmark
         name={'cuzk Serial (Typescript)'}
@@ -317,7 +323,7 @@ export const AllBenchmarks: React.FC = () => {
         expectedResult={expectedResult}
         msmFunc={cuzk_typescript_serial}
         postResult={postResult}
-        bold={true}
+        bold={false}
       />
       <Benchmark
         name={'Point addition algorithm benchmarks'}
@@ -327,7 +333,7 @@ export const AllBenchmarks: React.FC = () => {
         expectedResult={expectedResult}
         msmFunc={add_points_benchmarks}
         postResult={postResult}
-        bold={true}
+        bold={false}
       />
       <Benchmark
         name={'Transpose (WGSL) - classic algo'}
@@ -337,7 +343,7 @@ export const AllBenchmarks: React.FC = () => {
         expectedResult={expectedResult}
         msmFunc={transpose_wgsl}
         postResult={postResult}
-        bold={true}
+        bold={false}
       />
       <Benchmark
         name={'SMVP (WGSL)'}
@@ -347,7 +353,7 @@ export const AllBenchmarks: React.FC = () => {
         expectedResult={expectedResult}
         msmFunc={smvp_wgsl}
         postResult={postResult}
-        bold={true}
+        bold={false}
       />
       <Benchmark
         name={'SMTVP (WGSL)'}
@@ -357,7 +363,7 @@ export const AllBenchmarks: React.FC = () => {
         expectedResult={expectedResult}
         msmFunc={smtvp_wgsl}
         postResult={postResult}
-        bold={true}
+        bold={false}
       />
       <Benchmark
         name={'Create CSR sparse matrices (precomputation only in TS)'}
@@ -367,7 +373,7 @@ export const AllBenchmarks: React.FC = () => {
         expectedResult={expectedResult}
         msmFunc={create_csr_precomputation_benchmark}
         postResult={postResult}
-        bold={true}
+        bold={false}
       />
       <Benchmark
         name={'Create CSR sparse matrices (GPU)'}
@@ -377,7 +383,7 @@ export const AllBenchmarks: React.FC = () => {
         expectedResult={expectedResult}
         msmFunc={create_csr_sparse_matrices_from_points_benchmark}
         postResult={postResult}
-        bold={true}
+        bold={false}
       />
     </div>
   )
