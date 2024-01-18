@@ -26,34 +26,53 @@ fn get_r() -> BigInt {
     return r;
 }
 
-/*
 // Assumes that p1.z and p2.z are both equal to 1
-// https://www.hyperelliptic.org/EFD/g1p/auto-shortw-projective.html#addition-mmadd-1998-cmo
+// 10M + 15add
 fn add_affine_points(p1: SWPoint, p2: SWPoint) -> SWPoint {
-    /*
-      u = Y2-Y1
-      uu = u2
-      v = X2-X1
-      vv = v2
-      vvv = v*vv
-      R = vv*X1
-      A = uu-vvv-2*R
-      X3 = v*A
-      Y3 = u*(R-A)-vvv*Y1
-      Z3 = vvv
-    */
+    var X1 = p1.x; var Y1 = p1.y;
+    var X2 = p2.x; var Y2 = p2.y;
+
+    var T = fr_add(&X1, &X2);
+    var TT = montgomery_product(&T, &T);
+    var F = fr_add(&Y1, &Y2);
+
+    var U1U2 = montgomery_product(&X1, &X2);
+    var R = fr_sub(&TT, &U1U2);
+
+    var L = montgomery_product(&F, &F);
+    var LL = montgomery_product(&L, &L);
+
+    var TL = fr_add(&T, &L);
+    var TLTL = montgomery_product(&TL, &TL);
+    var TTLL = fr_add(&TT, &LL);
+    var G = fr_sub(&TLTL, &TTLL);
+
+    var RR = montgomery_product(&R, &R);
+    var RR2 = fr_add(&RR, &RR);
+    var W = fr_sub(&RR2, &G);
+
+    var FW = montgomery_product(&F, &W);
+    var X3 = fr_add(&FW, &FW);
+
+    var LL2 = fr_add(&LL, &LL);
+    var W2 = fr_add(&W, &W);
+    var GW2 = fr_sub(&G, &W2);
+    var RGW2 = montgomery_product(&R, &GW2);
+    var Y3 = fr_sub(&RGW2, &LL2);
+
+    var F2 = fr_add(&F, &F);
+    var F4 = fr_add(&F2, &F2);
+    var FS = montgomery_product(&F, &F);
+    var Z3 = montgomery_product(&F4, &FS);
+
+    return SWPoint(X3, Y3, Z3);
 }
-*/
 
 // https://www.hyperelliptic.org/EFD/g1p/auto-shortw-projective.html#addition-add-2007-bl
 // 16M + 15add
 fn add_points(p1: SWPoint, p2: SWPoint) -> SWPoint {
-    var X1 = p1.x;
-    var Y1 = p1.y;
-    var Z1 = p1.z;
-    var X2 = p2.x;
-    var Y2 = p2.y;
-    var Z2 = p2.z;
+    var X1 = p1.x; var Y1 = p1.y; var Z1 = p1.z;
+    var X2 = p2.x; var Y2 = p2.y; var Z2 = p2.z;
 
     var U1 = montgomery_product(&X1, &Z2);
     var U2 = montgomery_product(&X2, &Z1);
@@ -128,24 +147,26 @@ fn double_point(p1: SWPoint) -> SWPoint {
 @compute
 @workgroup_size(1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
-    var x = x_coords[0];
-    var y = y_coords[0];
+    var id = global_id.x * 2u;
+
+    var x = x_coords[id];
+    var y = y_coords[id];
     var z: BigInt = get_r();
     var pt = SWPoint(x, y, z);
 
-    x = x_coords[1];
-    y = y_coords[1];
+    x = x_coords[id + 1u];
+    y = y_coords[id + 1u];
     var pt2 = SWPoint(x, y, z);
 
+    // pt + pt2
     var added = add_points(pt, pt2);
+    out_x_coords[id] = added.x;
+    out_y_coords[id] = added.y;
+    out_z_coords[id] = added.z;
 
-    out_x_coords[0] = added.x;
-    out_y_coords[0] = added.y;
-    out_z_coords[0] = added.z;
-
-    var doubled = double_point(pt);
-
-    out_x_coords[1] = doubled.x;
-    out_y_coords[1] = doubled.y;
-    out_z_coords[1] = doubled.z;
+    // dbl(pt + pt2)
+    var doubled = double_point(add_affine_points(pt, pt2));
+    out_x_coords[id + 1u] = doubled.x;
+    out_y_coords[id + 1u] = doubled.y;
+    out_z_coords[id + 1u] = doubled.z;
 }

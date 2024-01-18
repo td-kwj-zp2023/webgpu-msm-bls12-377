@@ -32,7 +32,7 @@ export const bls12_377_benchmark = async (
 ): Promise<{x: bigint, y: bigint}> => {
     const p = BASE_FIELD
     const word_size = 13
-    const num_inputs = 2
+    const num_inputs = 512
 
     const params = compute_misc_params(p, word_size)
     const n0 = params.n0
@@ -129,7 +129,7 @@ export const bls12_377_benchmark = async (
         'main',
     )
 
-    const num_x_workgroups = 1
+    const num_x_workgroups = num_inputs / 2
     const num_y_workgroups = 1
 
     execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, 1)
@@ -160,28 +160,32 @@ export const bls12_377_benchmark = async (
         out_z_coords.push(out_z_coords_mont[i] * rinv % p)
     }
 
-    const added_pt = createAffinePoint(
-        out_x_coords[0],
-        out_y_coords[0],
-        out_z_coords[0],
-    )
-    const added_coords = get_bigint_x_y(added_pt)
-    const added_expected = points[0].add(points[1]).toAffine()
+    for (let i = 0; i < num_inputs / 2; i ++) {
+        const ai = i * 2
+        const di = ai + 1
+        const added_pt = createAffinePoint(
+            out_x_coords[ai],
+            out_y_coords[ai],
+            out_z_coords[ai],
+        )
+        const added_coords = get_bigint_x_y(added_pt)
+        const added_expected = points[ai].add(points[di]).toAffine()
 
-    assert(added_coords.x.toString() === added_expected.x().toBig().toString())
-    assert(added_coords.y.toString() === added_expected.y().toBig().toString())
+        assert(added_coords.x.toString() === added_expected.x().toBig().toString(), `mismatch at ${ai}`)
+        assert(added_coords.y.toString() === added_expected.y().toBig().toString())
 
-    const doubled_pt = createAffinePoint(
-        out_x_coords[1],
-        out_y_coords[1],
-        out_z_coords[1],
-    )
-    const doubled_coords = get_bigint_x_y(doubled_pt)
-    const doubled_expected = points[0].dbl().toAffine()
+        const doubled_pt = createAffinePoint(
+            out_x_coords[di],
+            out_y_coords[di],
+            out_z_coords[di],
+        )
+        const doubled_coords = get_bigint_x_y(doubled_pt)
+        const doubled_expected = added_expected.dbl().toAffine()
 
-    assert(doubled_coords.x.toString() === doubled_expected.x().toBig().toString())
-    assert(doubled_coords.y.toString() === doubled_expected.y().toBig().toString())
+        assert(doubled_coords.x.toString() === doubled_expected.x().toBig().toString(), `mismatch at ${di}`)
+        assert(doubled_coords.y.toString() === doubled_expected.y().toBig().toString())
 
+    }
     console.log('add_points() and double_point() work')
 
     return { x: BigInt(1), y: BigInt(0) }
