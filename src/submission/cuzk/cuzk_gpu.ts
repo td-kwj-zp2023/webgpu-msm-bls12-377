@@ -23,6 +23,7 @@ import {
     compute_misc_params,
     decompose_scalars_signed,
     are_point_arr_equal,
+    bigIntPointToExtPointType,
 } from '../utils'
 import { cpu_transpose } from './transpose'
 import { cpu_smvp_signed } from './smvp';
@@ -717,9 +718,6 @@ export const smvp_gpu = async (
         // Assertion checks take a long time!
         for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx++) {
             // Convert GPU output out of Montgomery coordinates
-            const bigIntPointToExtPointType = (bip: BigIntPoint): ExtPointType => {
-                return fieldMath.createPoint(bip.x, bip.y, bip.t, bip.z)
-            }
             const output_points_gpu: ExtPointType[] = []
             for (let i = subtask_idx * (num_csr_cols / 2); i < subtask_idx * (num_csr_cols / 2) + (num_csr_cols / 2); i++) {
                 const non = {
@@ -728,7 +726,7 @@ export const smvp_gpu = async (
                     t: fieldMath.Fp.mul(bucket_sum_t_sb_result[i], rinv),
                     z: fieldMath.Fp.mul(bucket_sum_z_sb_result[i], rinv),
                 }
-                output_points_gpu.push(bigIntPointToExtPointType(non))
+                output_points_gpu.push(bigIntPointToExtPointType(non, fieldMath))
             }
 
             // Convert CPU output out of Montgomery coordinates
