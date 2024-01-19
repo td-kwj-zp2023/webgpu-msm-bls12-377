@@ -24,6 +24,7 @@ import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
 import { data_transfer_cost_benchmarks } from '../submission/data_transfer_cost_benchmarks'
 import { bucket_points_reduction } from '../submission/bucket_points_reduction_benchmark'
 import { horners_rule_benchmark } from '../submission/horners_rule_benchmark'
+import { print_device_limits } from '../submission/print_device_limits'
 
 export const AllBenchmarks: React.FC = () => {
   const initialDefaultInputSize = 2 ** 16
@@ -169,7 +170,6 @@ export const AllBenchmarks: React.FC = () => {
         postResult={postResult}
       />
       <Benchmark
-        name={'Aleo Wasm: Single Thread'}
         disabled={disabledBenchmark}
         baseAffinePoints={baseAffineBigIntPoints}
         scalars={bigIntScalars}
