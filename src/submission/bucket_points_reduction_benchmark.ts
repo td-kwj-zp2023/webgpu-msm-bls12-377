@@ -14,14 +14,14 @@ import field_funcs from './wgsl/field/field.template.wgsl'
 import ec_funcs from './wgsl/curve/ec.template.wgsl'
 import montgomery_product_funcs from './wgsl/montgomery/mont_pro_product.template.wgsl'
 import bucket_points_reduction_shader from './wgsl/bucket_points_reduction.template.wgsl'
-import { are_point_arr_equal, compute_misc_params, u8s_to_bigints, gen_p_limbs, gen_r_limbs, bigints_to_u8_for_gpu } from './utils'
+import { are_point_arr_equal, compute_misc_params, u8s_to_bigints, gen_p_limbs, gen_r_limbs, gen_d_limbs, bigints_to_u8_for_gpu } from './utils'
 import { shader_invocation } from './bucket_points_reduction'
 
 export const bucket_points_reduction = async (
     baseAffinePoints: BigIntPoint[],
     {}: bigint[]
 ): Promise<{x: bigint, y: bigint}> => {
-    for (let i = 2; i < 64; i ++) {
+    for (const i of [2, 4, 8, 16, 32, 64]) {
         await test_bucket_points_reduction(baseAffinePoints, i)
     }
     const points = baseAffinePoints.slice(0, 2 ** 15)
@@ -47,6 +47,7 @@ export const test_bucket_points_reduction = async (
     const rinv = params.rinv
     const p_limbs = gen_p_limbs(p, num_words, word_size)
     const r_limbs = gen_r_limbs(r, num_words, word_size)
+    const d_limbs = gen_d_limbs(params.edwards_d, num_words, word_size)
 
     const x_coords: bigint[] = []
     const y_coords: bigint[] = []
@@ -94,6 +95,7 @@ export const test_bucket_points_reduction = async (
             n0,
             p_limbs,
             r_limbs,
+            d_limbs,
             mask: BigInt(2) ** BigInt(word_size) - BigInt(1),
             two_pow_word_size: BigInt(2) ** BigInt(word_size),
             workgroup_size,
