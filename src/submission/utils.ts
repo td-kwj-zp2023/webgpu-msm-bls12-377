@@ -354,6 +354,22 @@ export const to_words_le = (val: bigint, num_words: number, word_size: number): 
     return words
 }
 
+export const from_Uint32Array_le = (
+    words: any,
+    num_words = 8,
+    word_size = 32,
+): bigint => {
+    assert(num_words == words.length)
+    let val = BigInt(0)
+    for (let i = 0; i < num_words; i ++) {
+        assert(words[i] < 2 ** word_size)
+        assert(words[i] >= 0)
+        val += (BigInt(2) ** BigInt((num_words - i - 1) * word_size)) * BigInt(words[num_words - 1 - i])
+    }
+
+    return val
+}
+
 export const from_words_le = (words: Uint16Array, num_words: number, word_size: number): bigint => {
     assert(num_words == words.length)
     let val = BigInt(0)
