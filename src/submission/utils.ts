@@ -395,6 +395,7 @@ export const compute_misc_params = (
     word_size: number,
 ): {
         num_words: number,
+        word_size: number,
         max_terms: number,
         k: number,
         nsafe: number,
@@ -447,7 +448,7 @@ export const compute_misc_params = (
     //m, _ = divmod(2 ** (2 * n + z), s)  # prime approximation, n + 1 bits
     const edwards_d = EDWARDS_D * r % p
 
-    return { num_words, max_terms, k, nsafe, n0, r: r % p, edwards_d, rinv, barrett_domb_m }
+    return { word_size, num_words, max_terms, k, nsafe, n0, r: r % p, edwards_d, rinv, barrett_domb_m }
 }
 
 export const genRandomFieldElement = (p: bigint): bigint => {
