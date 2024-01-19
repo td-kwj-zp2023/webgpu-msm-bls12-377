@@ -14,6 +14,17 @@ import { cpu_transpose_classic } from './transpose'
 import assert from 'assert'
 import seedrandom from 'seedrandom'
 
+// WGSL implementation of Sparse-Matrix Transpose
+export const transpose_wgsl = async (
+    baseAffinePoints: BigIntPoint[],
+    scalars: bigint[]
+  ): Promise<{x: bigint, y: bigint}> => {
+    console.log("Starting WGSL Sparse-Matrix Transpose!")
+    
+    const result = await transpose(baseAffinePoints, scalars)
+    return result
+};
+
 const transpose_dm = (
     num_cols: number, // of the original matrix
     num_rows: number, // of the original matrix

@@ -14,7 +14,7 @@ import {
     compute_misc_params,
 } from '../utils'
 import { ExtPointType } from "@noble/curves/abstract/edwards";
-import { get_device, create_bind_group } from '../../submission/gpu'
+import { get_device, create_bind_group } from '../gpu'
 import structs from '../wgsl/struct/structs.template.wgsl'
 import bigint_funcs from '../wgsl/bigint/bigint.template.wgsl'
 import field_funcs from '../wgsl/field/field.template.wgsl'

@@ -15,6 +15,17 @@ import assert from 'assert'
 
 const fieldMath = new FieldMath();
 
+// WGSL implementation of Sparse-Matrix Transpose
+export const smtvp_wgsl = async (
+    baseAffinePoints: BigIntPoint[],
+    scalars: bigint[]
+  ): Promise<{x: bigint, y: bigint}> => {
+    console.log("Starting WGSL SMTVP!")
+    
+    const result = await smtvp(baseAffinePoints, scalars)
+    return result
+  };  
+
 /*
  * Returns an array of CSR sparse matrices. Each sparse matrix contains the
  * same number of points, but different col_idx values.

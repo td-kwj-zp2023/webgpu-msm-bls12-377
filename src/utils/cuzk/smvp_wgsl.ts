@@ -21,6 +21,17 @@ import montgomery_product_funcs from '../wgsl/montgomery/mont_pro_product.templa
 import { u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, compute_misc_params, gen_p_limbs, gen_r_limbs, gen_d_limbs } from '../utils'
 import assert from 'assert'
 
+// WGSL implementation of Sparse-Matrix Vector Multiplication
+export const smvp_wgsl = async (
+    baseAffinePoints: BigIntPoint[],
+    scalars: bigint[]
+  ): Promise<{x: bigint, y: bigint}> => {
+    console.log("Starting WGSL SMVP!")
+    
+    const result = await smvp(baseAffinePoints, scalars)
+    return result
+  };
+
 export async function smvp(
     baseAffinePoints: BigIntPoint[],
     scalars: bigint[]

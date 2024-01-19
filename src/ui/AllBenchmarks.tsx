@@ -3,30 +3,31 @@ import { Benchmark } from './Benchmark';
 import { bigIntToU32Array, generateRandomFields } from '../reference/webgpu/utils';
 import { BigIntPoint, U32ArrayPoint } from '../reference/types';
 import { webgpu_compute_msm, wasm_compute_msm, webgpu_pippenger_msm, webgpu_best_msm, wasm_compute_msm_parallel } from '../reference/reference';
-import { convert_inputs_into_mont_benchmark } from '../submission/convert_inputs_into_mont_benchmarks';
-import { convert_bigints_to_bytes_benchmark } from '../submission/convert_bigints_to_bytes_benchmark'
-import { mont_mul_benchmarks } from '../submission/mont_mul_benchmarks';
-import { barrett_mul_benchmarks } from '../submission/barrett_mul_benchmarks';
-import { barrett_domb_mul_benchmarks } from '../submission/barrett_domb_mul_benchmarks';
-import { add_points_benchmarks } from '../submission/add_points_benchmarks';
-import { smtvp } from '../submission/cuzk/smtvp_wgsl';
-import { decompose_scalars_ts_benchmark } from '../submission/decompose_scalars_benchmark';
+import { convert_inputs_into_mont_benchmark } from '../utils/convert_inputs_into_mont_benchmarks';
+import { convert_bigints_to_bytes_benchmark } from '../utils/convert_bigints_to_bytes_benchmark'
+import { mont_mul_benchmarks } from '../utils/mont_mul_benchmarks';
+import { barrett_mul_benchmarks } from '../utils/barrett_mul_benchmarks';
+import { barrett_domb_mul_benchmarks } from '../utils/barrett_domb_mul_benchmarks';
+import { add_points_benchmarks } from '../utils/add_points_benchmarks';
+import { decompose_scalars_ts_benchmark } from '../utils/decompose_scalars_benchmark';
 import {
     create_csr_precomputation_benchmark,
     create_csr_sparse_matrices_from_points_benchmark,
-} from '../submission/cuzk/create_csr_gpu'
-import { cuzk_gpu } from '../submission/cuzk/cuzk_gpu'
-import { full_benchmarks } from '../submission/full_benchmarks'
-import { scalar_mul_benchmarks } from '../submission/scalar_mul_benchmarks'
-import { cuzk_typescript_serial, transpose_wgsl, smtvp_wgsl, smvp_wgsl } from '../submission/submission';
+} from '../utils/cuzk/create_csr_gpu'
+import { full_benchmarks } from '../utils/full_benchmarks'
+import { scalar_mul_benchmarks } from '../utils/scalar_mul_benchmarks'
+import { smtvp_wgsl } from '../utils/cuzk/smtvp_wgsl';
+import { cuzk_typescript_serial } from '../utils/cuzk/cuzk_serial'
+import { transpose_wgsl } from '../utils/cuzk/transpose_wgsl'
 import CSVExportButton from './CSVExportButton';
 import { TestCaseDropDown } from './TestCaseDropDown';
 import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
-import { smvp } from '../submission/cuzk/smvp_wgsl';
-import { data_transfer_cost_benchmarks } from '../submission/data_transfer_cost_benchmarks'
-import { bucket_points_reduction } from '../submission/bucket_points_reduction_benchmark'
-import { horners_rule_benchmark } from '../submission/horners_rule_benchmark'
-import { print_device_limits } from '../submission/print_device_limits'
+import { smvp_wgsl } from '../utils/cuzk/smvp_wgsl';
+import { data_transfer_cost_benchmarks } from '../utils/data_transfer_cost_benchmarks'
+import { bucket_points_reduction } from '../utils/bucket_points_reduction_benchmark'
+import { horners_rule_benchmark } from '../utils/horners_rule_benchmark'
+import { print_device_limits } from '../utils/print_device_limits'
+import { compute_msm } from '../submission/submission';
 
 export const AllBenchmarks: React.FC = () => {
   const initialDefaultInputSize = 2 ** 16
@@ -140,14 +141,13 @@ export const AllBenchmarks: React.FC = () => {
         <TestCaseDropDown useRandomInputs={useRandomInputs} loadAndSetData={loadAndSetData}/>
         <CSVExportButton data={benchmarkResults} filename={'msm-benchmark'} />
       </div>
-
       <Benchmark
-        name={'cuZK in WebGPU'}
+        name={'Submission'}
         disabled={disabledBenchmark}
         baseAffinePoints={baseAffineBigIntPoints}
         scalars={bigIntScalars}
         expectedResult={expectedResult}
-        msmFunc={cuzk_gpu}
+        msmFunc={compute_msm}
         postResult={postResult}
         bold={true}
       />
