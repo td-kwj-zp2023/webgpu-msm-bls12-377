@@ -161,8 +161,6 @@ export const AllBenchmarks: React.FC = () => {
       <Benchmark
         name={'Naive WebGPU MSM'}
         disabled={disabledBenchmark}
-        // baseAffinePoints={u32Points}
-        // scalars={u32Scalars}
         baseAffinePoints={baseAffineBigIntPoints}
         scalars={bigIntScalars}
         expectedResult={expectedResult}
