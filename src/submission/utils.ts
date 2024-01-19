@@ -26,7 +26,6 @@ export const bigints_to_16_bit_words_for_gpu = (
 }
 
 export const bigIntPointToExtPointType = (bip: BigIntPoint, fieldMath: FieldMath): ExtPointType => {
-    // @ts-ignore
     return fieldMath.createPoint(bip.x, bip.y, bip.t, bip.z)
 }
 
