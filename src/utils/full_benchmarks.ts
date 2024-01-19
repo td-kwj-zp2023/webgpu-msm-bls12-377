@@ -1,6 +1,6 @@
 import { BigIntPoint } from "../reference/types"
 import { PowersTestCase, loadTestCase } from '../test-data/testCases';
-import { cuzk_gpu } from './cuzk/cuzk_gpu'
+import { compute_msm } from '../submission/submission'
 
 export const full_benchmarks = async (
     {}: BigIntPoint[], // Use {} to prevent Typescript warnings about unused parameters
@@ -43,7 +43,7 @@ export const full_benchmarks = async (
 
         // Measure the first run, which forces a recompile
         const first_run_start = Date.now()
-        const msm = await cuzk_gpu(
+        const msm = await compute_msm(
             testcase.baseAffinePoints,
             testcase.scalars,
             false,
@@ -78,7 +78,7 @@ export const full_benchmarks = async (
         for (let i = 0; i < NUM_RUNS; i ++) {
             const start = Date.now()
             // Run without forcing a recompile
-            await cuzk_gpu(testcase.baseAffinePoints, testcase.scalars, false, false)
+            await compute_msm(testcase.baseAffinePoints, testcase.scalars, false, false)
             const elapsed = Date.now() - start
 
             results.subsequent_runs.push(elapsed)

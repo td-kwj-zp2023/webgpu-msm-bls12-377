@@ -5,6 +5,22 @@ import { strict as assert } from 'assert';
 import { bigIntToU32Array, generateRandomFields } from '../../reference/webgpu/utils';
 import { Field } from "@noble/curves/abstract/modular";
 
+// Typescript implementation of cuZK
+export const cuzk_typescript_serial = async (
+  baseAffinePoints: BigIntPoint[],
+  scalars: bigint[]
+): Promise<any> => {
+  console.log("Starting Serial cuZK!")
+
+  const result = await execute_cuzk(baseAffinePoints, scalars)
+
+  const result_affine = result.toAffine()
+  const x = result_affine.x
+  const y = result_affine.y
+
+  return { x, y }
+};
+
 export async function init(
   baseAffinePoints: BigIntPoint[],
   scalars: bigint[]
@@ -122,13 +138,6 @@ export async function execute_cuzk(
         const partial_sum = await transpose_and_spmv(csr_sparse_matrix_array[i])
         G.push(partial_sum)
     }
-
-    // Perform SMTVP
-    // const G: ExtPointType[] = []
-    // for (let i = 0; i < parameters.csr_sparse_matrix_array.length; i++) {
-    //   const partial_sum = await smtvp(parameters.csr_sparse_matrix_array[i])
-    //   G.push(partial_sum)
-    // }
 
     // Perform Honer's rule
     let T = G[0];
