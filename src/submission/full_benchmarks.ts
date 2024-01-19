@@ -1,3 +1,4 @@
+import { Curve } from './curves'
 import { BigIntPoint } from "../reference/types"
 import { PowersTestCase, loadTestCase } from '../test-data/testCases';
 import { cuzk_gpu } from './cuzk/cuzk_gpu'
@@ -5,6 +6,12 @@ import { cuzk_gpu } from './cuzk/cuzk_gpu'
 export const full_benchmarks = async (
     {}: BigIntPoint[], // Use {} to prevent Typescript warnings about unused parameters
     {}: bigint[]
+): Promise<{x: bigint, y: bigint}> => {
+    return await do_full_benchmarks(Curve.Edwards_BLS12)
+}
+
+export const do_full_benchmarks = async (
+    curve_type: Curve,
 ): Promise<{x: bigint, y: bigint}> => {
     const DELAY = 100
     const NUM_RUNS = 5
@@ -14,7 +21,8 @@ export const full_benchmarks = async (
     const END_POWER: PowersTestCase = 20
 
     const all_results: any = {}
-    console.log(`Running benchmarks for powers ${START_POWER} to ${END_POWER} (inclusive)`)
+    const c_str = curve_type === Curve.Edwards_BLS12 ? 'Edwards BLS12' : 'BLS12-377'
+    console.log(`Running ${c_str} MSM benchmarks for powers ${START_POWER} to ${END_POWER} (inclusive)`)
 
     let do_recompile = true
 
@@ -46,6 +54,7 @@ export const full_benchmarks = async (
         const msm = await cuzk_gpu(
             testcase.baseAffinePoints,
             testcase.scalars,
+            curve_type,
             false,
             do_recompile,
         )
@@ -78,7 +87,13 @@ export const full_benchmarks = async (
         for (let i = 0; i < NUM_RUNS; i ++) {
             const start = Date.now()
             // Run without forcing a recompile
-            await cuzk_gpu(testcase.baseAffinePoints, testcase.scalars, false, false)
+            await cuzk_gpu(
+                testcase.baseAffinePoints,
+                testcase.scalars,
+                curve_type,
+                false,
+                false,
+            )
             const elapsed = Date.now() - start
 
             results.subsequent_runs.push(elapsed)

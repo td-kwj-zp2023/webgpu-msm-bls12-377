@@ -1,6 +1,10 @@
 const W_MASK = {{ w_mask }}u;
 const SLACK = {{ slack }}u;
 
+struct BigIntWide {
+    limbs: array<u32, {{ num_words_mul_two }}>
+}
+
 fn get_mu() -> BigInt {
     var mu: BigInt;
 {{{ mu_limbs }}}

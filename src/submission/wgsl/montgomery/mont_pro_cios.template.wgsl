@@ -3,6 +3,10 @@
 {{> field_functions }}
 {{> bigint_functions }}
 
+struct BigIntMediumWide {
+    limbs: array<u32, {{ num_words_plus_one }}>
+}
+
 @group(0)
 @binding(0)
 var<storage, read_write> buf: array<BigInt>;

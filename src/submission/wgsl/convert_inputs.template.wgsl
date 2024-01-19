@@ -4,6 +4,13 @@
 {{> barrett_funcs }}
 {{> montgomery_product_funcs }}
 
+struct Point {
+  x: BigInt,
+  y: BigInt,
+  t: BigInt,
+  z: BigInt
+}
+
 @group(0) @binding(0)
 var<storage, read_write> points: array<Point>;
 

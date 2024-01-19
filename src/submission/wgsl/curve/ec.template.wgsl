@@ -1,7 +1,8 @@
-fn fr_double(a: ptr<function, BigInt>) -> BigInt { 
-    var res: BigInt;
-    bigint_double(a, &res);
-    return fr_reduce(&res);
+struct Point {
+  x: BigInt,
+  y: BigInt,
+  t: BigInt,
+  z: BigInt
 }
 
 fn double_point(p1: Point) -> Point {
