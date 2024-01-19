@@ -142,7 +142,7 @@ export const AllBenchmarks: React.FC = () => {
       </div>
 
       <Benchmark
-        name={'cuZK in WebGPU'}
+        name={'cuZK (Edwards BLS12) in WebGPU'}
         disabled={disabledBenchmark}
         baseAffinePoints={baseAffineBigIntPoints}
         scalars={bigIntScalars}

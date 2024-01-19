@@ -1,4 +1,5 @@
 import assert from 'assert'
+import { Curve } from '../curves'
 import { BigIntPoint } from "../../reference/types"
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import { ShaderManager } from '../shader_manager'
@@ -61,6 +62,7 @@ const fieldMath = new FieldMath()
 export const cuzk_gpu = async (
     baseAffinePoints: BigIntPoint[],
     scalars: bigint[],
+    curve_type = Curve.Edwards_BLS12,
     log_result = true,
     force_recompile = false,
 ): Promise<{x: bigint, y: bigint}> => {
@@ -71,6 +73,7 @@ export const cuzk_gpu = async (
         word_size,
         chunk_size,
         input_size,
+        curve_type,
         force_recompile,
     )
 
@@ -84,9 +87,6 @@ export const cuzk_gpu = async (
     // storage buffers can't be reused across compute passes
     const device = await get_device()
  
-    // Convert the affine points to Montgomery form and decompose the scalars
-    // using a single shader
-
     let c_workgroup_size = 256
     let c_num_x_workgroups = 1
     let c_num_y_workgroups = input_size / c_workgroup_size / c_num_x_workgroups
@@ -107,6 +107,9 @@ export const cuzk_gpu = async (
         num_subtasks,
         num_columns,
     )
+
+    // Convert the affine points to Montgomery form and decompose the scalars
+    // using a single shader
     const { point_x_sb, point_y_sb, scalar_chunks_sb } =
         await convert_point_coords_and_decompose_shaders(
             c_shader,

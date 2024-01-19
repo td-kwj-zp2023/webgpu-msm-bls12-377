@@ -8,6 +8,13 @@ var<storage, read_write> points: array<Point>;
 @group(0) @binding(1)
 var<storage, read_write> output: array<Point>;
 
+struct Point {
+  x: BigInt,
+  y: BigInt,
+  t: BigInt,
+  z: BigInt
+}
+
 fn get_edwards_d() -> BigInt {
     var d: BigInt;
 {{{ d_limbs }}}
