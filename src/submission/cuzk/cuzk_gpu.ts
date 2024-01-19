@@ -1,5 +1,5 @@
 import assert from 'assert'
-import { Curve } from '../curves'
+import { Curve, base_field_modulus } from '../curves'
 import { BigIntPoint, U32ArrayPoint } from "../../reference/types"
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import { ShaderManager } from '../shader_manager'
@@ -29,13 +29,6 @@ import {
 import { cpu_transpose } from './transpose'
 import { cpu_smvp_signed } from './smvp';
 import { shader_invocation } from '../bucket_points_reduction'
-
-const p = BigInt('8444461749428370424248824938781546531375899335154063827935233455917409239041')
-const word_size = 13
-const params = compute_misc_params(p, word_size)
-const num_words = params.num_words
-const r = params.r
-const rinv = params.rinv
 
 import { FieldMath } from "../../reference/utils/FieldMath"
 const fieldMath = new FieldMath()
@@ -126,6 +119,13 @@ export const do_cuzk_gpu = async (
 
     const chunk_size = input_size >= 65536 ? 16 : 4
 
+    const p = base_field_modulus[curve_type]
+    const word_size = 13
+    const params = compute_misc_params(p, word_size)
+    const num_words = params.num_words
+    //const r = params.r
+    const rinv = params.rinv
+
     const shaderManager = new ShaderManager(
         word_size,
         chunk_size,
@@ -180,6 +180,8 @@ export const do_cuzk_gpu = async (
             num_subtasks,
             num_columns,
             chunk_size,
+            p,
+            params,
         )
 
     // Buffers to contain the sum of all the bucket sums per subtask
@@ -282,6 +284,8 @@ export const do_cuzk_gpu = async (
         bucket_sum_y_sb,
         bucket_sum_t_sb,
         bucket_sum_z_sb,
+        p,
+        params,
     )
 
     // Bucket aggregation
@@ -300,6 +304,8 @@ export const do_cuzk_gpu = async (
         bucket_sum_z_sb,
         num_columns / 2,
         num_subtasks,
+        p,
+        params,
     )
 
     // Perform round of copying 
@@ -416,8 +422,11 @@ export const convert_point_coords_and_decompose_shaders = async (
     num_subtasks: number,
     num_columns: number,
     chunk_size: number,
+    p: bigint,
+    params: any,
     debug = false,
 ) => {
+    const r = params.r
     assert(num_subtasks * chunk_size === 256)
     const input_size = baseAffinePoints.length
 
@@ -687,8 +696,14 @@ export const smvp_gpu = async (
     bucket_sum_y_sb: GPUBuffer,
     bucket_sum_t_sb: GPUBuffer,
     bucket_sum_z_sb: GPUBuffer,
+    p: bigint,
+    params: any,
     debug = false,
 ) => {
+    const num_words = params.num_words
+    const word_size = params.word_size
+    const rinv = params.rinv
+
     const params_bytes = numbers_to_u8s_for_gpu(
         [input_size],
     )
@@ -847,10 +862,13 @@ export const bucket_aggregation = async (
     bucket_sum_z_sb: GPUBuffer,
     num_columns: number,
     num_subtasks: number,
+    p: bigint,
+    params: any,
     debug = false,
 ) => {
-    const params = compute_misc_params(p, word_size)
+    const word_size = params.word_size
     const num_words = params.num_words
+    const rinv = params.rinv
 
     let original_bucket_sum_x_sb
     let original_bucket_sum_y_sb
