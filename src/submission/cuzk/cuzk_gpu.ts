@@ -1,6 +1,6 @@
 import assert from 'assert'
 import { Curve } from '../curves'
-import { BigIntPoint } from "../../reference/types"
+import { BigIntPoint, U32ArrayPoint } from "../../reference/types"
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import { ShaderManager } from '../shader_manager'
 import {
@@ -18,6 +18,7 @@ import {
     u8s_to_bigints,
     u8s_to_numbers,
     u8s_to_numbers_32,
+    from_Uint32Array_le,
     bigints_to_u8_for_gpu,
     numbers_to_u8s_for_gpu,
     compute_misc_params,
@@ -61,6 +62,56 @@ const fieldMath = new FieldMath()
  *    is greater than the time it takes for the CPU to do so.
  */
 export const cuzk_gpu = async (
+    baseAffinePoints: BigIntPoint[] | U32ArrayPoint[],
+    scalars: bigint[] | Uint32Array[],
+    curve_type = Curve.Edwards_BLS12,
+    log_result = true,
+    force_recompile = false,
+): Promise<{x: bigint, y: bigint}> => {
+    const scalars_bigints: bigint[] = []
+    for (const s of scalars) {
+        if (typeof s !== 'bigint') {
+            scalars_bigints.push(from_Uint32Array_le(s))
+        } else {
+            scalars_bigints.push(s)
+        }
+    }
+
+    const convert_pts = (pts: BigIntPoint[] | U32ArrayPoint[]) => {
+        const pts_bip: BigIntPoint[] = []
+
+        for (const p of pts) {
+            let x; let y; let t; let z
+            if (typeof p.x === 'bigint') {
+                x = p.x
+            } else {
+                x = from_Uint32Array_le(p.x)
+            }
+            if (typeof p.y === 'bigint') {
+                y = p.y
+            } else {
+                y = from_Uint32Array_le(p.y)
+            }
+            if (typeof p.t === 'bigint') {
+                t = p.t
+            } else {
+                t = from_Uint32Array_le(p.t)
+            }
+            if (typeof p.z === 'bigint') {
+                z = p.z
+            } else {
+                z = from_Uint32Array_le(p.z)
+            }
+            pts_bip.push({ x, y, t, z })
+        }
+        return pts_bip
+    }
+    const bap = convert_pts(baseAffinePoints)
+
+    return do_cuzk_gpu(bap, scalars_bigints, curve_type, log_result, force_recompile)
+}
+
+export const do_cuzk_gpu = async (
     baseAffinePoints: BigIntPoint[],
     scalars: bigint[],
     curve_type = Curve.Edwards_BLS12,
@@ -68,6 +119,11 @@ export const cuzk_gpu = async (
     force_recompile = false,
 ): Promise<{x: bigint, y: bigint}> => {
     const input_size = baseAffinePoints.length
+
+    if (input_size === 0) {
+        return { x: BigInt(0), y: BigInt(1) }
+    }
+
     const chunk_size = input_size >= 65536 ? 16 : 4
 
     const shaderManager = new ShaderManager(
