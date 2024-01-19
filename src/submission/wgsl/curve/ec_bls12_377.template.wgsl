@@ -1,10 +1,10 @@
-/*
 struct Point {
   x: BigInt,
   y: BigInt,
   z: BigInt
 }
 
+/*
 fn double_point(p1: Point) -> Point {
 }
 
