@@ -385,10 +385,53 @@ export const from_words_le = (words: Uint16Array, num_words: number, word_size: 
 
 export const calc_num_words = (word_size: number, p_width: number): number => {
     let num_words = Math.floor(p_width / word_size)
-    while (num_words * word_size < p_width) {
+    while (num_words * word_size <= p_width) {
         num_words ++
     }
+
+    if (p_width === 377 && word_size === 15) {
+        num_words = 27
+    }
+
     return num_words
+}
+
+export const compute_mont_radix = (
+    num_words: number,
+    word_size: number,
+) => {
+    return BigInt(2) ** BigInt(num_words * word_size)
+}
+
+export const compute_mont_constants = (
+    p: bigint,
+    r: bigint,
+    word_size: number,
+) => {
+    const egcdResult: {g: bigint, x: bigint, y: bigint} = bigintCryptoUtils.eGcd(r, p);
+    let rinv = egcdResult.x
+    let pprime = egcdResult.y
+
+    if (rinv < BigInt(0)) {
+        rinv = (rinv % p) + p
+    }
+
+    if (pprime < BigInt(0)) {
+        pprime = (pprime % r) + r
+    }
+
+    let x = (r * rinv - p * pprime) % p
+    if (x < BigInt(0)) {
+        x += p
+    }
+    assert(x === BigInt(1))
+    assert((r * rinv) % p === BigInt(1))
+    assert((p * pprime) % r === BigInt(1))
+
+    const neg_n_inv = r - pprime
+    const n0 = Number(neg_n_inv % (BigInt(2) ** BigInt(word_size)))
+
+    return { rinv, n0 }
 }
 
 export const compute_misc_params = (
@@ -405,9 +448,9 @@ export const compute_misc_params = (
         rinv: bigint
         barrett_domb_m: bigint,
 } => {
-    const max_int_width = 32
     assert(word_size > 0)
     const p_width = p.toString(2).length
+    const max_int_width = 32
     const num_words = calc_num_words(word_size, p_width)
     const max_terms = num_words * 2
 
@@ -420,27 +463,9 @@ export const compute_misc_params = (
     const nsafe = Math.floor(k / 2)
 
     // The Montgomery radix
-    const r = BigInt(2) ** BigInt(num_words * word_size)
+    const r = compute_mont_radix(num_words, word_size)
 
-    // Returns triple (g, rinv, pprime)
-    const egcdResult: {g: bigint, x: bigint, y: bigint} = bigintCryptoUtils.eGcd(r, p);
-    const rinv = egcdResult.x
-    const pprime = egcdResult.y
-
-    if (rinv < BigInt(0)) {
-        assert((r * rinv - p * pprime) % p + p === BigInt(1))
-        assert((r * rinv) % p + p == BigInt(1))
-        assert((p * pprime) % r == BigInt(1))
-    } else {
-        assert((r * rinv - p * pprime) % p === BigInt(1))
-        assert((r * rinv) % p == BigInt(1))
-        assert((p * pprime) % r + r == BigInt(1))
-    }
-
-    //console.log(to_words_le((r * BigInt(2)) % p, num_words, word_size))
-
-    const neg_n_inv = r - pprime
-    const n0 = neg_n_inv % (BigInt(2) ** BigInt(word_size))
+    const { rinv, n0 } = compute_mont_constants(p, r, word_size)
 
     // The Barrett-Domb m value
     const z = num_words * word_size - p_width
@@ -448,18 +473,18 @@ export const compute_misc_params = (
     //m, _ = divmod(2 ** (2 * n + z), s)  # prime approximation, n + 1 bits
     const edwards_d = EDWARDS_D * r % p
 
-    return { num_words, max_terms, k, nsafe, n0, r: r % p, edwards_d, rinv, barrett_domb_m }
+    return { num_words, max_terms, k, nsafe, n0: BigInt(n0), r: r % p, edwards_d, rinv, barrett_domb_m }
 }
 
 export const genRandomFieldElement = (p: bigint): bigint => {
-    // Assume that p is < 32 bytes
-    const lim = BigInt('0x10000000000000000000000000000000000000000000000000000000000000000')
+    const b = Math.ceil(p.toString(2).length / 8) * 8
+    const lim = BigInt(1) << BigInt(b)
     assert(p < lim)
     const min = (lim - p) % p
 
     let rand
     while (true) {
-        rand = BigInt('0x' + crypto.randomBytes(32).toString('hex'))
+        rand = BigInt('0x' + crypto.randomBytes(b / 8).toString('hex'))
         if (rand >= min) {
             break
         }

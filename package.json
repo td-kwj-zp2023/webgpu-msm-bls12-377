@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@demox-labs/gpu-wasm-expose": "^0.3.25",
+    "@celo/bls12377js": "^0.1.1",
     "@headlessui/react": "^1.7.16",
     "@noble/curves": "1.0.0",
     "@heroicons/react": "^2.0.18",
