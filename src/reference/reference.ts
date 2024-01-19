@@ -1,4 +1,4 @@
-import { generateAndSaveAffinePoints } from "../test-data/createRandomAffinePoints";
+//import { generateAndSaveAffinePoints } from "../test-data/createRandomAffinePoints";
 import { BigIntPoint, U32ArrayPoint } from "./types";
 import { FieldMath } from "./utils/FieldMath";
 import { wasmMSM } from "./workers/wasmMSM";

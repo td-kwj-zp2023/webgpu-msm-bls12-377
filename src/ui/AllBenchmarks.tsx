@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Benchmark } from './Benchmark';
 import { bigIntToU32Array, generateRandomFields } from '../reference/webgpu/utils';
 import { BigIntPoint, U32ArrayPoint } from '../reference/types';
-import { wasm_compute_bls12_377_msm, wasm_compute_msm,  wasm_compute_msm_parallel } from '../reference/reference';
+import { wasm_compute_bls12_377_msm } from '../reference/reference';
 import { compute_msm } from '../submission/submission';
 import CSVExportButton from './CSVExportButton';
 import { TestCaseDropDown } from './TestCaseDropDown';
@@ -15,8 +15,8 @@ export const AllBenchmarks: React.FC = () => {
   const [inputSizeDisabled, setInputSizeDisabled] = useState(false);
   const [baseAffineBigIntPoints, setBaseAffineBigIntPoints] = useState<BigIntPoint[]>([]);
   const [bigIntScalars, setBigIntScalars] = useState<bigint[]>([]);
-  const [u32Points, setU32Points] = useState<U32ArrayPoint[]>([]);
-  const [u32Scalars, setU32Scalars] = useState<Uint32Array[]>([]);
+  const [{}, setU32Points] = useState<U32ArrayPoint[]>([]);
+  const [{}, setU32Scalars] = useState<Uint32Array[]>([]);
   const [expectedResult, setExpectedResult] = useState<{x: bigint, y: bigint} | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [benchmarkResults, setBenchmarkResults] = useState<any[][]>([["InputSize", "MSM Func", "Time (MS)"]]);
@@ -106,7 +106,6 @@ export const AllBenchmarks: React.FC = () => {
         <TestCaseDropDown useRandomInputs={useRandomInputs} loadAndSetData={loadAndSetData}/>
         <CSVExportButton data={benchmarkResults} filename={'msm-benchmark'} />
       </div>
-      
       <Benchmark
         name={'Aleo Wasm: Single Thread'}
         disabled={disabledBenchmark}
