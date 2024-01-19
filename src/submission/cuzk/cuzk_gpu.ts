@@ -1,6 +1,6 @@
 import assert from 'assert'
 import { Curve } from '../curves'
-import { BigIntPoint } from "../../reference/types"
+import { BigIntPoint, U32ArrayPoint } from "../../reference/types"
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import { ShaderManager } from '../shader_manager'
 import {
@@ -18,6 +18,7 @@ import {
     u8s_to_bigints,
     u8s_to_numbers,
     u8s_to_numbers_32,
+    from_Uint32Array_le,
     bigints_to_u8_for_gpu,
     numbers_to_u8s_for_gpu,
     compute_misc_params,
@@ -61,13 +62,22 @@ const fieldMath = new FieldMath()
  *    is greater than the time it takes for the CPU to do so.
  */
 export const cuzk_gpu = async (
-    baseAffinePoints: BigIntPoint[],
-    scalars: bigint[],
+    baseAffinePoints: BigIntPoint[] | U32ArrayPoint[],
+    scalars: bigint[] | Uint32Array[],
     curve_type = Curve.Edwards_BLS12,
     log_result = true,
     force_recompile = false,
 ): Promise<{x: bigint, y: bigint}> => {
     const input_size = baseAffinePoints.length
+
+    if (input_size === 0) {
+        return { x: BigInt(0), y: BigInt(1) }
+    }
+
+    if (typeof scalars[0] !== 'bigint') {
+        scalars = scalars.map((x) => from_Uint32Array_le(x))
+    }
+
     const chunk_size = input_size >= 65536 ? 16 : 4
 
     const shaderManager = new ShaderManager(
