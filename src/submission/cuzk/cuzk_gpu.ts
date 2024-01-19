@@ -68,14 +68,64 @@ export const cuzk_gpu = async (
     log_result = true,
     force_recompile = false,
 ): Promise<{x: bigint, y: bigint}> => {
+    const scalars_bigints: bigint[] = []
+    for (const s of scalars) {
+        if (typeof s !== 'bigint') {
+            scalars_bigints.push(from_Uint32Array_le(s))
+        } else {
+            scalars_bigints.push(s)
+        }
+    }
+
+    const convert_pts = (pts: BigIntPoint[] | U32ArrayPoint[]) => {
+        const pts_bip: BigIntPoint[] = []
+
+        for (const p of pts) {
+            let x; let y; let t; let z
+            if (typeof p.x === 'bigint') {
+                x = p.x
+            } else {
+                x = from_Uint32Array_le(p.x)
+            }
+            if (typeof p.y === 'bigint') {
+                y = p.y
+            } else {
+                y = from_Uint32Array_le(p.y)
+            }
+            if (typeof p.z === 'bigint') {
+                z = p.z
+            } else {
+                z = from_Uint32Array_le(p.z)
+            }
+            if (curve_type === Curve.Edwards_BLS12) {
+                if (typeof p.t === 'bigint') {
+                    t = p.t
+                } else {
+                    t = from_Uint32Array_le(p.t)
+                }
+                pts_bip.push({ x, y, t, z })
+            } else {
+                pts_bip.push({ x, y, z })
+            }
+        }
+        return pts_bip
+    }
+    const bap = convert_pts(baseAffinePoints)
+
+    return do_cuzk_gpu(bap, scalars_bigints, curve_type, log_result, force_recompile)
+}
+
+export const do_cuzk_gpu = async (
+    baseAffinePoints: BigIntPoint[],
+    scalars: bigint[],
+    curve_type = Curve.Edwards_BLS12,
+    log_result = true,
+    force_recompile = false,
+): Promise<{x: bigint, y: bigint}> => {
     const input_size = baseAffinePoints.length
 
     if (input_size === 0) {
         return { x: BigInt(0), y: BigInt(1) }
-    }
-
-    if (typeof scalars[0] !== 'bigint') {
-        scalars = scalars.map((x) => from_Uint32Array_le(x))
     }
 
     const chunk_size = input_size >= 65536 ? 16 : 4
@@ -134,7 +184,10 @@ export const cuzk_gpu = async (
             num_subtasks,
             num_columns,
             chunk_size,
+            true,
         )
+    device.destroy()
+    return { x: BigInt(0), y: BigInt(1) }
 
     // Buffers to contain the sum of all the bucket sums per subtask
     const subtask_sum_coord_bytelength = num_subtasks * num_words * 4
@@ -481,6 +534,7 @@ export const convert_point_coords_and_decompose_shaders = async (
 
         const expected = decompose_scalars_signed(scalars, num_subtasks, chunk_size)
 
+        debugger
         for (let j = 0; j < expected.length; j++) {
             let z = 0;
             for (let i = j * input_size; i < (j + 1) * input_size; i++) {
