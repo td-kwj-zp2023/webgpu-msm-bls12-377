@@ -21,49 +21,17 @@ export const shader_invocation = async (
     out_z_sb: GPUBuffer,
     num_points: number,
     num_words: number,
-    workgroup_size: number,
+    num_subtasks: number,
 ) => {
-    let num_z_workgroups = 2
+    const num_z_workgroups = 1
     const compute_ideal_num_workgroups = (num_points: number) => {
+        const m = Math.log2(num_points)
+        const n = Math.ceil(m / 2)
 
-        if (num_points <= num_z_workgroups) {
-            return { num_x_workgroups: 1, num_y_workgroups: 1 }
-        }
+        const num_x_workgroups = 2 ** n
+        const num_y_workgroups = Math.ceil(num_points / num_x_workgroups / num_subtasks)
 
-//         const m = Math.ceil(Math.log2(Math.sqrt(num_points / workgroup_size)))
-//         // console.log("m is: ", m)
-//         let num_x_workgroups = 2 ** m
-
-//         const num_y_workgroups = (Math.ceil(num_points / num_x_workgroups / workgroup_size))
-
-//         if (num_x_workgroups * num_y_workgroups * workgroup_size == num_points) {
-//             num_x_workgroups = num_x_workgroups / 2
-//         }
-
-//         // console.log("num_x_workgroups is: ", num_x_workgroups)
-//         // console.log("num_y_workgroups is: ", num_y_workgroups)
-        
-//         return { num_x_workgroups, num_y_workgroups }
-//     }
-    
-//     const num_z_workgroups = 2
-//     const compute_ideal_num_workgroups = (num_points: number) => {
-
-        const m = Math.ceil(Math.log2(Math.sqrt(num_points / num_z_workgroups)))
-        let num_x_workgroups = 2 ** m 
-        let num_y_workgroups = 2 ** m
-
-        if (num_x_workgroups * num_y_workgroups == (num_points / 2)) {
-            num_z_workgroups = 1;
-        }
-
-        if (num_x_workgroups * num_y_workgroups == num_points) {
-            num_x_workgroups = 2 ** (m - 1)
-            num_y_workgroups = 2 ** (m - 1)
-            num_z_workgroups = (num_points / 2) / (num_x_workgroups * num_y_workgroups);
-        }
-
-        return { num_x_workgroups, num_y_workgroups }
+        return { num_x_workgroups, num_y_workgroups, num_z_workgroups }
     }
 
     const { num_x_workgroups, num_y_workgroups } = compute_ideal_num_workgroups(num_points)
@@ -71,7 +39,7 @@ export const shader_invocation = async (
     const params_bytes = numbers_to_u8s_for_gpu(
         [
             num_y_workgroups,
-            num_z_workgroups * 16,
+            num_z_workgroups,
         ],
     )
     const params_ub = create_and_write_ub(device, params_bytes)
@@ -113,9 +81,9 @@ export const shader_invocation = async (
         'main',
     )
 
-    execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, num_z_workgroups * 16)
+    execute_pipeline(commandEncoder, computePipeline, bindGroup, num_x_workgroups, num_y_workgroups, num_z_workgroups)
 
-    const size = (Math.ceil(num_points / 2) * 4 * num_words) * 16
+    const size = (Math.ceil(num_points / 2) * 4 * num_words) * num_subtasks
     commandEncoder.copyBufferToBuffer(out_x_sb, 0, x_coords_sb, 0, size)
     commandEncoder.copyBufferToBuffer(out_y_sb, 0, y_coords_sb, 0, size)
     commandEncoder.copyBufferToBuffer(out_t_sb, 0, t_coords_sb, 0, size)
