@@ -151,7 +151,7 @@ export const AllBenchmarks: React.FC = () => {
         postResult={postResult}
         bold={true}
       />
-      <Benchmark
+      {/* <Benchmark
         name={'Full benchmark suite'}
         disabled={disabledBenchmark}
         baseAffinePoints={baseAffineBigIntPoints}
@@ -389,7 +389,7 @@ export const AllBenchmarks: React.FC = () => {
         msmFunc={create_csr_sparse_matrices_from_points_benchmark}
         postResult={postResult}
         bold={true}
-      />
+      /> */}
     </div>
   )
 };
