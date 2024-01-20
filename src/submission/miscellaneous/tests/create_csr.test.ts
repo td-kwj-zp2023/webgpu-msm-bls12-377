@@ -6,7 +6,7 @@ import {
     precompute_with_gpu_simulated,
     pre_aggregate,
     precompute_with_cluster_method,
-} from './create_csr'
+} from '../cuzk/create_csr'
 
 describe('Create an CSR sparse matrix from the MSM input points and scalars', () => {
     describe('pre-aggregation using a simulated GPU', () => {

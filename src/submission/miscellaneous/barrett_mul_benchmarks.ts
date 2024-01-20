@@ -8,14 +8,14 @@ import {
     gen_r_limbs,
     gen_mu_limbs,
     bigints_to_u8_for_gpu,
-} from './utils'
-import { get_device } from './gpu'
-import structs from './wgsl/struct/structs.template.wgsl'
-import bigint_functions from './wgsl/bigint/bigint.template.wgsl'
-import field_functions from './wgsl/field/field.template.wgsl'
-import barrett_functions from './wgsl/barrett.template.wgsl'
+} from '../implementation/utils'
+import { get_device } from '../implementation/gpu'
+import structs from '../implementation/wgsl/struct/structs.template.wgsl'
+import bigint_functions from '../implementation/wgsl/bigint/bigint.template.wgsl'
+import field_functions from '../implementation/wgsl/field/field.template.wgsl'
+import barrett_functions from '../implementation/wgsl/cuzk/barrett.template.wgsl'
 import barrett_benchmarks_shader from './wgsl/barrett_benchmarks_shader.template.wgsl'
-import montgomery_product_funcs from './wgsl/montgomery/mont_pro_product.template.wgsl'
+import montgomery_product_funcs from '../implementation/wgsl/montgomery/mont_pro_product.template.wgsl'
 
 export const barrett_mul_benchmarks = async(
     baseAffinePoints: BigIntPoint[],

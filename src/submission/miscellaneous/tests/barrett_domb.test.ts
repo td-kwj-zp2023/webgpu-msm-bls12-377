@@ -1,7 +1,7 @@
 import {
     to_words_le,
     genRandomFieldElement,
-} from './utils'
+} from '../../implementation/utils'
 import {
     calc_m,
     mp_adder,
@@ -15,7 +15,7 @@ import {
     mp_full_multiply,
     machine_two_digit_add,
     mp_lsb_extra_diagonal,
-} from './barrett_domb'
+} from '../barrett_domb'
 
 const p = BigInt('0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001')
 
@@ -239,8 +239,6 @@ describe('Barrett-Domb ', () => {
 
             const b = genRandomFieldElement(p)
             const b_words = to_words_le(b, num_words, word_size)
-
-            //console.log(a, b)
 
             const m_words = to_words_le(m, num_words, word_size)
 

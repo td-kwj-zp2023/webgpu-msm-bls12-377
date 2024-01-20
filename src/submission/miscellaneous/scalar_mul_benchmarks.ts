@@ -16,7 +16,7 @@ import {
     numbers_to_u8s_for_gpu,
     calc_num_words,
     are_point_arr_equal,
-} from './utils'
+} from '../implementation/utils'
 import {
     create_sb,
     get_device,
@@ -25,12 +25,12 @@ import {
     create_and_write_sb,
     create_compute_pipeline,
     create_bind_group_layout,
-} from './gpu'
-import structs from './wgsl/struct/structs.template.wgsl'
-import bigint_funcs from './wgsl/bigint/bigint.template.wgsl'
-import field_funcs from './wgsl/field/field.template.wgsl'
-import ec_funcs from './wgsl/curve/ec.template.wgsl'
-import montgomery_product_funcs from './wgsl/montgomery/mont_pro_product.template.wgsl'
+} from '../implementation/gpu'
+import structs from '../implementation/wgsl/struct/structs.template.wgsl'
+import bigint_funcs from '../implementation/wgsl/bigint/bigint.template.wgsl'
+import field_funcs from '../implementation/wgsl/field/field.template.wgsl'
+import ec_funcs from '../implementation/wgsl/curve/ec.template.wgsl'
+import montgomery_product_funcs from '../implementation/wgsl/montgomery/mont_pro_product.template.wgsl'
 import scalar_mul_shader from './wgsl/scalar_mul.template.wgsl'
 
 const fieldMath = new FieldMath();

@@ -10,15 +10,15 @@ import {
     to_words_le,
     compute_misc_params,
     points_to_u8s_for_gpu,
-} from './utils'
-import { get_device, create_bind_group } from './gpu'
-import structs from './wgsl/struct/structs.template.wgsl'
-import bigint_funcs from './wgsl/bigint/bigint.template.wgsl'
-import field_funcs from './wgsl/field/field.template.wgsl'
-import barrett_funcs from './wgsl/barrett.template.wgsl'
+} from '../implementation/utils'
+import { get_device, create_bind_group } from '../implementation/gpu'
+import structs from '../implementation/wgsl/struct/structs.template.wgsl'
+import bigint_funcs from '../implementation/wgsl/bigint/bigint.template.wgsl'
+import field_funcs from '../implementation/wgsl/field/field.template.wgsl'
+import barrett_funcs from '../implementation/wgsl/cuzk/barrett.template.wgsl'
 import barrett_domb_funcs from './wgsl/barrett_domb.template.wgsl'
 import convert_inputs_shader from './wgsl/convert_inputs.template.wgsl'
-import montgomery_product_funcs from './wgsl/montgomery/mont_pro_product.template.wgsl'
+import montgomery_product_funcs from '../implementation/wgsl/montgomery/mont_pro_product.template.wgsl'
 
 export const convert_inputs_into_mont_benchmark = async(
     baseAffinePoints: BigIntPoint[],
