@@ -109,8 +109,8 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
             var x = new_point_x[idx];
             var y = new_point_y[idx];
             var z = get_r();
-
             let pt = Point(x, y, z);
+
             sum = add_points(sum, pt);
         }
 
@@ -143,6 +143,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
             );
             sum = add_points(bucket, sum);
         }
+
         // Set the point. Since no point has been set when j == 0, we can just
         // overwrite the data.
         bucket_sum_x[id] = sum.x;

@@ -257,9 +257,7 @@ export const do_cuzk_gpu = async (
         bucket_sum_z_sb,
         p,
         params,
-        true,
     )
-    device.destroy(); return { x: BigInt(0), y: BigInt(1) }
 
     const bucket_reduction_shader = shaderManager.gen_bucket_reduction_shader()
 
