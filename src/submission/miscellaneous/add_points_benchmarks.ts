@@ -3,10 +3,10 @@ import assert from 'assert'
 import { BigIntPoint } from "../../reference/types"
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import { FieldMath } from "../../reference/utils/FieldMath";
-import { genRandomFieldElement } from '../implementation/utils'
-import { to_words_le, compute_misc_params, u8s_to_points, points_to_u8s_for_gpu, gen_p_limbs, gen_d_limbs } from '../implementation/utils'
+import { genRandomFieldElement } from '../implementation/cuzk/utils'
+import { to_words_le, compute_misc_params, u8s_to_points, points_to_u8s_for_gpu, gen_p_limbs, gen_d_limbs } from '../implementation/cuzk/utils'
 import { add_points_any_a, add_points_a_minus_one } from './add_points'
-import { GPUExecution, IEntryInfo, IGPUInput, IGPUResult, IShaderCode, multipassEntryCreator } from "../implementation/entries/multipassEntryCreator";
+import { GPUExecution, IEntryInfo, IGPUInput, IGPUResult, IShaderCode, multipassEntryCreator } from "./entries/multipassEntryCreator";
 
 import structs from '../implementation/wgsl/struct/structs.template.wgsl'
 import bigint_funcs from '../implementation/wgsl/bigint/bigint.template.wgsl'

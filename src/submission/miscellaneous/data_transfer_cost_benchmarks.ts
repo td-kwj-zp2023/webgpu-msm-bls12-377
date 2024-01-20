@@ -8,10 +8,10 @@ import {
     create_compute_pipeline,
     create_sb,
     read_from_gpu,
-} from '../implementation/gpu'
+} from '../implementation/cuzk/gpu'
 import {
     numbers_to_u8s_for_gpu,
-} from '../implementation/utils'
+} from '../implementation/cuzk/utils'
 import simple_shader from './wgsl/simple.wgsl'
 import complex_shader from './wgsl/complex.wgsl'
 

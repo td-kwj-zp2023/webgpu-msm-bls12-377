@@ -1,6 +1,6 @@
 import mustache from 'mustache'
 import { BigIntPoint } from "../../../reference/types";
-import { u8s_to_numbers_32, numbers_to_u8s_for_gpu } from '../../implementation/utils'
+import { u8s_to_numbers_32, numbers_to_u8s_for_gpu } from '../../implementation/cuzk/utils'
 import {
     get_device,
     create_and_write_sb,
@@ -9,7 +9,7 @@ import {
     create_compute_pipeline,
     create_sb,
     read_from_gpu,
-} from '../../implementation/gpu'
+} from '../../implementation/cuzk/gpu'
 import { cpu_transpose_classic } from '../../implementation/cuzk/transpose'
 import assert from 'assert'
 import seedrandom from 'seedrandom'

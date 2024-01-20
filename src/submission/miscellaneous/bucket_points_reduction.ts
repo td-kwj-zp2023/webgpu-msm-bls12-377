@@ -5,8 +5,8 @@ import {
     create_bind_group_layout,
     create_compute_pipeline,
     execute_pipeline,
-} from '../implementation/gpu'
-import { numbers_to_u8s_for_gpu } from '../implementation/utils'
+} from '../implementation/cuzk/gpu'
+import { numbers_to_u8s_for_gpu } from '../implementation/cuzk/utils'
 
 export const shader_invocation = async (
     device: GPUDevice,

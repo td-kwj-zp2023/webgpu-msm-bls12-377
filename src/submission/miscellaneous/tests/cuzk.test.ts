@@ -1,7 +1,7 @@
 jest.setTimeout(10000000)
 import { FieldMath } from "../../../reference/utils/FieldMath";
 import { ExtPointType } from "@noble/curves/abstract/edwards";
-import { decompose_scalars_signed } from '../../implementation/utils'
+import { decompose_scalars_signed } from '../../implementation/cuzk/utils'
 import { cpu_transpose } from '../../implementation/cuzk/transpose'
 import { cpu_smvp_signed } from '../../implementation/cuzk/smvp';
 

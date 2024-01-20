@@ -16,7 +16,7 @@ import {
     numbers_to_u8s_for_gpu,
     calc_num_words,
     are_point_arr_equal,
-} from '../implementation/utils'
+} from '../implementation/cuzk/utils'
 import {
     create_sb,
     get_device,
@@ -25,7 +25,7 @@ import {
     create_and_write_sb,
     create_compute_pipeline,
     create_bind_group_layout,
-} from '../implementation/gpu'
+} from '../implementation/cuzk/gpu'
 import structs from '../implementation/wgsl/struct/structs.template.wgsl'
 import bigint_funcs from '../implementation/wgsl/bigint/bigint.template.wgsl'
 import field_funcs from '../implementation/wgsl/field/field.template.wgsl'

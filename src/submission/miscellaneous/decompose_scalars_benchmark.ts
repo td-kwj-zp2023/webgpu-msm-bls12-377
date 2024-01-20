@@ -7,7 +7,7 @@ import {
     decompose_scalars,
     compute_misc_params,
     bigints_to_u8_for_gpu,
-} from '../implementation/utils'
+} from '../implementation/cuzk/utils'
 import {
     get_device,
     create_sb,
@@ -17,7 +17,7 @@ import {
     create_compute_pipeline,
     execute_pipeline,
     read_from_gpu,
-} from '../implementation/gpu'
+} from '../implementation/cuzk/gpu'
 import extract_word_from_bytes_le_shader from '../implementation/wgsl/cuzk/extract_word_from_bytes_le.template.wgsl'
 import decompose_scalars_shader from './wgsl/decompose_scalars.template.wgsl'
 

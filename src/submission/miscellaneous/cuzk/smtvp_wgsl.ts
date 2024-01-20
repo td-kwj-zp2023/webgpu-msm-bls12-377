@@ -1,5 +1,5 @@
 import mustache from 'mustache'
-import { bigIntPointToExtPointType, compute_misc_params, u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, gen_p_limbs, gen_r_limbs, gen_d_limbs, to_words_le } from '../../implementation/utils'
+import { bigIntPointToExtPointType, compute_misc_params, u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, gen_p_limbs, gen_r_limbs, gen_d_limbs, to_words_le } from '../../implementation/cuzk/utils'
 import { BigIntPoint } from "../../../reference/types"
 import { FieldMath } from "../../../reference/utils/FieldMath";
 import { ELLSparseMatrix, CSRSparseMatrix } from '../matrices/matrices'; 
@@ -10,7 +10,7 @@ import field_functions from '../../implementation/wgsl/field/field.template.wgsl
 import curve_functions from '../../implementation/wgsl/curve/ec.template.wgsl'
 import montgomery_product_funcs from '../../implementation/wgsl/montgomery/mont_pro_product.template.wgsl'
 import { ExtPointType } from "@noble/curves/abstract/edwards";
-import { get_device, create_bind_group } from '../../implementation/gpu'
+import { get_device, create_bind_group } from '../../implementation/cuzk/gpu'
 import assert from 'assert'
 
 const fieldMath = new FieldMath();

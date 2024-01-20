@@ -1,16 +1,16 @@
 import mustache from 'mustache'
 
-import convert_point_coords_and_decompose_scalars from '../implementation/wgsl/cuzk/convert_point_coords_and_decompose_scalars.template.wgsl'
-import extract_word_from_bytes_le_funcs from '../implementation/wgsl/cuzk/extract_word_from_bytes_le.template.wgsl'
-import structs from '../implementation/wgsl/struct/structs.template.wgsl'
-import bigint_funcs from '../implementation/wgsl/bigint/bigint.template.wgsl'
-import field_funcs from '../implementation/wgsl/field/field.template.wgsl'
-import ec_funcs from '../implementation/wgsl/curve/ec.template.wgsl'
-import barrett_funcs from '../implementation/wgsl/cuzk/barrett.template.wgsl'
-import montgomery_product_funcs from '../implementation/wgsl/montgomery/mont_pro_product.template.wgsl'
-import transpose_serial_shader from '../implementation/wgsl/cuzk/transpose.wgsl'
-import smvp_shader from '../implementation/wgsl/cuzk/smvp.template.wgsl'
-import bucket_points_reduction_shader from '../implementation/wgsl/cuzk/bucket_points_reduction.template.wgsl'
+import convert_point_coords_and_decompose_scalars from '../../implementation/wgsl/cuzk/convert_point_coords_and_decompose_scalars.template.wgsl'
+import extract_word_from_bytes_le_funcs from '../../implementation/wgsl/cuzk/extract_word_from_bytes_le.template.wgsl'
+import structs from '../../implementation/wgsl/struct/structs.template.wgsl'
+import bigint_funcs from '../../implementation/wgsl/bigint/bigint.template.wgsl'
+import field_funcs from '../../implementation/wgsl/field/field.template.wgsl'
+import ec_funcs from '../../implementation/wgsl/curve/ec.template.wgsl'
+import barrett_funcs from '../../implementation/wgsl/cuzk/barrett.template.wgsl'
+import montgomery_product_funcs from '../../implementation/wgsl/montgomery/mont_pro_product.template.wgsl'
+import transpose_serial_shader from '../../implementation/wgsl/cuzk/transpose.wgsl'
+import smvp_shader from '../../implementation/wgsl/cuzk/smvp.template.wgsl'
+import bucket_points_reduction_shader from '../../implementation/wgsl/cuzk/bucket_points_reduction.template.wgsl'
 
 import {
     compute_misc_params,
