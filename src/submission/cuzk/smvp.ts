@@ -1,31 +1,9 @@
-import { FieldMath } from "../../reference/utils/FieldMath";
-import { ExtPointType } from "@noble/curves/abstract/edwards";
-
-export const cpu_smvp = (
-    csc_col_ptr: number[],
-    csc_val_idxs: number[],
-    points: ExtPointType[],
-    fieldMath: FieldMath,
-) => {
-    const zero = fieldMath.customEdwards.ExtendedPoint.ZERO;
-
-    const result: ExtPointType[] = [];
-    for (let i = 0; i < csc_col_ptr.length - 1; i++) {
-        result.push(zero)
-    }
-
-    for (let i = 0; i < csc_col_ptr.length - 1; i++) {
-        const row_begin = csc_col_ptr[i];
-        const row_end = csc_col_ptr[i + 1];
-        let sum = zero;
-        for (let j = row_begin; j < row_end; j++) {
-            sum = sum.add(points[csc_val_idxs[j]])
-        }
-        result[i] = sum
-    }
-
-    return result
-}
+import { G1 } from '@celo/bls12377js'
+import {
+    //createAffinePoint,
+    scalarMult,
+    ZERO,
+} from '../bls12_377'
 
 // Perform SMVP and scalar mul with signed bucket indices.
 export const cpu_smvp_signed = (
@@ -35,14 +13,13 @@ export const cpu_smvp_signed = (
     chunk_size: number,
     all_csc_col_ptr: number[],
     all_csc_val_idxs: number[],
-    points: ExtPointType[],
-    fieldMath: FieldMath,
+    points: G1[],
 ) => {
     const l = 2 ** chunk_size
     const h = l / 2
-    const zero = fieldMath.customEdwards.ExtendedPoint.ZERO;
+    const zero = ZERO
 
-    const buckets: ExtPointType[] = [];
+    const buckets: G1[] = [];
     for (let i = 0; i < num_columns / 2 + 1; i++) {
         buckets.push(zero)
     }
@@ -74,7 +51,11 @@ export const cpu_smvp_signed = (
             let bucket_idx
             if (h > row_idx) {
                 bucket_idx = h - row_idx
-                sum = sum.negate()
+                try {
+                    sum = sum.negate()
+                } catch {
+                    debugger
+                }
             } else {
                 bucket_idx = row_idx - h
             }
@@ -82,7 +63,7 @@ export const cpu_smvp_signed = (
             //console.log({ thread_id, row_idx, bucket_idx })
 
             if (bucket_idx > 0) {
-                sum = sum.multiply(BigInt(bucket_idx))
+                sum = scalarMult(sum, BigInt(bucket_idx))
 
                 // Store the result in buckets[thread_id]. Each thread must use
                 // a unique storage location (thread_id) to prevent race

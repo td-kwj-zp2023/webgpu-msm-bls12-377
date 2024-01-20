@@ -6,12 +6,11 @@ import extract_word_from_bytes_le_funcs from './wgsl/extract_word_from_bytes_le.
 import structs from './wgsl/struct/structs.template.wgsl'
 import bigint_funcs from './wgsl/bigint/bigint.template.wgsl'
 import field_funcs from './wgsl/field/field.template.wgsl'
-import ec_funcs from './wgsl/curve/ec.template.wgsl'
 import ec_bls12_377_funcs from './wgsl/curve/ec_bls12_377.template.wgsl'
 import barrett_funcs from './wgsl/barrett.template.wgsl'
 import montgomery_product_funcs from './wgsl/montgomery/mont_pro_product.template.wgsl'
 import transpose_serial_shader from './wgsl/transpose_serial.wgsl'
-import smvp_shader from './wgsl/smvp.template.wgsl'
+import smvp_bls12_377_shader from './wgsl/smvp_bls12_377.template.wgsl'
 import bucket_points_reduction_shader from './wgsl/bucket_points_reduction.template.wgsl'
 
 import {
@@ -26,7 +25,6 @@ import {
 // easily. It precomputes all the necessary variables (such as the Montgomery
 // radix) which depend on the word size.
 export class ShaderManager {
-    public curve_type: Curve
     public p: bigint
     public word_size: number
     public chunk_size: number
@@ -53,11 +51,9 @@ export class ShaderManager {
         word_size: number,
         chunk_size: number,
         input_size: number,
-        curve_type: Curve = Curve.Edwards_BLS12,
         force_recompile = false,
     ) {
-        this.curve_type = curve_type
-        this.p = base_field_modulus[curve_type]
+        this.p = base_field_modulus[Curve.BLS12_377]
         const params = compute_misc_params(this.p, word_size)
         this.word_size = word_size
         this.chunk_size = chunk_size
@@ -95,6 +91,9 @@ export class ShaderManager {
         num_subtasks: number,
         num_columns: number,
     ): string {
+        const num_16_bit_words_per_coord = Math.ceil(
+            (this.num_words * this.word_size) / 16
+        )
         const shaderCode = mustache.render(
             convert_point_coords_and_decompose_scalars,
             {
@@ -119,6 +118,7 @@ export class ShaderManager {
                 num_words_plus_one: this.num_words + 1,
                 chunk_size: this.chunk_size,
                 input_size: this.input_size,
+                num_16_bit_words_per_coord,
                 recompile: this.recompile,
             },
             {
@@ -152,9 +152,8 @@ export class ShaderManager {
         workgroup_size: number,
         num_csr_cols: number,
     ) {
-        const ec_funcs_for_curve = this.curve_type ? ec_funcs : ec_bls12_377_funcs
         const shaderCode = mustache.render(
-            smvp_shader,
+            smvp_bls12_377_shader,
             {
                 word_size: this.word_size,
                 num_words: this.num_words,
@@ -175,7 +174,7 @@ export class ShaderManager {
                 bigint_funcs,
                 montgomery_product_funcs,
                 field_funcs,
-                ec_funcs: ec_funcs_for_curve,
+                ec_funcs: ec_bls12_377_funcs
             },
         )
         return shaderCode
@@ -186,8 +185,6 @@ export class ShaderManager {
         // points, as setting a different workgroup_size will cause a costly
         // recompile. This constant is only passed into the shader as a template
         // variable for ease of benchmarking.
-
-        const ec_funcs_for_curve = this.curve_type ? ec_funcs : ec_bls12_377_funcs
 
         const shaderCode = mustache.render(
             bucket_points_reduction_shader,
@@ -206,7 +203,7 @@ export class ShaderManager {
                 structs,
                 bigint_funcs,
                 field_funcs,
-                ec_funcs: ec_funcs_for_curve,
+                ec_funcs: ec_bls12_377_funcs,
                 montgomery_product_funcs,
             },
         )

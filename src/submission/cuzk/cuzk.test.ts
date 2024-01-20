@@ -1,16 +1,14 @@
 jest.setTimeout(10000000)
-import { FieldMath } from "../../reference/utils/FieldMath";
-import { ExtPointType } from "@noble/curves/abstract/edwards";
+import { G1 } from '@celo/bls12377js'
 import { decompose_scalars_signed } from '../../submission/utils'
 import { cpu_transpose } from '../../submission/cuzk/transpose'
 import { cpu_smvp_signed } from '../../submission/cuzk/smvp';
+import { createAffinePoint, scalarMult, ZERO } from '../bls12_377'
 
-const fieldMath = new FieldMath()
-const x = BigInt('2796670805570508460920584878396618987767121022598342527208237783066948667246')
-const y = BigInt('8134280397689638111748378379571739274369602049665521098046934931245960532166')
-const t = BigInt('3446088593515175914550487355059397868296219355049460558182099906777968652023')
-const z = BigInt('1')
-const pt = fieldMath.createPoint(x, y, t, z)
+const x = BigInt('111871295567327857271108656266735188604298176728428155068227918632083036401841336689521497731900230387779623820740');
+const y = BigInt('76860045326390600098227152997486448974650822224305058012700629806287380625419427989664237630603922765089083164740');
+const z = BigInt('1');
+const pt = createAffinePoint(x, y, z)
 
 describe('cuzk', () => {
     it('cuzk without precomputation', () => {
@@ -27,18 +25,18 @@ describe('cuzk', () => {
         const num_chunks_per_scalar = Math.ceil(256 / chunk_size)
         const num_subtasks = num_chunks_per_scalar
 
-        const points: ExtPointType[] = []
+        const points: G1[] = []
         const scalars: bigint[] = []
         for (let i = 0; i < input_size; i ++) {
             points.push(pt)
             const v = BigInt('1111111111111111111111111111111111111111111111111111111111111111111111111111')
             scalars.push((BigInt(i) * v) % p)
-            points.push(fieldMath.createPoint(x, y, t, z).multiply(BigInt(i + 1)))
+            points.push(scalarMult(pt, BigInt(i + 1)))
         }
 
         const decomposed_scalars = decompose_scalars_signed(scalars, num_subtasks, chunk_size)
 
-        const bucket_sums: ExtPointType[] = []
+        const bucket_sums: G1[] = []
 
         // Perform multiple transpositions "in parallel"
         const { all_csc_col_ptr, all_csc_vals } = cpu_transpose(
@@ -49,6 +47,7 @@ describe('cuzk', () => {
             input_size,
         )
 
+        const zero = ZERO
         for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx ++) {
             // Perform SMVP
             const buckets = cpu_smvp_signed(
@@ -59,12 +58,11 @@ describe('cuzk', () => {
                 all_csc_col_ptr,
                 all_csc_vals,
                 points,
-                fieldMath,
             )
 
-            let bucket_sum = fieldMath.customEdwards.ExtendedPoint.ZERO
+            let bucket_sum = zero
             for (let i = 0; i < buckets.length; i ++) {
-                if (!buckets[i].equals(fieldMath.customEdwards.ExtendedPoint.ZERO)) {
+                if (!buckets[i].equals(zero)) {
                     bucket_sum = bucket_sum.add(buckets[i])
                 }
             }
@@ -76,23 +74,19 @@ describe('cuzk', () => {
         // The last scalar chunk is the most significant digit (base m)
         let result = bucket_sums[bucket_sums.length - 1]
         for (let i = bucket_sums.length - 2; i >= 0; i --) {
-            result = result.multiply(m)
+            result = scalarMult(result, m)
             result = result.add(bucket_sums[i])
         }
 
-        const result_affine = result.toAffine()
-
         // Calculated expected result
-        let expected = fieldMath.customEdwards.ExtendedPoint.ZERO
+        let expected = zero
         for (let i = 0; i < input_size; i ++) {
             if (scalars[i] !== BigInt(0)) {
-                const p = points[i].multiply(scalars[i])
+                const p = scalarMult(points[i], scalars[i])
                 expected = expected.add(p)
             }
         }
-        const expected_affine = expected.toAffine()
-        expect(result_affine.x).toEqual(expected_affine.x)
-        expect(result_affine.y).toEqual(expected_affine.y)
+        expect(result.equals(expected)).toBeTruthy()
     })
 })
 
