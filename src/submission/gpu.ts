@@ -1,9 +1,9 @@
 // Request a high-performance GPU device
 export const get_device = async (): Promise<GPUDevice> => {
-    const gpuErrMsg = "Please use a browser that has WebGPU enabled.";
+    const gpuErrMsg = "Please use a browser that has WebGPU enabled."
     const adapter = await navigator.gpu.requestAdapter({
         powerPreference: 'high-performance',
-    });
+    })
     if (!adapter) {
         console.log(gpuErrMsg)
         throw Error('Couldn\'t request WebGPU adapter.')
@@ -80,7 +80,7 @@ export const read_from_gpu = async (
     }
 
     // Finish encoding commands and submit to GPU device command queue
-    device.queue.submit([commandEncoder.finish()]);
+    device.queue.submit([commandEncoder.finish()])
 
     // Map staging buffers to read results back to JS
     const data = []

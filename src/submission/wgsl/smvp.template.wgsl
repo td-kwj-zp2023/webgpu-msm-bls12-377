@@ -26,7 +26,7 @@ var<storage, read_write> bucket_sum_z: array<BigInt>;
 
 // Params buffer
 @group(0) @binding(8)
-var<uniform> params: u32;
+var<uniform> params: vec3<u32>;
 
 fn get_r() -> BigInt {
     var r: BigInt;
@@ -77,10 +77,14 @@ fn negate_point(point: Point) -> Point {
 @compute
 @workgroup_size({{ workgroup_size }})
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {    
+    let input_size = params[0];
+    let num_y_workgroups = params[1];
+    let num_z_workgroups = params[2];
+
     let gidx = global_id.x; 
     let gidy = global_id.y; 
     var gidz = global_id.z;
-    let id = (gidx * {{ num_y_workgroups }} + gidy) * {{ num_z_workgroups }} + gidz;
+    let id = (gidx * num_y_workgroups + gidy) * num_z_workgroups + gidz;
 
     let num_columns = {{ num_columns }}u;
     let l = num_columns;
@@ -88,7 +92,6 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     // Define custom subtask_idx
     let subtask_idx = (id / h);
-    let input_size = params;
 
     var inf = get_paf();
 
