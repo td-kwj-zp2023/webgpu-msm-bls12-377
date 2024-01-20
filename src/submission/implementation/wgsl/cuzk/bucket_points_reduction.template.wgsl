@@ -41,7 +41,7 @@ fn get_paf() -> Point {
 // This shader is executed multiple times until the result is the sum of all
 // the input points.
 @compute
-@workgroup_size(256)
+@workgroup_size(1)
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     // We pass in these parametes via a uniform buffer to avoid shader
     // recompilation.
