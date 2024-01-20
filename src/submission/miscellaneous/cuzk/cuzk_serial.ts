@@ -1,9 +1,6 @@
-import { BigIntPoint, U32ArrayPoint } from "../../../reference/types";
-import { DenseMatrix, ELLSparseMatrix, CSRSparseMatrix, fieldMath } from '../matrices/matrices'; 
+import { BigIntPoint } from "../../../reference/types";
+import { ELLSparseMatrix, CSRSparseMatrix, fieldMath } from '../matrices/matrices'; 
 import { ExtPointType } from "@noble/curves/abstract/edwards";
-import { strict as assert } from 'assert';
-import { bigIntToU32Array, generateRandomFields } from '../../../reference/webgpu/utils';
-import { Field } from "@noble/curves/abstract/modular";
 
 // Typescript implementation of cuZK
 export const cuzk_typescript_serial = async (

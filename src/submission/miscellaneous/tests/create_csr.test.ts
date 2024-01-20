@@ -1,11 +1,7 @@
-import { assert } from 'console'
-import { CSRSparseMatrix } from '../matrices/matrices'
 import { 
     create_csr_cpu,
-    all_precomputation,
     precompute_with_gpu_simulated,
     pre_aggregate,
-    precompute_with_cluster_method,
 } from '../cuzk/create_csr'
 
 describe('Create an CSR sparse matrix from the MSM input points and scalars', () => {

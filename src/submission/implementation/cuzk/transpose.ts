@@ -1,3 +1,8 @@
+/// Typescript implementation of serial transpose algorithm from 
+/// https://synergy.cs.vt.edu/pubs/papers/wang-transposition-ics16.pdf. 
+/// It simulates running multiple transpositions in parallel, with one thread
+/// per CSR matrix. It does not accept an arbitrary csr_row_ptr array.
+
 const calc_start_end = (
     m: number,
     n: number,
@@ -10,11 +15,6 @@ const calc_start_end = (
     }
 }
 
-// Modified serial transpose algo from
-// https://synergy.cs.vt.edu/pubs/papers/wang-transposition-ics16.pdf
-// It simulates running multiple transpositions in parallel, with one thread
-// per subtask / CSR matrix.
-// It does not accept an arbitrary csr_row_ptr array.
 export const cpu_transpose = (
     all_csr_col_idx: number[],
     n: number, // The width of the matrix
@@ -70,8 +70,10 @@ export const cpu_transpose = (
     return { all_csc_col_ptr, all_csc_row_idx, all_csc_vals }
 }
 
-// Serial transpose algo from
-// https://synergy.cs.vt.edu/pubs/papers/wang-transposition-ics16.pdf
+/**
+ * Serial transpose algo from
+ * https://synergy.cs.vt.edu/pubs/papers/wang-transposition-ics16.pdf
+ */
 export const cpu_transpose_classic = (
     csr_row_ptr: number[],
     csr_col_idx: number[],

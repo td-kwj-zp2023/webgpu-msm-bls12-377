@@ -161,9 +161,6 @@ export const test_bucket_points_reduction = async (
         fieldMath.Fp.mul(z_mont_coords_result[0], rinv),
     )
 
-    //console.log('result:', result)
-    //console.log('result.isAffine():', result.toAffine())
-    //console.log('expected.isAffine():', expected.toAffine())
     assert(are_point_arr_equal([result], [expected]))
 
     device.destroy()

@@ -24,8 +24,5 @@ export const convert_bigints_to_bytes_benchmark = async(
         assert(x_y_coords_bytes[i] == x_y_coords_bytes_2[i])
     }
 
-    console.log("passed assertion checks!")
-
-
     return { x: BigInt(0), y: BigInt(0) }
 }

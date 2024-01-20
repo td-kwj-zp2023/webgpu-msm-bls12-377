@@ -1,3 +1,7 @@
+/// This module provides CPU-based operations, including Sparse Matrix-Vector Product (SMVP)
+/// and scalar multiplication with signed bucket indices in typescript. It leverages the 
+/// `FieldMath` utility for mathematical operations on extended points. 
+
 import { FieldMath } from "../../../reference/utils/FieldMath";
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 
@@ -27,7 +31,9 @@ export const cpu_smvp = (
     return result
 }
 
-// Perform SMVP and scalar mul with signed bucket indices.
+/**
+ * Perform SMVP and scalar mul with signed bucket indices
+ */
 export const cpu_smvp_signed = (
     subtask_idx: number,
     input_size: number,
@@ -79,14 +85,11 @@ export const cpu_smvp_signed = (
                 bucket_idx = row_idx - h
             }
 
-            //console.log({ thread_id, row_idx, bucket_idx })
-
             if (bucket_idx > 0) {
                 sum = sum.multiply(BigInt(bucket_idx))
 
                 // Store the result in buckets[thread_id]. Each thread must use
-                // a unique storage location (thread_id) to prevent race
-                // conditions.
+                // a unique storage location (thread_id) to prevent race conditions.
                 buckets[thread_id] = buckets[thread_id].add(sum)
             }
 

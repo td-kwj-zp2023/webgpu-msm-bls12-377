@@ -33,14 +33,16 @@ export const extPointTypeToBigIntPoint = (ept: ExtPointType): BigIntPoint => {
     return { x: ept.ex, y: ept.ey, t: ept.et, z: ept.ez }
 }
 
-// e.g. if the scalars converted to limbs = [
-//    [limb_a, limb_b],
-//    [limb_c, limb_d]
-// ]
-// return: [
-//    [limb_a, limb_c],
-//    [limb_b, limb_d]
-// ]
+/**
+ * e.g. if the scalars converted to limbs = [
+ *          [limb_a, limb_b],
+ *          [limb_c, limb_d]
+ *      ]
+ *      return: [
+ *          [limb_a, limb_c],
+ *          [limb_b, limb_d]
+ *      ]
+ */
 export const decompose_scalars = (
     scalars: bigint[],
     num_words: number,
@@ -245,8 +247,6 @@ export const bigints_to_u8_for_gpu = (
     return result
 }
 
-// Mimic the functionality of
-// bytemuck::cast_slice::<u32, u8>(input_bytes: &[u32]) in Rust
 export const bigint_to_u8_for_gpu = (
     val: bigint,
     num_words: number,
@@ -338,19 +338,6 @@ export const to_words_le = (val: bigint, num_words: number, word_size: number): 
         words[idx] = Number(w)
     }
 
-    /*
-    // max value per limb (exclusive)
-    const max_limb_size = BigInt(2 ** word_size)
-    let v = val
-    let i = 0
-    while (v > 0) {
-        const limb = v % max_limb_size
-        words[i] = Number(limb)
-        v = v / max_limb_size
-        i ++
-    }
-    */
-
     return words
 }
 
@@ -419,8 +406,6 @@ export const compute_misc_params = (
         assert((r * rinv) % p == BigInt(1))
         assert((p * pprime) % r + r == BigInt(1))
     }
-
-    //console.log(to_words_le((r * BigInt(2)) % p, num_words, word_size))
 
     const neg_n_inv = r - pprime
     const n0 = neg_n_inv % (BigInt(2) ** BigInt(word_size))

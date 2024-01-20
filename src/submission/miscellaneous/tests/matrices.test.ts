@@ -1,5 +1,5 @@
 import { log } from 'console'
-import { DenseMatrix, ELLSparseMatrix, CSRSparseMatrix, fieldMath } from '../matrices/matrices'; 
+import { DenseMatrix, ELLSparseMatrix, CSRSparseMatrix } from '../matrices/matrices'; 
 
 describe('matrices', () => {
     describe('dense matrix functions', () => {

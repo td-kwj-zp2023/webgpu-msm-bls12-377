@@ -1,5 +1,8 @@
-import mustache from 'mustache'
+/// A helper class which allows our end-to-end cuzk implementation to generate all 
+/// the shaders it needs easily. It precomputes all the necessary variables (such as 
+// the Montgomery radix) which depend on the word size.
 
+import mustache from 'mustache'
 import convert_point_coords_and_decompose_scalars from '../../implementation/wgsl/cuzk/convert_point_coords_and_decompose_scalars.template.wgsl'
 import extract_word_from_bytes_le_funcs from '../../implementation/wgsl/cuzk/extract_word_from_bytes_le.template.wgsl'
 import structs from '../../implementation/wgsl/struct/structs.template.wgsl'
@@ -11,7 +14,6 @@ import montgomery_product_funcs from '../../implementation/wgsl/montgomery/mont_
 import transpose_serial_shader from '../../implementation/wgsl/cuzk/transpose.wgsl'
 import smvp_shader from '../../implementation/wgsl/cuzk/smvp.template.wgsl'
 import bucket_points_reduction_shader from '../../implementation/wgsl/cuzk/bucket_points_reduction.template.wgsl'
-
 import {
     compute_misc_params,
     gen_p_limbs,
@@ -20,9 +22,6 @@ import {
     gen_mu_limbs,
 } from './utils'
 
-// A helper class which allows cuzk_gpu() to generate all the shaders it needs
-// easily. It precomputes all the necessary variables (such as the Montgomery
-// radix) which depend on the word size.
 export class ShaderManager {
     public p = BigInt('8444461749428370424248824938781546531375899335154063827935233455917409239041')
     public word_size: number
