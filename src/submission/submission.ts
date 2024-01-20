@@ -932,7 +932,7 @@ export const bucket_aggregation = async (
     const z_mont_coords_result = u8s_to_bigints(data[3], num_words, word_size);
 
     for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx++) {
-      // Convert the resulting point coordiantes out of Montgomery form
+      // Convert the resulting point coordinates out of Montgomery form
       const result = fieldMath.createPoint(
         fieldMath.Fp.mul(x_mont_coords_result[subtask_idx], rinv),
         fieldMath.Fp.mul(y_mont_coords_result[subtask_idx], rinv),
