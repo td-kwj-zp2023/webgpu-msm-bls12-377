@@ -1,5 +1,4 @@
 import mustache from "mustache";
-import { BigIntPoint } from "../../../reference/types";
 import {
   u8s_to_numbers_32,
   numbers_to_u8s_for_gpu,
@@ -19,12 +18,10 @@ import seedrandom from "seedrandom";
 
 // WGSL implementation of Sparse-Matrix Transpose
 export const transpose_wgsl = async (
-  baseAffinePoints: BigIntPoint[],
-  scalars: bigint[],
 ): Promise<{ x: bigint; y: bigint }> => {
   console.log("Starting WGSL Sparse-Matrix Transpose!");
 
-  const result = await transpose(baseAffinePoints, scalars);
+  const result = await transpose();
   return result;
 };
 
@@ -107,8 +104,6 @@ const gen_csr = (num_cols: number, num_rows: number, all_data: number[]) => {
 };
 
 export async function transpose(
-  baseAffinePoints: BigIntPoint[],
-  scalars: bigint[],
 ): Promise<{ x: bigint; y: bigint }> {
   console.log(
     "warning: this is using a slightly outdated shader as our cuZK implementation arranges the elements in rows in a different fashion",

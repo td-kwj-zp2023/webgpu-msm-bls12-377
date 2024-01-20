@@ -1,4 +1,3 @@
-import { BigIntPoint } from "../../reference/types";
 import {
   get_device,
   create_and_write_sb,
@@ -15,8 +14,6 @@ import complex_shader from "./wgsl/complex.wgsl";
  * Benchmark data transfer costs
  */
 export const data_transfer_cost_benchmarks = async (
-  baseAffinePoints: BigIntPoint[],
-  scalars: bigint[],
 ): Promise<{ x: bigint; y: bigint }> => {
   let num_bytes = 1 * 1024 * 1024;
 
@@ -59,7 +56,6 @@ const shader_benchmark = async (
   const bindGroupLayout = create_bind_group_layout(device, ["storage"]);
   const bindGroup = create_bind_group(device, bindGroupLayout, [data_sb]);
 
-  const workgroup_size = 1;
   const num_x_workgroups = 1;
 
   const computePipeline = await create_compute_pipeline(

@@ -4,8 +4,8 @@ import {
   create_bind_group_layout,
   create_compute_pipeline,
   execute_pipeline,
-} from "../implementation/cuzk/gpu";
-import { numbers_to_u8s_for_gpu } from "../implementation/cuzk/utils";
+} from "./gpu";
+import { numbers_to_u8s_for_gpu } from "./utils";
 
 export const shader_invocation = async (
   device: GPUDevice,
@@ -21,7 +21,6 @@ export const shader_invocation = async (
   out_z_sb: GPUBuffer,
   num_points: number,
   num_words: number,
-  workgroup_size: number,
 ) => {
   let num_z_workgroups = 2;
   const compute_ideal_num_workgroups = (num_points: number) => {

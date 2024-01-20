@@ -30,7 +30,7 @@ describe("Create an CSR sparse matrix from the MSM input points and scalars", ()
       for (let i = 0; i < 3; i++) {
         const scalar_chunks = decomposed_scalars[i];
         const r = precompute_with_gpu_simulated(scalar_chunks, 0, num_rows);
-        const { new_points, new_scalar_chunks } = pre_aggregate(
+        const { new_points } = pre_aggregate(
           points,
           scalar_chunks,
           r.new_point_indices,

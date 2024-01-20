@@ -391,6 +391,7 @@ export async function create_csr_sparse_matrices_from_points_benchmark(
   const points = baseAffinePoints.map((x) =>
     bigIntPointToExtPointType(x, fieldMath),
   );
+  /* eslint-disable @typescript-eslint/no-unused-vars */
   const csr_sms = await create_csr_sparse_matrices_from_points(
     points,
     scalars,
