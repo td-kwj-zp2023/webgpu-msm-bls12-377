@@ -14,7 +14,7 @@
  */
 
 import assert from "assert";
-import { BigIntPoint } from "../reference/types";
+import { BigIntPoint, U32ArrayPoint } from "../reference/types";
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import { ShaderManager } from "./implementation/cuzk/shader_manager";
 import {
@@ -76,8 +76,8 @@ const fieldMath = new FieldMath();
  *    is greater than the time it takes for the CPU to do so.
  */
 export const compute_msm = async (
-  baseAffinePoints: BigIntPoint[],
-  scalars: bigint[],
+  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[],
+  scalars: bigint[] | Uint32Array[],
   log_result = true,
   force_recompile = false,
 ): Promise<{ x: bigint; y: bigint }> => {
@@ -130,10 +130,10 @@ export const compute_msm = async (
       c_num_x_workgroups,
       c_num_y_workgroups,
       device,
-      baseAffinePoints,
+      baseAffinePoints as BigIntPoint[],
       num_words,
       word_size,
-      scalars,
+      scalars as bigint[],
       num_subtasks,
       num_columns,
       chunk_size,
