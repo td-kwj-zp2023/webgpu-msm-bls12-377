@@ -4,7 +4,7 @@ import {
     compute_misc_params,
     bigints_to_16_bit_words_for_gpu,
     bigints_to_u8_for_gpu,
-} from './utils'
+} from '../../implementation/utils'
 import * as bigintCryptoUtils from 'bigint-crypto-utils'
 
 describe('utils', () => {
@@ -59,7 +59,6 @@ describe('utils', () => {
                     sum += input[i]
                 }
             }
-            //console.log(start_byte_idx, start_byte_offset, end_byte_idx, end_byte_offset)
 
             return sum
         }

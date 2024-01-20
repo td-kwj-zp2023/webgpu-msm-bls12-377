@@ -10,15 +10,15 @@ import {
     create_sb,
     read_from_gpu,
     execute_pipeline,
-} from '../gpu'
+} from '../../implementation/gpu'
 import { CSRSparseMatrix, ELLSparseMatrix, fieldMath } from '../matrices/matrices';
-import smvp_shader from '../wgsl/cuzk/smvp_benchmark.template.wgsl'
-import structs from '../wgsl/struct/structs.template.wgsl'
-import bigint_functions from '../wgsl/bigint/bigint.template.wgsl'
-import field_functions from '../wgsl/field/field.template.wgsl'
-import curve_functions from '../wgsl/curve/ec.template.wgsl'
-import montgomery_product_funcs from '../wgsl/montgomery/mont_pro_product.template.wgsl'
-import { u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, compute_misc_params, gen_p_limbs, gen_r_limbs, gen_d_limbs } from '../utils'
+import smvp_shader from '../wgsl/smvp_benchmark.template.wgsl'
+import structs from '../../implementation/wgsl/struct/structs.template.wgsl'
+import bigint_functions from '../../implementation/wgsl/bigint/bigint.template.wgsl'
+import field_functions from '../../implementation/wgsl/field/field.template.wgsl'
+import curve_functions from '../../implementation/wgsl/curve/ec.template.wgsl'
+import montgomery_product_funcs from '../../implementation/wgsl/montgomery/mont_pro_product.template.wgsl'
+import { u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, compute_misc_params, gen_p_limbs, gen_r_limbs, gen_d_limbs } from '../../implementation/utils'
 import assert from 'assert'
 
 // WGSL implementation of Sparse-Matrix Vector Multiplication

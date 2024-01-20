@@ -3,18 +3,18 @@ import assert from 'assert'
 import { BigIntPoint } from "../../reference/types"
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import { FieldMath } from "../../reference/utils/FieldMath";
-import { genRandomFieldElement } from './utils'
-import { to_words_le, compute_misc_params, u8s_to_points, points_to_u8s_for_gpu, gen_p_limbs, gen_d_limbs } from './utils'
+import { genRandomFieldElement } from '../implementation/utils'
+import { to_words_le, compute_misc_params, u8s_to_points, points_to_u8s_for_gpu, gen_p_limbs, gen_d_limbs } from '../implementation/utils'
 import { add_points_any_a, add_points_a_minus_one } from './add_points'
-import { GPUExecution, IEntryInfo, IGPUInput, IGPUResult, IShaderCode, multipassEntryCreator } from "./entries/multipassEntryCreator";
+import { GPUExecution, IEntryInfo, IGPUInput, IGPUResult, IShaderCode, multipassEntryCreator } from "../implementation/entries/multipassEntryCreator";
 
-import structs from './wgsl/struct/structs.template.wgsl'
-import bigint_funcs from './wgsl/bigint/bigint.template.wgsl'
-import field_funcs from './wgsl/field/field.template.wgsl'
-import ec_funcs from './wgsl/curve/ec.template.wgsl'
+import structs from '../implementation/wgsl/struct/structs.template.wgsl'
+import bigint_funcs from '../implementation/wgsl/bigint/bigint.template.wgsl'
+import field_funcs from '../implementation/wgsl/field/field.template.wgsl'
+import ec_funcs from '../implementation/wgsl/curve/ec.template.wgsl'
 import add_points_any_a_shader from './wgsl/add_points_any_a.template.wgsl'
 import add_points_a_minus_one_shader from './wgsl/add_points_a_minus_one.template.wgsl'
-import montgomery_product_funcs from './wgsl/montgomery/mont_pro_product.template.wgsl'
+import montgomery_product_funcs from '../implementation/wgsl/montgomery/mont_pro_product.template.wgsl'
 
 const setup_shader_code = (
     shader: string,

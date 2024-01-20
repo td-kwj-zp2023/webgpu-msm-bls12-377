@@ -1,4 +1,4 @@
-import { to_words_le, genRandomFieldElement } from './utils'
+import { to_words_le, genRandomFieldElement } from '../../implementation/utils'
 
 const to_signed_slices = (
     scalar: bigint,

@@ -6,7 +6,7 @@ import {
     gen_p_limbs,
     bigints_to_u8_for_gpu,
     u8s_to_bigints,
-} from './utils'
+} from '../implementation/utils'
 import {
     get_device,
     create_and_write_sb,
@@ -15,14 +15,14 @@ import {
     create_compute_pipeline,
     execute_pipeline,
     read_from_gpu,
-} from './gpu'
-import structs from './wgsl/struct/structs.template.wgsl'
-import bigint_functions from './wgsl/bigint/bigint.template.wgsl'
-import field_functions from './wgsl/field/field.template.wgsl'
-import mont_pro_optimised_shader from './wgsl/montgomery/mont_pro_optimized.template.wgsl'
-import mont_pro_modified_shader from './wgsl/montgomery/mont_pro_modified.template.wgsl'
-import mont_pro_cios_shader from './wgsl/montgomery/mont_pro_cios.template.wgsl'
-import montgomery_product_funcs from './wgsl/montgomery/mont_pro_product.template.wgsl'
+} from '../implementation/gpu'
+import structs from '../implementation/wgsl/struct/structs.template.wgsl'
+import bigint_functions from '../implementation/wgsl/bigint/bigint.template.wgsl'
+import field_functions from '../implementation/wgsl/field/field.template.wgsl'
+import mont_pro_optimised_shader from '../implementation/wgsl/montgomery/mont_pro_optimized.template.wgsl'
+import mont_pro_modified_shader from '../implementation/wgsl/montgomery/mont_pro_modified.template.wgsl'
+import mont_pro_cios_shader from '../implementation/wgsl/montgomery/mont_pro_cios.template.wgsl'
+import montgomery_product_funcs from '../implementation/wgsl/montgomery/mont_pro_product.template.wgsl'
 
 export const mont_mul_benchmarks = async(
     {}: BigIntPoint[],

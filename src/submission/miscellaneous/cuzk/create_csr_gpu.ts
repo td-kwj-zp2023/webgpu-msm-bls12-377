@@ -1,7 +1,7 @@
 import assert from 'assert'
 import mustache from 'mustache'
 import { BigIntPoint } from "../../../reference/types"
-import { CSRSparseMatrix } from '../matrices/matrices'; 
+import { CSRSparseMatrix } from '../../miscellaneous/matrices/matrices'; 
 import { FieldMath } from "../../../reference/utils/FieldMath";
 import {
     gen_p_limbs,
@@ -12,14 +12,14 @@ import {
     bigIntPointToExtPointType,
     u8s_to_numbers,
     compute_misc_params,
-} from '../utils'
+} from '../../implementation/utils'
 import { ExtPointType } from "@noble/curves/abstract/edwards";
-import { get_device, create_bind_group } from '../gpu'
-import structs from '../wgsl/struct/structs.template.wgsl'
-import bigint_funcs from '../wgsl/bigint/bigint.template.wgsl'
-import field_funcs from '../wgsl/field/field.template.wgsl'
-import ec_funcs from '../wgsl/curve/ec.template.wgsl'
-import montgomery_product_funcs from '../wgsl/montgomery/mont_pro_product.template.wgsl'
+import { get_device, create_bind_group } from '../../implementation/gpu'
+import structs from '../../implementation/wgsl/struct/structs.template.wgsl'
+import bigint_funcs from '../../implementation/wgsl/bigint/bigint.template.wgsl'
+import field_funcs from '../../implementation/wgsl/field/field.template.wgsl'
+import ec_funcs from '../../implementation/wgsl/curve/ec.template.wgsl'
+import montgomery_product_funcs from '../../implementation/wgsl/montgomery/mont_pro_product.template.wgsl'
 import create_csr_shader from '../wgsl/create_csr.template.wgsl'
 import { all_precomputation, create_csr_cpu } from './create_csr'
 //import * as wasm from 'csr-precompute'

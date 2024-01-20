@@ -40,7 +40,7 @@ import {
 } from './implementation/utils'
 import { cpu_transpose } from './implementation/cuzk/transpose'
 import { cpu_smvp_signed } from './implementation/cuzk/smvp';
-import { shader_invocation } from './implementation/bucket_points_reduction'
+import { shader_invocation } from './miscellaneous/bucket_points_reduction'
 
 const p = BigInt('8444461749428370424248824938781546531375899335154063827935233455917409239041')
 const word_size = 13
