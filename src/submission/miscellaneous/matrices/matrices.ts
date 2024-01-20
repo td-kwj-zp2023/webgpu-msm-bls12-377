@@ -118,7 +118,6 @@ export class ELLSparseMatrix implements Interface.ELLSparseMatrix {
   }
 
   async sparse_to_dense_matrix(
-    sparse_matrix: ELLSparseMatrix,
   ): Promise<DenseMatrix> {
     console.log("Not Implemented Yet!");
     return Promise.resolve(new DenseMatrix([]));
@@ -148,6 +147,7 @@ export class CSRSparseMatrix implements Interface.CSRSparseMatrix {
 
     // Fill sparse matrix
     for (const i of ell_sparse_matrix.data) {
+      /* eslint-disable @typescript-eslint/no-unused-vars */
       for (const [position, value] of i.entries()) {
         if (value != null) {
           sparse_matrix.push(value);
@@ -168,6 +168,7 @@ export class CSRSparseMatrix implements Interface.CSRSparseMatrix {
     row_ptr.push(0);
     for (const [i, j] of ell_sparse_matrix.data.entries()) {
       let z = 0;
+      /* eslint-disable @typescript-eslint/no-unused-vars */
       for (const [position, value] of j.entries()) {
         if (value != null) {
           z += 1;
@@ -276,6 +277,7 @@ export class CSRSparseMatrix implements Interface.CSRSparseMatrix {
   }
 
   // See https://ieeexplore.ieee.org/document/7097920, Figure 4.
+  /* eslint-disable @typescript-eslint/no-unused-vars */
   async smtvp_parallel(vec: number[]): Promise<number[]> {
     console.log("Not Implemented Yet!");
     return Promise.resolve([]);

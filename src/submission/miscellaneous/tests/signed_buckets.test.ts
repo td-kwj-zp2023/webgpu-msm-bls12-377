@@ -70,6 +70,7 @@ describe("signed buckets", () => {
     }
   });
 
+  /* eslint-disable @typescript-eslint/no-unused-vars */
   it("simple example", () => {
     const k = 2;
     const c = 5;

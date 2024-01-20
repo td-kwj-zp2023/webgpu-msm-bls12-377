@@ -1,5 +1,4 @@
 import mustache from "mustache";
-import { BigIntPoint } from "../../reference/types";
 import { calc_m, barrett_domb_mul } from "./barrett_domb";
 import {
   compute_misc_params,
@@ -20,8 +19,6 @@ import barrett_benchmarks_shader from "./wgsl/barrett_benchmarks_shader.template
 import montgomery_product_funcs from "../implementation/wgsl/montgomery/mont_pro_product.template.wgsl";
 
 export const barrett_domb_mul_benchmarks = async (
-  baseAffinePoints: BigIntPoint[],
-  scalars: bigint[],
 ): Promise<{ x: bigint; y: bigint }> => {
   // Define and generate params
   const num_inputs = 1;

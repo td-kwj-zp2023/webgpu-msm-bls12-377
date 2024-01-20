@@ -22,7 +22,7 @@ import {
   gen_r_limbs,
   bigints_to_u8_for_gpu,
 } from "../implementation/cuzk/utils";
-import { shader_invocation } from "./bucket_points_reduction";
+import { shader_invocation } from "../implementation/cuzk/bucket_points_reduction";
 
 export const bucket_points_reduction = async (
   baseAffinePoints: BigIntPoint[],
@@ -136,7 +136,6 @@ export const test_bucket_points_reduction = async (
       out_z_sb,
       s,
       num_words,
-      workgroup_size,
     );
     num_invocations++;
 

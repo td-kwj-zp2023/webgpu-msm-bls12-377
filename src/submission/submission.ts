@@ -40,7 +40,7 @@ import {
 } from "./implementation/cuzk/utils";
 import { cpu_transpose } from "./implementation/cuzk/transpose";
 import { cpu_smvp_signed } from "./implementation/cuzk/smvp";
-import { shader_invocation } from "./miscellaneous/bucket_points_reduction";
+import { shader_invocation } from "./implementation/cuzk/bucket_points_reduction";
 
 const p = BigInt(
   "8444461749428370424248824938781546531375899335154063827935233455917409239041",
@@ -924,7 +924,6 @@ export const bucket_aggregation = async (
       out_z_sb,
       s,
       num_words,
-      workgroup_size,
     );
 
     const e = s;
