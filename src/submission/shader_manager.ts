@@ -129,12 +129,12 @@ export class ShaderManager {
 
 
     public gen_transpose_shader(
-        num_workgroups: number,
+        workgroup_size: number,
     ) {
         const shaderCode = mustache.render(
             transpose_serial_shader,
             {
-                num_workgroups,
+                workgroup_size,
                 recompile: this.recompile,
             },
             {},
@@ -144,8 +144,6 @@ export class ShaderManager {
 
     public gen_smvp_shader(
         workgroup_size: number,
-        num_y_workgroups: number,
-        num_z_workgroups: number,
         num_csr_cols: number,
     ) {
         const shaderCode = mustache.render(
@@ -161,8 +159,6 @@ export class ShaderManager {
                 two_pow_word_size: this.two_pow_word_size,
                 index_shift: this.index_shift,
                 workgroup_size,
-                num_y_workgroups,
-                num_z_workgroups,
                 num_columns: num_csr_cols,
                 half_num_columns: num_csr_cols / 2,
                 recompile: this.recompile,
@@ -178,9 +174,7 @@ export class ShaderManager {
         return shaderCode
     }
 
-    public gen_bucket_reduction_shader(
-        workgroup_size: number,
-    ) {
+    public gen_bucket_reduction_shader() {
         // Important: workgroup_size should be constant regardless of the number of
         // points, as setting a different workgroup_size will cause a costly
         // recompile. This constant is only passed into the shader as a template
@@ -196,7 +190,6 @@ export class ShaderManager {
                 d_limbs: this.d_limbs,
                 mask: this.mask,
                 two_pow_word_size: this.two_pow_word_size,
-                workgroup_size,
                 recompile: this.recompile,
             },
             {
