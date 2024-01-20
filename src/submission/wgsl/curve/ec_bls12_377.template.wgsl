@@ -46,12 +46,29 @@ fn add_points_zs_1(p1: Point, p2: Point) -> Point {
     return Point(X3, Y3, Z3);
 }
 
+fn is_zero(coord: BigInt) -> bool {
+    for (var i = 0u; i < NUM_WORDS; i ++) {
+        if (coord.limbs[i] != 0u) {
+            return false;
+        }
+    }
+    return true;
+}
+
 // Adds any two projective points
 // https://www.hyperelliptic.org/EFD/g1p/auto-shortw-projective.html#addition-add-2007-bl
 // 16M + 15add
 fn add_points(p1: Point, p2: Point) -> Point {
     var X1 = p1.x; var Y1 = p1.y; var Z1 = p1.z;
     var X2 = p2.x; var Y2 = p2.y; var Z2 = p2.z;
+
+    // TODO: optimise this within SMVP
+    if (is_zero(Z1)) {
+        return p2;
+    }
+    if (is_zero(Z2)) {
+        return p1;
+    }
 
     var U1 = montgomery_product(&X1, &Z2);
     var U2 = montgomery_product(&X2, &Z1);

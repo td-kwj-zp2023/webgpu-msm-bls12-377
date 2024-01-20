@@ -2,6 +2,7 @@ import { G1 } from '@celo/bls12377js'
 import {
     //createAffinePoint,
     scalarMult,
+    negate,
     ZERO,
 } from '../bls12_377'
 
@@ -51,16 +52,10 @@ export const cpu_smvp_signed = (
             let bucket_idx
             if (h > row_idx) {
                 bucket_idx = h - row_idx
-                try {
-                    sum = sum.negate()
-                } catch {
-                    debugger
-                }
+                negate(sum)
             } else {
                 bucket_idx = row_idx - h
             }
-
-            //console.log({ thread_id, row_idx, bucket_idx })
 
             if (bucket_idx > 0) {
                 sum = scalarMult(sum, BigInt(bucket_idx))
