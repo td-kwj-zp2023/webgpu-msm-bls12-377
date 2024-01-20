@@ -276,7 +276,7 @@ const booth2 = (point: ExtPointType, scalar: number): ExtPointType => {
   return result;
 };
 
-const booth = (point: ExtPointType, scalar: number): ExtPointType => {
+export const booth = (point: ExtPointType, scalar: number): ExtPointType => {
   if (scalar === 0) {
     return point;
   }

@@ -26,7 +26,7 @@ fn calc_start_end(m: u32, n: u32, i: u32) -> vec2<u32> {
 }
 
 @compute
-@workgroup_size({{ num_workgroups }})
+@workgroup_size({{ workgroup_size }})
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {    
     // Serial transpose algo adapted from Wang et al, 2016, "Parallel
     // Transposition of Sparse Data Structures".

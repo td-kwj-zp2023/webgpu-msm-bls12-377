@@ -3,17 +3,19 @@
 // the Montgomery radix) which depend on the word size.
 
 import mustache from "mustache";
-import convert_point_coords_and_decompose_scalars from "../../implementation/wgsl/cuzk/convert_point_coords_and_decompose_scalars.template.wgsl";
-import extract_word_from_bytes_le_funcs from "../../implementation/wgsl/cuzk/extract_word_from_bytes_le.template.wgsl";
-import structs from "../../implementation/wgsl/struct/structs.template.wgsl";
-import bigint_funcs from "../../implementation/wgsl/bigint/bigint.template.wgsl";
-import field_funcs from "../../implementation/wgsl/field/field.template.wgsl";
-import ec_funcs from "../../implementation/wgsl/curve/ec.template.wgsl";
-import barrett_funcs from "../../implementation/wgsl/cuzk/barrett.template.wgsl";
-import montgomery_product_funcs from "../../implementation/wgsl/montgomery/mont_pro_product.template.wgsl";
-import transpose_serial_shader from "../../implementation/wgsl/cuzk/transpose.wgsl";
-import smvp_shader from "../../implementation/wgsl/cuzk/smvp.template.wgsl";
-import bucket_points_reduction_shader from "../../implementation/wgsl/cuzk/bucket_points_reduction.template.wgsl";
+
+import convert_point_coords_and_decompose_scalars from "../wgsl/cuzk/convert_point_coords_and_decompose_scalars.template.wgsl";
+import extract_word_from_bytes_le_funcs from "../wgsl/cuzk/extract_word_from_bytes_le.template.wgsl";
+import structs from "../wgsl/struct/structs.template.wgsl";
+import bigint_funcs from "../wgsl/bigint/bigint.template.wgsl";
+import field_funcs from "../wgsl/field/field.template.wgsl";
+import ec_funcs from "../wgsl/curve/ec.template.wgsl";
+import barrett_funcs from "../wgsl/cuzk/barrett.template.wgsl";
+import montgomery_product_funcs from "../wgsl/montgomery/mont_pro_product.template.wgsl";
+import transpose_serial_shader from "../wgsl/cuzk/transpose.wgsl";
+import smvp_shader from "../wgsl/cuzk/smvp.template.wgsl";
+import bucket_points_reduction_shader from "../wgsl/cuzk/bucket_points_reduction.template.wgsl";
+
 import {
   compute_misc_params,
   gen_p_limbs,
@@ -22,6 +24,9 @@ import {
   gen_mu_limbs,
 } from "./utils";
 
+// A helper class which allows cuzk_gpu() to generate all the shaders it needs
+// easily. It precomputes all the necessary variables (such as the Montgomery
+// radix) which depend on the word size.
 export class ShaderManager {
   public p = BigInt(
     "8444461749428370424248824938781546531375899335154063827935233455917409239041",
@@ -127,11 +132,11 @@ export class ShaderManager {
     return shaderCode;
   }
 
-  public gen_transpose_shader(num_workgroups: number) {
+  public gen_transpose_shader(workgroup_size: number) {
     const shaderCode = mustache.render(
       transpose_serial_shader,
       {
-        num_workgroups,
+        workgroup_size,
         recompile: this.recompile,
       },
       {},
@@ -139,12 +144,7 @@ export class ShaderManager {
     return shaderCode;
   }
 
-  public gen_smvp_shader(
-    workgroup_size: number,
-    num_y_workgroups: number,
-    num_z_workgroups: number,
-    num_csr_cols: number,
-  ) {
+  public gen_smvp_shader(workgroup_size: number, num_csr_cols: number) {
     const shaderCode = mustache.render(
       smvp_shader,
       {
@@ -158,8 +158,6 @@ export class ShaderManager {
         two_pow_word_size: this.two_pow_word_size,
         index_shift: this.index_shift,
         workgroup_size,
-        num_y_workgroups,
-        num_z_workgroups,
         num_columns: num_csr_cols,
         half_num_columns: num_csr_cols / 2,
         recompile: this.recompile,
@@ -175,7 +173,7 @@ export class ShaderManager {
     return shaderCode;
   }
 
-  public gen_bucket_reduction_shader(workgroup_size: number) {
+  public gen_bucket_reduction_shader() {
     // Important: workgroup_size should be constant regardless of the number of
     // points, as setting a different workgroup_size will cause a costly
     // recompile. This constant is only passed into the shader as a template
@@ -191,7 +189,6 @@ export class ShaderManager {
         d_limbs: this.d_limbs,
         mask: this.mask,
         two_pow_word_size: this.two_pow_word_size,
-        workgroup_size,
         recompile: this.recompile,
       },
       {
