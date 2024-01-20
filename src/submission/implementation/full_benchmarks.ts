@@ -1,6 +1,6 @@
-import { BigIntPoint } from "../reference/types"
-import { PowersTestCase, loadTestCase } from '../test-data/testCases';
-import { compute_msm } from '../submission/submission'
+import { BigIntPoint } from "../../reference/types"
+import { PowersTestCase, loadTestCase } from '../../test-data/testCases';
+import { compute_msm } from '../submission'
 
 export const full_benchmarks = async (
     {}: BigIntPoint[], // Use {} to prevent Typescript warnings about unused parameters

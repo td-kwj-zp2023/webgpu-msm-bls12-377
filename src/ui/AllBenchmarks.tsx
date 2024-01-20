@@ -3,30 +3,30 @@ import { Benchmark } from './Benchmark';
 import { bigIntToU32Array, generateRandomFields } from '../reference/webgpu/utils';
 import { BigIntPoint, U32ArrayPoint } from '../reference/types';
 import { webgpu_compute_msm, wasm_compute_msm, webgpu_pippenger_msm, webgpu_best_msm, wasm_compute_msm_parallel } from '../reference/reference';
-import { convert_inputs_into_mont_benchmark } from '../utils/convert_inputs_into_mont_benchmarks';
-import { convert_bigints_to_bytes_benchmark } from '../utils/convert_bigints_to_bytes_benchmark'
-import { mont_mul_benchmarks } from '../utils/mont_mul_benchmarks';
-import { barrett_mul_benchmarks } from '../utils/barrett_mul_benchmarks';
-import { barrett_domb_mul_benchmarks } from '../utils/barrett_domb_mul_benchmarks';
-import { add_points_benchmarks } from '../utils/add_points_benchmarks';
-import { decompose_scalars_ts_benchmark } from '../utils/decompose_scalars_benchmark';
+import { convert_inputs_into_mont_benchmark } from '../submission/implementation/convert_inputs_into_mont_benchmarks';
+import { convert_bigints_to_bytes_benchmark } from '../submission/implementation/convert_bigints_to_bytes_benchmark'
+import { mont_mul_benchmarks } from '../submission/implementation/mont_mul_benchmarks';
+import { barrett_mul_benchmarks } from '../submission/implementation/barrett_mul_benchmarks';
+import { barrett_domb_mul_benchmarks } from '../submission/implementation/barrett_domb_mul_benchmarks';
+import { add_points_benchmarks } from '../submission/implementation/add_points_benchmarks';
+import { decompose_scalars_ts_benchmark } from '../submission/implementation/decompose_scalars_benchmark';
 import {
     create_csr_precomputation_benchmark,
     create_csr_sparse_matrices_from_points_benchmark,
-} from '../utils/cuzk/create_csr_gpu'
-import { full_benchmarks } from '../utils/full_benchmarks'
-import { scalar_mul_benchmarks } from '../utils/scalar_mul_benchmarks'
-import { smtvp_wgsl } from '../utils/cuzk/smtvp_wgsl';
-import { cuzk_typescript_serial } from '../utils/cuzk/cuzk_serial'
-import { transpose_wgsl } from '../utils/cuzk/transpose_wgsl'
+} from '../submission/implementation/cuzk/create_csr_gpu'
+import { full_benchmarks } from '../submission/implementation/full_benchmarks'
+import { scalar_mul_benchmarks } from '../submission/implementation/scalar_mul_benchmarks'
+import { smtvp_wgsl } from '../submission/implementation/cuzk/smtvp_wgsl';
+import { cuzk_typescript_serial } from '../submission/implementation/cuzk/cuzk_serial'
+import { transpose_wgsl } from '../submission/implementation/cuzk/transpose_wgsl'
 import CSVExportButton from './CSVExportButton';
 import { TestCaseDropDown } from './TestCaseDropDown';
 import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
-import { smvp_wgsl } from '../utils/cuzk/smvp_wgsl';
-import { data_transfer_cost_benchmarks } from '../utils/data_transfer_cost_benchmarks'
-import { bucket_points_reduction } from '../utils/bucket_points_reduction_benchmark'
-import { horners_rule_benchmark } from '../utils/horners_rule_benchmark'
-import { print_device_limits } from '../utils/print_device_limits'
+import { smvp_wgsl } from '../submission/implementation/cuzk/smvp_wgsl';
+import { data_transfer_cost_benchmarks } from '../submission/implementation/data_transfer_cost_benchmarks'
+import { bucket_points_reduction } from '../submission/implementation/bucket_points_reduction_benchmark'
+import { horners_rule_benchmark } from '../submission/implementation/horners_rule_benchmark'
+import { print_device_limits } from '../submission/implementation/print_device_limits'
 import { compute_msm } from '../submission/submission';
 
 export const AllBenchmarks: React.FC = () => {

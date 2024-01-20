@@ -1,4 +1,4 @@
-import { BigIntPoint } from "../reference/types"
+import { BigIntPoint } from "../../reference/types"
 import {
     get_device,
 } from './gpu'

@@ -1,5 +1,5 @@
 import { ExtPointType } from "@noble/curves/abstract/edwards";
-import { FieldMath } from "../../reference/utils/FieldMath";
+import { FieldMath } from "../../../reference/utils/FieldMath";
 
 export interface DenseMatrix {
     transpose(): Promise<DenseMatrix>

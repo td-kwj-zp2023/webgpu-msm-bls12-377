@@ -1,6 +1,6 @@
 import assert from 'assert'
 import mustache from 'mustache'
-import { BigIntPoint } from "../reference/types"
+import { BigIntPoint } from "../../reference/types"
 import {
     gen_p_limbs,
     gen_r_limbs,

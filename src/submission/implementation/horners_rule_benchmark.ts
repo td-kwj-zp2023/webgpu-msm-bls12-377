@@ -1,7 +1,7 @@
 import assert from 'assert'
 import mustache from 'mustache'
-import { BigIntPoint } from "../reference/types"
-import { FieldMath } from "../reference/utils/FieldMath";
+import { BigIntPoint } from "../../reference/types"
+import { FieldMath } from "../../reference/utils/FieldMath";
 import {
     get_device,
     create_and_write_sb,
