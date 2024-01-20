@@ -1,3 +1,5 @@
+/// This module provides various utility functions for cryptographic operations.
+
 import assert from 'assert'
 import crypto from 'crypto'
 import * as bigintCryptoUtils from 'bigint-crypto-utils'
