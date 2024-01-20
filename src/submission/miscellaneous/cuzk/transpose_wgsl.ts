@@ -17,8 +17,7 @@ import assert from "assert";
 import seedrandom from "seedrandom";
 
 // WGSL implementation of Sparse-Matrix Transpose
-export const transpose_wgsl = async (
-): Promise<{ x: bigint; y: bigint }> => {
+export const transpose_wgsl = async (): Promise<{ x: bigint; y: bigint }> => {
   console.log("Starting WGSL Sparse-Matrix Transpose!");
 
   const result = await transpose();
@@ -103,8 +102,7 @@ const gen_csr = (num_cols: number, num_rows: number, all_data: number[]) => {
   };
 };
 
-export async function transpose(
-): Promise<{ x: bigint; y: bigint }> {
+export async function transpose(): Promise<{ x: bigint; y: bigint }> {
   console.log(
     "warning: this is using a slightly outdated shader as our cuZK implementation arranges the elements in rows in a different fashion",
   );

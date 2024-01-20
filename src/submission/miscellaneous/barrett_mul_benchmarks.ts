@@ -16,8 +16,10 @@ import barrett_functions from "../implementation/wgsl/cuzk/barrett.template.wgsl
 import barrett_benchmarks_shader from "./wgsl/barrett_benchmarks_shader.template.wgsl";
 import montgomery_product_funcs from "../implementation/wgsl/montgomery/mont_pro_product.template.wgsl";
 
-export const barrett_mul_benchmarks = async (
-): Promise<{ x: bigint; y: bigint }> => {
+export const barrett_mul_benchmarks = async (): Promise<{
+  x: bigint;
+  y: bigint;
+}> => {
   // Define and generate params
   const num_inputs = 1;
   const num_x_workgroups = 1;

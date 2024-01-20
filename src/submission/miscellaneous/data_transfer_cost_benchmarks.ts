@@ -13,8 +13,10 @@ import complex_shader from "./wgsl/complex.wgsl";
 /*
  * Benchmark data transfer costs
  */
-export const data_transfer_cost_benchmarks = async (
-): Promise<{ x: bigint; y: bigint }> => {
+export const data_transfer_cost_benchmarks = async (): Promise<{
+  x: bigint;
+  y: bigint;
+}> => {
   let num_bytes = 1 * 1024 * 1024;
 
   console.log("Simple shader benchmarks:");
