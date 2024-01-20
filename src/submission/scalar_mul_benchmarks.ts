@@ -281,7 +281,7 @@ const booth2 = (
     return result
 }
 
-const booth = (
+export const booth = (
     point: ExtPointType,
     scalar: number,
 ): ExtPointType => {

@@ -111,7 +111,7 @@ export class ELLSparseMatrix implements Interface.ELLSparseMatrix {
         return new ELLSparseMatrix(sparse_matrix, col_idx, row_length);
     }
 
-    async sparse_to_dense_matrix(sparse_matrix: ELLSparseMatrix): Promise<DenseMatrix> {
+    async sparse_to_dense_matrix({}: ELLSparseMatrix): Promise<DenseMatrix> {
         console.log("Not Implemented Yet!")
         return Promise.resolve(new DenseMatrix([]))
     }
@@ -138,7 +138,7 @@ export class CSRSparseMatrix implements Interface.CSRSparseMatrix {
 
         // Fill sparse matrix
         for (const i of ell_sparse_matrix.data) {
-            for (const [position, value] of i.entries()) {
+            for (const [{}, value] of i.entries()) {
                 if (value != null) {
                     sparse_matrix.push(value)
                 }
@@ -158,7 +158,7 @@ export class CSRSparseMatrix implements Interface.CSRSparseMatrix {
         row_ptr.push(0)
         for (const [i, j] of ell_sparse_matrix.data.entries()) {
             let z = 0
-            for (const [position, value] of j.entries()) {
+            for (const [{}, value] of j.entries()) {
                 if (value != null) {
                     z += 1
                 }
@@ -169,12 +169,12 @@ export class CSRSparseMatrix implements Interface.CSRSparseMatrix {
         return new CSRSparseMatrix(sparse_matrix, col_idx, row_ptr);
     }
 
-    async dense_to_sparse_matrix(dense_matrix: DenseMatrix): Promise<CSRSparseMatrix> {
+    async dense_to_sparse_matrix({}: DenseMatrix): Promise<CSRSparseMatrix> {
         console.log("Not Implemented Yet!")
         return Promise.resolve(new CSRSparseMatrix([], [], []))
     }
 
-    async sparse_to_dense_matrix(sparse_matrix: CSRSparseMatrix): Promise<DenseMatrix> {
+    async sparse_to_dense_matrix({}: CSRSparseMatrix): Promise<DenseMatrix> {
         console.log("Not Implemented Yet!")
         return Promise.resolve(new DenseMatrix([]))
     }
@@ -246,7 +246,7 @@ export class CSRSparseMatrix implements Interface.CSRSparseMatrix {
     }
 
     // See https://ieeexplore.ieee.org/document/7097920, Figure 4.
-    async smtvp_parallel(vec: number[]): Promise<number[]> {
+    async smtvp_parallel({}: number[]): Promise<number[]> {
         console.log("Not Implemented Yet!")
         return Promise.resolve([]);
     }
@@ -327,12 +327,12 @@ export class CSRSparseMatrix implements Interface.CSRSparseMatrix {
         return result
     }
 
-    async smtvp_parallel_test(vec: number[]): Promise<number[]> {
+    async smtvp_parallel_test({}: number[]): Promise<number[]> {
         console.log("Not Implemented Yet!")
         return Promise.resolve([]);
     }
 
-    smvp_test(vec: number[]): Promise<number[]> {
+    smvp_test({}: number[]): Promise<number[]> {
         console.log("Not Implemented Yet!")
         return Promise.resolve([]);
     }
