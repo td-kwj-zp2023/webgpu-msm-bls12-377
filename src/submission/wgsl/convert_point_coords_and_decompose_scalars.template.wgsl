@@ -41,24 +41,25 @@ fn get_r() -> BigInt {
 fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let gidx = global_id.x; 
     let gidy = global_id.y; 
-    let id = gidx * {{ num_y_workgroups }} + gidy;
+    let id = gidx * {{ num_y_workgroups }}u + gidy;
 
     let INPUT_SIZE = input_size;
+    let NUM_16_BIT_WORDS_PER_COORD = {{ num_16_bit_words_per_coord }}u;
 
     // Store the x and y coordinates as byte arrays for easier indexing
-    var x_bytes: array<u32, 16>;
-    var y_bytes: array<u32, 16>;
-    for (var i = 0u; i < 16u; i ++) {
-        x_bytes[15u - i] = x_coords[id * 16 + i];
-        y_bytes[15u - i] = y_coords[id * 16 + i];
+    var x_bytes: array<u32, {{ num_16_bit_words_per_coord }}>;
+    var y_bytes: array<u32, {{ num_16_bit_words_per_coord }}>;
+    for (var i = 0u; i < NUM_16_BIT_WORDS_PER_COORD; i ++) {
+        x_bytes[NUM_16_BIT_WORDS_PER_COORD - 1 - i] = x_coords[id * NUM_16_BIT_WORDS_PER_COORD + i];
+        y_bytes[NUM_16_BIT_WORDS_PER_COORD - 1 - i] = y_coords[id * NUM_16_BIT_WORDS_PER_COORD + i];
     }
 
     // Convert the byte arrays to BigInts with word_size limbs
     var x_bigint: BigInt;
     var y_bigint: BigInt;
     for (var i = 0u; i < NUM_WORDS - 1u; i ++) {
-        x_bigint.limbs[i] = extract_word_from_bytes_le(x_bytes, i, WORD_SIZE);
-        y_bigint.limbs[i] = extract_word_from_bytes_le(y_bytes, i, WORD_SIZE);
+        x_bigint.limbs[i] = extract_word_from_coord_bytes_le(x_bytes, i, WORD_SIZE, NUM_16_BIT_WORDS_PER_COORD);
+        y_bigint.limbs[i] = extract_word_from_coord_bytes_le(y_bytes, i, WORD_SIZE, NUM_16_BIT_WORDS_PER_COORD);
     }
 
     let shift = (((NUM_WORDS * WORD_SIZE - 256u) + 16u) - WORD_SIZE);
