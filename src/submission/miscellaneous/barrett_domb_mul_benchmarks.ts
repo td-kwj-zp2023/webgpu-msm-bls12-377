@@ -8,7 +8,6 @@ import {
     to_words_le,
     gen_p_limbs,
     gen_r_limbs,
-    gen_mu_limbs,
     gen_barrett_domb_m_limbs,
     bigints_to_u8_for_gpu,
 } from '../implementation/cuzk/utils'
@@ -82,8 +81,6 @@ export const barrett_domb_mul_benchmarks = async(
             montgomery_product_funcs,
         }
     )
-
-    //console.log(shaderCode)
 
     const expected: bigint[] = []
     const expected_words: Uint16Array[] = []
@@ -209,7 +206,6 @@ export const barrett_domb_mul_benchmarks = async(
     console.log(`GPU took ${elapsed}ms`)
 
     const dataBuf = new Uint32Array(data);
-    //console.log(dataBuf)
 
     const results: bigint[] = []
     for (let i = 0; i < num_inputs; i ++) {
@@ -220,11 +216,9 @@ export const barrett_domb_mul_benchmarks = async(
         results.push(from_words_le(new Uint16Array(r), num_words, word_size))
     }
 
-    //console.log(results, expected)
     for (let i = 0; i < num_inputs; i ++) {
         if (results[i] !== expected[i]) {
             console.error(`Result mismatch at ${i}`)
-            //console.log(to_words_le(results[i], num_words, word_size))
             break
         }
     }

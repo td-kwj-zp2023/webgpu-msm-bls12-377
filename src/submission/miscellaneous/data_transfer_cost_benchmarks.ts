@@ -1,12 +1,10 @@
 import { BigIntPoint } from "../../reference/types"
-import mustache from 'mustache'
 import {
     get_device,
     create_and_write_sb,
     create_bind_group,
     create_bind_group_layout,
     create_compute_pipeline,
-    create_sb,
     read_from_gpu,
 } from '../implementation/cuzk/gpu'
 import {

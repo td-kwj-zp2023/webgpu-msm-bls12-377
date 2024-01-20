@@ -288,23 +288,19 @@ export const barrett_domb_mul = (
 
     // multiply and break into LSB, MSB parts
     const ab = mp_full_multiply(a_words, b_words, num_words, word_size)
-    //console.log('ab:', ab)
 
     const wk = word_size * num_words
     const z = wk - n
 
     // AB msb extraction (+ shift)
     const ab_shift = mp_shifter_left(ab, 2 * z, num_words * 2, word_size)
-    //console.log('ab_shift:', ab_shift)
 
     const ab_msb = new Uint16Array(ab_shift.slice(num_words, num_words * 2))
-    //console.log('ab_msb:', ab_msb)
 
     // L estimation
     let l = mp_msb_multiply(ab_msb, m_words, num_words, word_size) // calculate l estimator (MSB multiply)
     l = new Uint16Array(mp_adder(l, ab_msb, num_words, word_size).slice(0, num_words)) // Add another AB_msb because m[n] = 1
     l = mp_shifter_right(l, z, num_words, word_size)
-    //console.log('l:', l)
 
     // LS calculation
     let ls = mp_lsb_multiply(l, p_words, num_words, word_size)
@@ -329,11 +325,8 @@ export const barrett_domb_mul = (
     } else {
         ab_lsb = ab.slice(0, num_words)
     }
-    //console.log('ls:', ls)
-    //console.log('ab_lsb:', ab_lsb)
 
     const result = mp_subtracter(ab_lsb, ls, num_words, word_size)
-    //console.log('result:', result)
 
     return mp_subtract_red(result, p_words, num_words, word_size).slice(0, num_words)
 }

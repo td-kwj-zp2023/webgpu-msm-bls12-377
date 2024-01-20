@@ -1,4 +1,3 @@
-import assert from 'assert'
 import {
     create_and_write_ub,
     create_bind_group,
@@ -30,25 +29,6 @@ export const shader_invocation = async (
         if (num_points <= num_z_workgroups) {
             return { num_x_workgroups: 1, num_y_workgroups: 1 }
         }
-
-//         const m = Math.ceil(Math.log2(Math.sqrt(num_points / workgroup_size)))
-//         // console.log("m is: ", m)
-//         let num_x_workgroups = 2 ** m
-
-//         const num_y_workgroups = (Math.ceil(num_points / num_x_workgroups / workgroup_size))
-
-//         if (num_x_workgroups * num_y_workgroups * workgroup_size == num_points) {
-//             num_x_workgroups = num_x_workgroups / 2
-//         }
-
-//         // console.log("num_x_workgroups is: ", num_x_workgroups)
-//         // console.log("num_y_workgroups is: ", num_y_workgroups)
-        
-//         return { num_x_workgroups, num_y_workgroups }
-//     }
-    
-//     const num_z_workgroups = 2
-//     const compute_ideal_num_workgroups = (num_points: number) => {
 
         const m = Math.ceil(Math.log2(Math.sqrt(num_points / num_z_workgroups)))
         let num_x_workgroups = 2 ** m 

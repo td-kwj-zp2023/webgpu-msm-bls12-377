@@ -1,4 +1,10 @@
-// Request a high-performance GPU device
+/// This helper module provides utility functions for working with WebGPU.
+/// It includes functions for obtaining a high-performance GPU device,
+/// creating and managing GPU buffers, executing compute pipelines, and more.
+
+/**
+ * Request a high-performance GPU device
+ */
 export const get_device = async (): Promise<GPUDevice> => {
     const gpuErrMsg = "Please use a browser that has WebGPU enabled.";
     const adapter = await navigator.gpu.requestAdapter({
@@ -18,7 +24,9 @@ export const read_write_buffer_usage =
     GPUBufferUsage.COPY_SRC |
     GPUBufferUsage.COPY_DST
 
-// Create and write a storage buffer
+/**
+ * Create and write a storage buffer
+ */
 export const create_and_write_sb = (
     device: GPUDevice,
     buffer: Uint8Array,
@@ -31,7 +39,9 @@ export const create_and_write_sb = (
     return sb
 }
 
-// Create and write a uniform buffer
+/**
+ * Create and write a uniform buffer
+ */
 export const create_and_write_ub = (
     device: GPUDevice,
     buffer: Uint8Array,
@@ -44,7 +54,9 @@ export const create_and_write_ub = (
     return ub
 }
 
-// Allocate memory via a storage buffer, but do not write to it
+/**
+ * Allocate memory via a storage buffer, but do not write to it
+ */
 export const create_sb = (
     device: GPUDevice,
     size: number,
@@ -55,7 +67,9 @@ export const create_sb = (
     })
 }
 
-// Read from all the specified storage buffers and return the data as bytes
+/**
+ * Read from all the specified storage buffers and return the data as bytes
+ */
 export const read_from_gpu = async (
     device: GPUDevice,
     commandEncoder: GPUCommandEncoder,
@@ -97,9 +111,11 @@ export const read_from_gpu = async (
     return data
 }
 
-// Create a GPUBindGroupLayout, which defines the order and type of buffers
-// which the shader expects. Acceptable types are "storage",
-// "read-only-storage", and "uniform".
+/**
+ * Create a GPUBindGroupLayout, which defines the order and type of buffers
+ * which the shader expects. Acceptable types are "storage",
+ * "read-only-storage", and "uniform".
+ */
 export const create_bind_group_layout = (
     device: GPUDevice,
     types: string[],
@@ -115,8 +131,10 @@ export const create_bind_group_layout = (
     return device.createBindGroupLayout({ entries })
 }
 
-// Create a GPUBindGroup, which specifies the storage and uniform buffers to be
-// read by a shader. The buffers must follow the order set in the layout.
+/**
+ * Create a GPUBindGroup, which specifies the storage and uniform buffers to be
+ * read by a shader. The buffers must follow the order set in the layout.
+ */
 export const create_bind_group = (
     device: GPUDevice,
     layout: GPUBindGroupLayout,
@@ -150,7 +168,9 @@ export const create_compute_pipeline = async (
     })
 }
 
-// Encode pipeline commands 
+/**
+ * Encode pipeline commands 
+ */
 export const execute_pipeline = async (
     commandEncoder: GPUCommandEncoder,
     computePipeline: GPUComputePipeline,

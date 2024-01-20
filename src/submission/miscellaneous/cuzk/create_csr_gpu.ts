@@ -22,7 +22,6 @@ import ec_funcs from '../../implementation/wgsl/curve/ec.template.wgsl'
 import montgomery_product_funcs from '../../implementation/wgsl/montgomery/mont_pro_product.template.wgsl'
 import create_csr_shader from '../wgsl/create_csr.template.wgsl'
 import { all_precomputation, create_csr_cpu } from './create_csr'
-//import * as wasm from 'csr-precompute'
 
 const fieldMath = new FieldMath()
 
@@ -315,7 +314,6 @@ export async function create_csr_sparse_matrices_from_points_benchmark(
     const num_rows = 8
     const points = baseAffinePoints.map((x) => bigIntPointToExtPointType(x, fieldMath))
     const csr_sms = await create_csr_sparse_matrices_from_points(points, scalars, num_rows)
-    console.log(csr_sms)
     return { x: BigInt(0), y: BigInt(1) }
 }
 

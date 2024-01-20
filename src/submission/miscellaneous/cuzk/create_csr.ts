@@ -1,5 +1,5 @@
 import assert from 'assert'
-import { CSRSparseMatrix } from '../matrices/matrices'; 
+import { CSRSparseMatrix } from '../../miscellaneous/matrices/matrices'; 
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 
 export const precompute_with_gpu_simulated = (

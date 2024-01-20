@@ -70,11 +70,9 @@ describe('signed buckets', () => {
         const scalar_0 = BigInt(255)
         const slices_0 = to_words_le(scalar_0, k, c)
         const signed_slices_0 = to_signed_slices(scalar_0, k, c)
-        console.log({slices_0, signed_slices_0})
 
         const scalar_1 = BigInt(301)
         const slices_1 = to_words_le(scalar_1, k, c)
         const signed_slices_1 = to_signed_slices(scalar_1, k, c)
-        console.log({slices_1, signed_slices_1})
     })
 })

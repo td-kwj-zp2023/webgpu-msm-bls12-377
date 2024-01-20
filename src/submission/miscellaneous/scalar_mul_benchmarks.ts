@@ -119,19 +119,6 @@ export const scalar_mul_benchmarks = async (
     const booth2_cpu_results = await booth_cpu(points, scalars, cost)
     assert(are_point_arr_equal(booth2_cpu_results, expected))
 
-    /*
-    const scalar = 1123
-    const booth_result = booth(points[0], scalar)
-    const booth2_result = booth2(points[0], scalar)
-    const expected_result = points[0].multiply(BigInt(scalar))
-    assert(booth_result.toAffine().x === expected_result.toAffine().x)
-    assert(booth2_result.toAffine().x === expected_result.toAffine().x)
-
-    const booth_gpu_r = await booth_gpu([points[0]], [scalar], cost)
-    console.log(booth_gpu_r[0].toAffine())
-    assert(booth_gpu_r[0].toAffine().x === expected_result.toAffine().x)
-    */
-
     return { x: BigInt(1), y: BigInt(0) }
 }
 
@@ -321,7 +308,6 @@ const booth = (
     if (a[0] === 1) {
         a[0] = 2
     }
-    //console.log(a)
 
     // Find the last 1
     let max_idx = a.length - 1
@@ -574,7 +560,6 @@ const run_in_gpu = async(
             montgomery_product_funcs,
         },
     )
-    //console.log(shaderCode)
     const computePipeline = await create_compute_pipeline(
         device,
         [bindGroupLayout],
