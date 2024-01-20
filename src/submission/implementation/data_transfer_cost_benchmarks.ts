@@ -1,4 +1,4 @@
-import { BigIntPoint } from "../reference/types"
+import { BigIntPoint } from "../../reference/types"
 import mustache from 'mustache'
 import {
     get_device,

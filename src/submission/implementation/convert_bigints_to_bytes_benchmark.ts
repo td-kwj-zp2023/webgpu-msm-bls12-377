@@ -1,4 +1,4 @@
-import { BigIntPoint } from "../reference/types"
+import { BigIntPoint } from "../../reference/types"
 import { bigints_to_u8_for_gpu, bigints_to_16_bit_words_for_gpu } from './utils'
 import assert from 'assert'
 

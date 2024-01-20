@@ -1,9 +1,9 @@
 jest.setTimeout(10000000)
-import { FieldMath } from "../../reference/utils/FieldMath";
+import { FieldMath } from "../../../reference/utils/FieldMath";
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import { decompose_scalars_signed } from '../utils'
-import { cpu_transpose } from './transpose'
-import { cpu_smvp_signed } from './smvp';
+import { cpu_transpose } from '../cuzk/transpose'
+import { cpu_smvp_signed } from '../cuzk/smvp';
 
 const fieldMath = new FieldMath()
 const x = BigInt('2796670805570508460920584878396618987767121022598342527208237783066948667246')

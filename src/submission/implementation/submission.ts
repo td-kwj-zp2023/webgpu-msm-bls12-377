@@ -1,4 +1,4 @@
-import { BigIntPoint, U32ArrayPoint } from "../reference/types";
+import { BigIntPoint, U32ArrayPoint } from "../../reference/types";
 
 /* eslint-disable @typescript-eslint/no-unused-vars */
 export const compute_msm = async (

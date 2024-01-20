@@ -1,5 +1,5 @@
 import mustache from 'mustache'
-import { BigIntPoint } from "../reference/types"
+import { BigIntPoint } from "../../reference/types"
 import { calc_m, barrett_domb_mul } from './barrett_domb'
 import {
     compute_misc_params,

@@ -1,7 +1,7 @@
 import mustache from 'mustache'
 import { bigIntPointToExtPointType, compute_misc_params, u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, gen_p_limbs, gen_r_limbs, gen_d_limbs, to_words_le } from '../utils'
-import { BigIntPoint } from "../../reference/types"
-import { FieldMath } from "../../reference/utils/FieldMath";
+import { BigIntPoint } from "../../../reference/types"
+import { FieldMath } from "../../../reference/utils/FieldMath";
 import { ELLSparseMatrix, CSRSparseMatrix } from '../matrices/matrices'; 
 import smtvp_shader from '../wgsl/cuzk/smtvp.template.wgsl'
 import structs from '../wgsl/struct/structs.template.wgsl'

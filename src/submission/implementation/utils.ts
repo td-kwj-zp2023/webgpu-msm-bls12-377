@@ -1,11 +1,11 @@
 import assert from 'assert'
 import crypto from 'crypto'
 import * as bigintCryptoUtils from 'bigint-crypto-utils'
-import { BigIntPoint } from "../reference/types"
-import { FieldMath } from "../reference/utils/FieldMath";
+import { BigIntPoint } from "../../reference/types"
+import { FieldMath } from "../../reference/utils/FieldMath";
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import { toBufferLE } from 'bigint-buffer'
-import { EDWARDS_D } from '../reference/params/AleoConstants'
+import { EDWARDS_D } from '../../reference/params/AleoConstants'
 
 /*
  * Converts the BigInts in vals to byte arrays in the form of

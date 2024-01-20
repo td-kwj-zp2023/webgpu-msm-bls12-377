@@ -1,5 +1,5 @@
 import mustache from 'mustache'
-import { BigIntPoint } from "../reference/types"
+import { BigIntPoint } from "../../reference/types"
 import {
     compute_misc_params,
     genRandomFieldElement,

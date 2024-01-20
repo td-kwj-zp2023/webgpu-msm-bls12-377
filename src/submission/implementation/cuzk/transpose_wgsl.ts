@@ -1,5 +1,5 @@
 import mustache from 'mustache'
-import { BigIntPoint } from "../../reference/types";
+import { BigIntPoint } from "../../../reference/types";
 import { u8s_to_numbers_32, numbers_to_u8s_for_gpu } from '../utils'
 import {
     get_device,

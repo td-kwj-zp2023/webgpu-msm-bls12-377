@@ -1,8 +1,8 @@
 import assert from 'assert'
 import mustache from 'mustache'
-import { BigIntPoint } from "../../reference/types"
+import { BigIntPoint } from "../../../reference/types"
 import { CSRSparseMatrix } from '../matrices/matrices'; 
-import { FieldMath } from "../../reference/utils/FieldMath";
+import { FieldMath } from "../../../reference/utils/FieldMath";
 import {
     gen_p_limbs,
     u8s_to_points,

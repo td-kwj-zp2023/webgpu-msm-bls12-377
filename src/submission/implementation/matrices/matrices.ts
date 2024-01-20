@@ -1,6 +1,6 @@
 import * as Interface from './interfaces';
 import { strict as assert } from 'assert';
-import { FieldMath } from "../../reference/utils/FieldMath";
+import { FieldMath } from "../../../reference/utils/FieldMath";
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 
 const fieldMath = new FieldMath();

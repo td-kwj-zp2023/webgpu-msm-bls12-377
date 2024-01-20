@@ -1,8 +1,8 @@
 import assert from 'assert'
 import mustache from 'mustache'
 import { ExtPointType } from "@noble/curves/abstract/edwards";
-import { BigIntPoint } from "../reference/types"
-import { FieldMath } from "../reference/utils/FieldMath";
+import { BigIntPoint } from "../../reference/types"
+import { FieldMath } from "../../reference/utils/FieldMath";
 import { createHash } from 'crypto'
 import {
     gen_p_limbs,

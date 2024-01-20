@@ -1,7 +1,7 @@
 import assert from 'assert'
 import { BigIntPoint } from "../reference/types"
 import { ExtPointType } from "@noble/curves/abstract/edwards";
-import { ShaderManager } from '../utils/shader_manager'
+import { ShaderManager } from './implementation/shader_manager'
 import {
     get_device,
     create_and_write_sb,
@@ -12,7 +12,7 @@ import {
     create_sb,
     read_from_gpu,
     execute_pipeline,
-} from '../utils/gpu'
+} from './implementation/gpu'
 import {
     u8s_to_bigints,
     u8s_to_numbers,
@@ -22,10 +22,10 @@ import {
     compute_misc_params,
     decompose_scalars_signed,
     are_point_arr_equal,
-} from '../utils/utils'
-import { cpu_transpose } from '../utils/cuzk/transpose'
-import { cpu_smvp_signed } from '../utils/cuzk/smvp';
-import { shader_invocation } from '../utils/bucket_points_reduction'
+} from './implementation/utils'
+import { cpu_transpose } from './implementation/cuzk/transpose'
+import { cpu_smvp_signed } from './implementation/cuzk/smvp';
+import { shader_invocation } from './implementation/bucket_points_reduction'
 
 const p = BigInt('8444461749428370424248824938781546531375899335154063827935233455917409239041')
 const word_size = 13
