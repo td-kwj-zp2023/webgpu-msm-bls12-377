@@ -26,7 +26,11 @@ export const bigints_to_16_bit_words_for_gpu = (
 }
 
 export const bigIntPointToExtPointType = (bip: BigIntPoint, fieldMath: FieldMath): ExtPointType => {
-    return fieldMath.createPoint(bip.x, bip.y, bip.t, bip.z)
+    if (bip.t) {
+        return fieldMath.createPoint(bip.x, bip.y, bip.t, bip.z)
+    }
+    const t = fieldMath.Fp.mul(bip.x, bip.y)
+    return fieldMath.createPoint(bip.x, bip.y, t, bip.z)
 }
 
 export const extPointTypeToBigIntPoint = (ept: ExtPointType): BigIntPoint => {
@@ -111,10 +115,18 @@ export const points_to_u8s_for_gpu = (
   const result = new Uint8Array(size)
 
   for (let i = 0; i < points.length; i ++) {
+      let t
+      const ptt = points[i].t
+      if (ptt == undefined) {
+          t = BigInt(0)
+          throw new Error('TODO: fix me')
+      } else {
+          t = BigInt(ptt.toString())
+      }
+
       const x_bytes = bigint_to_u8_for_gpu(points[i].x, num_words, word_size)
       const y_bytes = bigint_to_u8_for_gpu(points[i].y, num_words, word_size)
-        // @ts-ignore
-      const t_bytes = bigint_to_u8_for_gpu(points[i].t, num_words, word_size)
+      const t_bytes = bigint_to_u8_for_gpu(t, num_words, word_size)
       const z_bytes = bigint_to_u8_for_gpu(points[i].z, num_words, word_size)
 
       for (let j = 0; j < x_bytes.length; j ++) {
@@ -439,6 +451,7 @@ export const compute_misc_params = (
     word_size: number,
 ): {
         num_words: number,
+        word_size: number,
         max_terms: number,
         k: number,
         nsafe: number,
@@ -473,7 +486,7 @@ export const compute_misc_params = (
     //m, _ = divmod(2 ** (2 * n + z), s)  # prime approximation, n + 1 bits
     const edwards_d = EDWARDS_D * r % p
 
-    return { num_words, max_terms, k, nsafe, n0: BigInt(n0), r: r % p, edwards_d, rinv, barrett_domb_m }
+    return { word_size, num_words, max_terms, k, nsafe, n0: BigInt(n0), r: r % p, edwards_d, rinv, barrett_domb_m }
 }
 
 export const genRandomFieldElement = (p: bigint): bigint => {
