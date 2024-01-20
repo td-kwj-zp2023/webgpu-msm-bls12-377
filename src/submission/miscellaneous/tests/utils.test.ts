@@ -4,7 +4,7 @@ import {
     compute_misc_params,
     bigints_to_16_bit_words_for_gpu,
     bigints_to_u8_for_gpu,
-} from '../../implementation/utils'
+} from '../../implementation/cuzk/utils'
 import * as bigintCryptoUtils from 'bigint-crypto-utils'
 
 describe('utils', () => {

@@ -6,7 +6,7 @@ import {
     gen_p_limbs,
     bigints_to_u8_for_gpu,
     u8s_to_bigints,
-} from '../implementation/utils'
+} from '../implementation/cuzk/utils'
 import {
     get_device,
     create_and_write_sb,
@@ -15,7 +15,7 @@ import {
     create_compute_pipeline,
     execute_pipeline,
     read_from_gpu,
-} from '../implementation/gpu'
+} from '../implementation/cuzk/gpu'
 import structs from '../implementation/wgsl/struct/structs.template.wgsl'
 import bigint_functions from '../implementation/wgsl/bigint/bigint.template.wgsl'
 import field_functions from '../implementation/wgsl/field/field.template.wgsl'

@@ -16,7 +16,7 @@
 import assert from 'assert'
 import { BigIntPoint } from "../reference/types"
 import { ExtPointType } from "@noble/curves/abstract/edwards";
-import { ShaderManager } from './implementation/shader_manager'
+import { ShaderManager } from './implementation/cuzk/shader_manager'
 import {
     get_device,
     create_and_write_sb,
@@ -27,7 +27,7 @@ import {
     create_sb,
     read_from_gpu,
     execute_pipeline,
-} from './implementation/gpu'
+} from './implementation/cuzk/gpu'
 import {
     u8s_to_bigints,
     u8s_to_numbers,
@@ -37,7 +37,7 @@ import {
     compute_misc_params,
     decompose_scalars_signed,
     are_point_arr_equal,
-} from './implementation/utils'
+} from './implementation/cuzk/utils'
 import { cpu_transpose } from './implementation/cuzk/transpose'
 import { cpu_smvp_signed } from './implementation/cuzk/smvp';
 import { shader_invocation } from './miscellaneous/bucket_points_reduction'

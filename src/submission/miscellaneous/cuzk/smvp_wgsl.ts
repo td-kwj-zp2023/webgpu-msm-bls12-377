@@ -10,7 +10,7 @@ import {
     create_sb,
     read_from_gpu,
     execute_pipeline,
-} from '../../implementation/gpu'
+} from '../../implementation/cuzk/gpu'
 import { CSRSparseMatrix, ELLSparseMatrix, fieldMath } from '../matrices/matrices';
 import smvp_shader from '../wgsl/smvp_benchmark.template.wgsl'
 import structs from '../../implementation/wgsl/struct/structs.template.wgsl'
@@ -18,7 +18,7 @@ import bigint_functions from '../../implementation/wgsl/bigint/bigint.template.w
 import field_functions from '../../implementation/wgsl/field/field.template.wgsl'
 import curve_functions from '../../implementation/wgsl/curve/ec.template.wgsl'
 import montgomery_product_funcs from '../../implementation/wgsl/montgomery/mont_pro_product.template.wgsl'
-import { u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, compute_misc_params, gen_p_limbs, gen_r_limbs, gen_d_limbs } from '../../implementation/utils'
+import { u8s_to_points, points_to_u8s_for_gpu, numbers_to_u8s_for_gpu, compute_misc_params, gen_p_limbs, gen_r_limbs, gen_d_limbs } from '../../implementation/cuzk/utils'
 import assert from 'assert'
 
 // WGSL implementation of Sparse-Matrix Vector Multiplication

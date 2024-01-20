@@ -1,7 +1,7 @@
 import {
     to_words_le,
     genRandomFieldElement,
-} from '../../implementation/utils'
+} from '../../implementation/cuzk/utils'
 import {
     calc_m,
     mp_adder,

@@ -10,8 +10,8 @@ import {
     to_words_le,
     compute_misc_params,
     points_to_u8s_for_gpu,
-} from '../implementation/utils'
-import { get_device, create_bind_group } from '../implementation/gpu'
+} from '../implementation/cuzk/utils'
+import { get_device, create_bind_group } from '../implementation/cuzk/gpu'
 import structs from '../implementation/wgsl/struct/structs.template.wgsl'
 import bigint_funcs from '../implementation/wgsl/bigint/bigint.template.wgsl'
 import field_funcs from '../implementation/wgsl/field/field.template.wgsl'

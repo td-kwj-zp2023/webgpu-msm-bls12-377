@@ -12,9 +12,9 @@ import {
     bigIntPointToExtPointType,
     u8s_to_numbers,
     compute_misc_params,
-} from '../../implementation/utils'
+} from '../../implementation/cuzk/utils'
 import { ExtPointType } from "@noble/curves/abstract/edwards";
-import { get_device, create_bind_group } from '../../implementation/gpu'
+import { get_device, create_bind_group } from '../../implementation/cuzk/gpu'
 import structs from '../../implementation/wgsl/struct/structs.template.wgsl'
 import bigint_funcs from '../../implementation/wgsl/bigint/bigint.template.wgsl'
 import field_funcs from '../../implementation/wgsl/field/field.template.wgsl'

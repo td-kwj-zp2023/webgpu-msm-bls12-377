@@ -1,7 +1,7 @@
 import { BigIntPoint } from "../../reference/types"
 import {
     get_device,
-} from '../implementation/gpu'
+} from '../implementation/cuzk/gpu'
 
 export const print_device_limits = async (
     {}: BigIntPoint[],
