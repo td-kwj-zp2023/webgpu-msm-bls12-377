@@ -100,8 +100,8 @@ const gen_csr = (
 }
 
 export async function transpose(
-    baseAffinePoints: BigIntPoint[],
-    scalars: bigint[]
+    {}: BigIntPoint[],
+    {}: bigint[]
 ): Promise<{x: bigint, y: bigint}> {
     console.log('warning: this is using a slightly outdated shader as our cuZK implementation arranges the elements in rows in a different fashion')
     const num_rows = 16
