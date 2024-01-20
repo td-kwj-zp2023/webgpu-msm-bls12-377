@@ -168,6 +168,7 @@ export const AllBenchmarks: React.FC = () => {
         postResult={postResult}
       />
       <Benchmark
+        name={'Aleo Wasm: Single Thread'}
         disabled={disabledBenchmark}
         baseAffinePoints={baseAffineBigIntPoints}
         scalars={bigIntScalars}
@@ -197,11 +198,21 @@ export const AllBenchmarks: React.FC = () => {
 
       <div className="flex items-left">
         <div className={`text-gray-800 w-40 px-2 font-bold'`}>{name}</div> 
-          <h1>Miscellaneous benchmarks for testing</h1>
+          <h1>Miscellaneous benchmarks and tests</h1>
           <br />
           <br />
       </div>
 
+      <Benchmark
+        name={'Print device limits'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={print_device_limits}
+        postResult={postResult}
+        bold={false}
+      />
       <Benchmark
         name={'Full benchmark suite'}
         disabled={disabledBenchmark}
