@@ -320,11 +320,12 @@ export const do_cuzk_gpu = async (
         result = result.add(points[i])
     }
 
+    const r = get_bigint_x_y(result.toAffine())
     if (log_result) {
-        console.log(result.toAffine())
+        console.log(r)
     }
 
-    return get_bigint_x_y(result.toAffine())
+    return r
     // return { x: BigInt(0), y: BigInt(1) }
 }
 
