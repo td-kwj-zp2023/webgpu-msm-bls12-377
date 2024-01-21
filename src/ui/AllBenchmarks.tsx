@@ -183,9 +183,19 @@ export const AllBenchmarks: React.FC = () => {
         baseAffinePoints={baseAffineBigIntPoints}
         scalars={bigIntScalars}
         expectedResult={expectedResult}
-        msmFunc={compute_msm}
+        msmFunc={webgpu_best_msm}
         postResult={postResult}
         bold={false}
+      />
+      <Benchmark
+        name={'Your MSM'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={compute_msm}
+        postResult={postResult}
+        bold={true}
       />
 
       {/* <div className="flex items-left">
