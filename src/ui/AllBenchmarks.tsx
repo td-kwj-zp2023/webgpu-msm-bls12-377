@@ -1,30 +1,33 @@
 import React, { useEffect, useState } from 'react';
 import { Benchmark } from './Benchmark';
-import { bigIntToU32Array } from '../reference/webgpu/utils';
+import { bigIntToU32Array, generateRandomFields } from '../reference/webgpu/utils';
 import { BigIntPoint, U32ArrayPoint } from '../reference/types';
 import { webgpu_compute_msm, wasm_compute_msm, webgpu_pippenger_msm, webgpu_best_msm, wasm_compute_msm_parallel } from '../reference/reference';
-import { convert_inputs_into_mont_benchmark } from '../submission/convert_inputs_into_mont_benchmarks';
-import { convert_bigints_to_bytes_benchmark } from '../submission/convert_bigints_to_bytes_benchmark'
-import { mont_mul_benchmarks } from '../submission/mont_mul_benchmarks';
-import { barrett_mul_benchmarks } from '../submission/barrett_mul_benchmarks';
-import { barrett_domb_mul_benchmarks } from '../submission/barrett_domb_mul_benchmarks';
-import { add_points_benchmarks } from '../submission/add_points_benchmarks';
-import { decompose_scalars_ts_benchmark } from '../submission/decompose_scalars_benchmark';
+import { convert_inputs_into_mont_benchmark } from '../submission/miscellaneous/convert_inputs_into_mont_benchmarks';
+import { convert_bigints_to_bytes_benchmark } from '../submission/miscellaneous/convert_bigints_to_bytes_benchmark'
+import { mont_mul_benchmarks } from '../submission/miscellaneous/mont_mul_benchmarks';
+import { barrett_mul_benchmarks } from '../submission/miscellaneous/barrett_mul_benchmarks';
+import { barrett_domb_mul_benchmarks } from '../submission/miscellaneous/barrett_domb_mul_benchmarks';
+import { add_points_benchmarks } from '../submission/miscellaneous/add_points_benchmarks';
+import { decompose_scalars_ts_benchmark } from '../submission/miscellaneous/decompose_scalars_benchmark';
 import {
     create_csr_precomputation_benchmark,
     create_csr_sparse_matrices_from_points_benchmark,
-} from '../submission/cuzk/create_csr_gpu'
-import { cuzk_gpu } from '../submission/cuzk/cuzk_gpu'
-import { full_benchmarks } from '../submission/full_benchmarks'
-import { scalar_mul_benchmarks } from '../submission/scalar_mul_benchmarks'
-import { cuzk_typescript_serial, transpose_wgsl, smtvp_wgsl, smvp_wgsl } from '../submission/submission';
+} from '../submission/miscellaneous/cuzk/create_csr_gpu'
+import { full_benchmarks } from '../submission/miscellaneous/full_benchmarks'
+import { scalar_mul_benchmarks } from '../submission/miscellaneous/scalar_mul_benchmarks'
+import { smtvp_wgsl } from '../submission/miscellaneous/cuzk/smtvp_wgsl';
+import { cuzk_typescript_serial } from '../submission/miscellaneous/cuzk/cuzk_serial'
+import { transpose_wgsl } from '../submission/miscellaneous/cuzk/transpose_wgsl'
 import CSVExportButton from './CSVExportButton';
 import { TestCaseDropDown } from './TestCaseDropDown';
 import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
-import { data_transfer_cost_benchmarks } from '../submission/data_transfer_cost_benchmarks'
-import { bucket_points_reduction } from '../submission/bucket_points_reduction_benchmark'
-import { horners_rule_benchmark } from '../submission/horners_rule_benchmark'
-import { print_device_limits } from '../submission/print_device_limits'
+import { smvp_wgsl } from '../submission/miscellaneous/cuzk/smvp_wgsl';
+import { data_transfer_cost_benchmarks } from '../submission/miscellaneous/data_transfer_cost_benchmarks'
+import { bucket_points_reduction } from '../submission/miscellaneous/bucket_points_reduction_benchmark'
+import { horners_rule_benchmark } from '../submission/miscellaneous/horners_rule_benchmark'
+import { print_device_limits } from '../submission/miscellaneous/print_device_limits'
+import { compute_msm } from '../submission/submission';
 
 export const AllBenchmarks: React.FC = () => {
   const initialDefaultInputSize = 2 ** 16
@@ -138,17 +141,6 @@ export const AllBenchmarks: React.FC = () => {
         <TestCaseDropDown useRandomInputs={useRandomInputs} loadAndSetData={loadAndSetData}/>
         <CSVExportButton data={benchmarkResults} filename={'msm-benchmark'} />
       </div>
-
-      <Benchmark
-        name={'cuZK in WebGPU'}
-        disabled={disabledBenchmark}
-        baseAffinePoints={baseAffineBigIntPoints}
-        scalars={bigIntScalars}
-        expectedResult={expectedResult}
-        msmFunc={cuzk_gpu}
-        postResult={postResult}
-        bold={true}
-      />
       <Benchmark
         name={'Pippenger WebGPU MSM'}
         disabled={disabledBenchmark}
@@ -191,12 +183,12 @@ export const AllBenchmarks: React.FC = () => {
         baseAffinePoints={baseAffineBigIntPoints}
         scalars={bigIntScalars}
         expectedResult={expectedResult}
-        msmFunc={webgpu_best_msm}
+        msmFunc={compute_msm}
         postResult={postResult}
         bold={false}
       />
 
-      <div className="flex items-left">
+      {/* <div className="flex items-left">
         <div className={`text-gray-800 w-40 px-2 font-bold'`}>{name}</div> 
           <h1>Miscellaneous benchmarks and tests</h1>
           <br />
@@ -393,7 +385,7 @@ export const AllBenchmarks: React.FC = () => {
         msmFunc={create_csr_sparse_matrices_from_points_benchmark}
         postResult={postResult}
         bold={false}
-      />
+      /> */}
     </div>
   )
 };
