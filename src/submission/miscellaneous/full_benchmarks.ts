@@ -1,6 +1,6 @@
-import { BigIntPoint } from "../reference/types"
-import { PowersTestCase, loadTestCase } from '../test-data/testCases';
-import { cuzk_gpu } from './cuzk/cuzk_gpu'
+import { BigIntPoint } from "../../reference/types"
+import { PowersTestCase, loadTestCase } from '../../test-data/testCases';
+import { compute_msm } from '../submission'
 
 export const full_benchmarks = async (
     {}: BigIntPoint[], // Use {} to prevent Typescript warnings about unused parameters
@@ -31,7 +31,7 @@ export const do_full_benchmarks = async (
     }
 
     for (let power = START_POWER; power <= END_POWER; power ++) {
-        console.log(`Running ${NUM_RUNS + 1} invocations of cuzk_gpu() for 2^${power} inputs, please wait...`)
+        console.log(`Running ${NUM_RUNS + 1} invocations of compute_msm() for 2^${power} inputs, please wait...`)
         const testcase = testcases[power]
 
         /*
@@ -48,7 +48,7 @@ export const do_full_benchmarks = async (
 
         // Measure the first run, which forces a recompile
         const first_run_start = Date.now()
-        const msm = await cuzk_gpu(
+        const msm = await compute_msm(
             testcase.baseAffinePoints,
             testcase.scalars,
             false,
@@ -63,7 +63,7 @@ export const do_full_benchmarks = async (
 
         const expected = testcase.expectedResult
         if (msm.x !== expected.x || msm.y !== expected.y) {
-            console.error(`WARNING: the result of cuzk_gpu is incorrect for 2^${power}`)
+            console.error(`WARNING: the result of compute_msm is incorrect for 2^${power}`)
         }
 
         await delay(DELAY)
@@ -83,7 +83,7 @@ export const do_full_benchmarks = async (
         for (let i = 0; i < NUM_RUNS; i ++) {
             const start = Date.now()
             // Run without forcing a recompile
-            await cuzk_gpu(
+            await compute_msm(
                 testcase.baseAffinePoints,
                 testcase.scalars,
                 false,

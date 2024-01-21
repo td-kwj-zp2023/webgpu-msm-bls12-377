@@ -2,7 +2,7 @@ jest.setTimeout(1000000)
 import {
     createAffinePoint,
     BASE_FIELD,
-} from './bls12_377'
+} from '../implementation/bls12_377'
 
 describe('BLS12-377', () => {
     const x = BigInt('256948617686061222151099205917657017678095364246733267446961262336245752294716969877488967765059276401456368208320')
