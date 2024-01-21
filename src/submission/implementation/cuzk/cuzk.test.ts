@@ -1,8 +1,8 @@
 jest.setTimeout(10000000)
 import { G1 } from '@celo/bls12377js'
-import { decompose_scalars_signed } from '../../submission/utils'
-import { cpu_transpose } from '../../submission/cuzk/transpose'
-import { cpu_smvp_signed } from '../../submission/cuzk/smvp';
+import { decompose_scalars_signed } from './utils'
+import { cpu_transpose } from './transpose'
+import { cpu_smvp_signed } from './smvp';
 import { createAffinePoint, scalarMult, ZERO } from '../bls12_377'
 
 const x = BigInt('111871295567327857271108656266735188604298176728428155068227918632083036401841336689521497731900230387779623820740');

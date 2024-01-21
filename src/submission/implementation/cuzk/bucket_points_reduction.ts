@@ -4,7 +4,7 @@ import {
     create_bind_group_layout,
     create_compute_pipeline,
     execute_pipeline,
-} from './gpu'
+} from '../gpu'
 import { numbers_to_u8s_for_gpu } from './utils'
 
 export const shader_invocation = async (

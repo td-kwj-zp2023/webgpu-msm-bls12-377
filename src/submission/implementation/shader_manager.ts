@@ -19,7 +19,7 @@ import {
     gen_r_limbs,
     gen_d_limbs,
     gen_mu_limbs,
-} from './utils'
+} from './cuzk/utils'
 
 // A helper class which allows cuzk_gpu() to generate all the shaders it needs
 // easily. It precomputes all the necessary variables (such as the Montgomery
@@ -36,14 +36,12 @@ export class ShaderManager {
     public two_pow_chunk_size: number
     public n0: bigint
     public r: bigint
-    public d: bigint
     public rinv: bigint
     public p_bitlength: number
     public slack: number
     public w_mask: number
     public p_limbs: string
     public r_limbs: string
-    public d_limbs: string
     public mu_limbs: string
     public recompile = ''
 
@@ -61,7 +59,6 @@ export class ShaderManager {
         this.n0 = params.n0
         this.num_words = params.num_words
         this.r = params.r
-        this.d = params.edwards_d
         this.rinv = params.rinv
         this.mask = 2 ** word_size - 1
         this.index_shift = 2 ** (chunk_size - 1)
@@ -69,7 +66,6 @@ export class ShaderManager {
         this.two_pow_chunk_size = 2 ** chunk_size
         this.p_limbs = gen_p_limbs(this.p, this.num_words, word_size)
         this.r_limbs = gen_r_limbs(this.r, this.num_words, word_size)
-        this.d_limbs = gen_d_limbs(this.d, this.num_words, word_size)
         this.mu_limbs = gen_mu_limbs(this.p, this.num_words, word_size)
         this.p_bitlength = this.p.toString(2).length
         this.slack = this.num_words * word_size - this.p_bitlength
@@ -110,7 +106,6 @@ export class ShaderManager {
                 index_shift: this.index_shift,
                 p_limbs: this.p_limbs,
                 r_limbs: this.r_limbs,
-                d_limbs: this.d_limbs,
                 mu_limbs: this.mu_limbs,
                 w_mask: this.w_mask,
                 slack: this.slack,
@@ -160,7 +155,6 @@ export class ShaderManager {
                 n0: this.n0,
                 p_limbs: this.p_limbs,
                 r_limbs: this.r_limbs,
-                d_limbs: this.d_limbs,
                 mask: this.mask,
                 two_pow_word_size: this.two_pow_word_size,
                 index_shift: this.index_shift,
@@ -194,7 +188,6 @@ export class ShaderManager {
                 n0: this.n0,
                 p_limbs: this.p_limbs,
                 r_limbs: this.r_limbs,
-                d_limbs: this.d_limbs,
                 mask: this.mask,
                 two_pow_word_size: this.two_pow_word_size,
                 recompile: this.recompile,
