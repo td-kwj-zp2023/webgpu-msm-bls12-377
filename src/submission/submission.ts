@@ -248,7 +248,7 @@ export const do_cuzk_gpu = async (
 
   // This is a dynamic variable that determines the number
   // of CSR matrices processed per invocation of the shader. 
-  const num_subtask_chunk_size = num_subtasks / 2;
+  const num_subtask_chunk_size = 1;
 
   const smvp_shader = shaderManager.gen_smvp_shader(
     s_workgroup_size,
