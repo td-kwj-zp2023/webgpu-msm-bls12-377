@@ -125,6 +125,205 @@ export const AllBenchmarks: React.FC = () => {
         postResult={postResult}
         bold={true}
       />
+
+      {/* <div className="flex items-left">
+        <div className={`text-gray-800 w-40 px-2 font-bold'`}>{name}</div> 
+          <h1>Miscellaneous benchmarks and tests</h1>
+          <br />
+          <br />
+      </div>
+
+      <Benchmark
+        name={'Print device limits'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={print_device_limits}
+        postResult={postResult}
+        bold={false}
+      />
+      <Benchmark
+        name={'Full benchmark suite'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={full_benchmarks}
+        postResult={postResult}
+        bold={false}
+      />
+      <Benchmark
+        name={'Horner\'s Rule'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={horners_rule_benchmark}
+        postResult={postResult}
+        bold={false}
+      />
+      <Benchmark
+        name={'Bucket points reduction'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={bucket_points_reduction}
+        postResult={postResult}
+        bold={false}
+      />
+      <Benchmark
+        name={'Scalar multiplication benchmarks'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={scalar_mul_benchmarks}
+        postResult={postResult}
+        bold={false}
+      />
+      <Benchmark
+        name={'Data transfer cost benchmarks'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={data_transfer_cost_benchmarks}
+        postResult={postResult}
+        bold={false}
+      />
+
+      <Benchmark
+        name={'Decompose scalars benchmarks'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={decompose_scalars_ts_benchmark}
+        postResult={postResult}
+        bold={false}
+      />
+      <Benchmark
+        name={'Montgomery multiplication benchmarks'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={mont_mul_benchmarks}
+        postResult={postResult}
+        bold={false}
+      />
+      <Benchmark
+        name={'Barrett reduction benchmarks'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={barrett_mul_benchmarks}
+        postResult={postResult}
+        bold={false}
+      />
+      <Benchmark
+        name={'Barrett-Domb reduction benchmarks'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={barrett_domb_mul_benchmarks}
+        postResult={postResult}
+        bold={false}
+      />
+      <Benchmark
+        name={'Convert point coordinates to Mont form benchmarks'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={convert_inputs_into_mont_benchmark}
+        postResult={postResult}
+        bold={false}
+      />
+      <Benchmark
+        name={'BigInts to bytes benchmarks'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={convert_bigints_to_bytes_benchmark}
+        postResult={postResult}
+        bold={false}
+      />
+      <Benchmark
+        name={'cuzk Serial (Typescript)'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={cuzk_typescript_serial}
+        postResult={postResult}
+        bold={false}
+      />
+      <Benchmark
+        name={'Point addition algorithm benchmarks'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={add_points_benchmarks}
+        postResult={postResult}
+        bold={false}
+      />
+      <Benchmark
+        name={'Transpose (WGSL) - classic algo'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={transpose_wgsl}
+        postResult={postResult}
+        bold={false}
+      />
+      <Benchmark
+        name={'SMVP (WGSL)'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={smvp_wgsl}
+        postResult={postResult}
+        bold={false}
+      />
+      <Benchmark
+        name={'SMTVP (WGSL)'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={smtvp_wgsl}
+        postResult={postResult}
+        bold={false}
+      />
+      <Benchmark
+        name={'Create CSR sparse matrices (precomputation only in TS)'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={create_csr_precomputation_benchmark}
+        postResult={postResult}
+        bold={false}
+      />
+      <Benchmark
+        name={'Create CSR sparse matrices (GPU)'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={create_csr_sparse_matrices_from_points_benchmark}
+        postResult={postResult}
+        bold={false}
+      /> */}
     </div>
   )
 };

@@ -24,7 +24,7 @@ var<storage, read_write> bucket_sum_z: array<BigInt>;
 
 // Params buffer
 @group(0) @binding(7)
-var<uniform> params: vec3<u32>;
+var<uniform> params: vec4<u32>;
 
 fn get_r() -> BigInt {
     var r: BigInt;
@@ -73,6 +73,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let input_size = params[0];
     let num_y_workgroups = params[1];
     let num_z_workgroups = params[2];
+    let subtask_offset = params[3];
 
     let gidx = global_id.x; 
     let gidy = global_id.y; 
@@ -88,7 +89,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     var inf = get_paf();
 
-    let rp_offset = subtask_idx * (num_columns + 1u);
+    let rp_offset = (subtask_idx + subtask_offset) * (num_columns + 1u);
 
     // As we use the signed bucket index technique, each thread handles two
     // buckets.
@@ -104,7 +105,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
         // Add up all the points in the bucket
         for (var k = row_begin; k < row_end; k ++) {
-            let idx = val_idx[subtask_idx * input_size + k];
+            let idx = val_idx[(subtask_idx + subtask_offset) * input_size + k];
 
             var x = new_point_x[idx];
             var y = new_point_y[idx];
@@ -137,18 +138,18 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         if (j == 1) {
             // Since the point has been set, add to it.
             let bucket = Point(
-                bucket_sum_x[id],
-                bucket_sum_y[id],
-                bucket_sum_z[id]
+                bucket_sum_x[id + (subtask_offset * h)],
+                bucket_sum_y[id + (subtask_offset * h)],
+                bucket_sum_z[id + (subtask_offset * h)]
             );
             sum = add_points(bucket, sum);
         }
 
         // Set the point. Since no point has been set when j == 0, we can just
         // overwrite the data.
-        bucket_sum_x[id] = sum.x;
-        bucket_sum_y[id] = sum.y;
-        bucket_sum_z[id] = sum.z;
+        bucket_sum_x[id + (subtask_offset * h)] = sum.x;
+        bucket_sum_y[id + (subtask_offset * h)] = sum.y;
+        bucket_sum_z[id + (subtask_offset * h)] = sum.z;
     }
 
     {{{ recompile }}}

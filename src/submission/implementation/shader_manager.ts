@@ -17,7 +17,6 @@ import {
     compute_misc_params,
     gen_p_limbs,
     gen_r_limbs,
-    gen_d_limbs,
     gen_mu_limbs,
 } from './cuzk/utils'
 
