@@ -231,32 +231,39 @@ export const compute_msm = async (
     s_num_z_workgroups = 1;
   }
 
+  // This is a dynamic variable that determines the number
+  // of CSR matrices processed per invocation of the shader. 
+  const num_subtask_chunk_size = num_subtasks / 2;
+
   const smvp_shader = shaderManager.gen_smvp_shader(
     s_workgroup_size,
     num_columns,
   );
 
-  // SMVP and multiplication by the bucket index
-  await smvp_gpu(
-    smvp_shader,
-    s_num_x_workgroups,
-    s_num_y_workgroups,
-    s_num_z_workgroups,
-    device,
-    commandEncoder,
-    num_subtasks,
-    num_columns,
-    input_size,
-    chunk_size,
-    all_csc_col_ptr_sb,
-    point_x_sb,
-    point_y_sb,
-    all_csc_val_idxs_sb,
-    bucket_sum_x_sb,
-    bucket_sum_y_sb,
-    bucket_sum_t_sb,
-    bucket_sum_z_sb,
-  );
+  for (let offset = 0; offset < num_subtasks; offset += num_subtask_chunk_size) {
+    // SMVP and multiplication by the bucket index
+    await smvp_gpu(
+        smvp_shader,
+        s_num_x_workgroups / (num_subtasks / num_subtask_chunk_size),
+        s_num_y_workgroups,
+        s_num_z_workgroups,
+        offset,
+        device,
+        commandEncoder,
+        num_subtasks,
+        num_columns,
+        input_size,
+        chunk_size,
+        all_csc_col_ptr_sb,
+        point_x_sb,
+        point_y_sb,
+        all_csc_val_idxs_sb,
+        bucket_sum_x_sb,
+        bucket_sum_y_sb,
+        bucket_sum_t_sb,
+        bucket_sum_z_sb,
+    )
+}
 
   const bucket_reduction_shader = shaderManager.gen_bucket_reduction_shader();
 
@@ -638,6 +645,7 @@ export const smvp_gpu = async (
   num_x_workgroups: number,
   num_y_workgroups: number,
   num_z_workgroups: number,
+  offset: number,
   device: GPUDevice,
   commandEncoder: GPUCommandEncoder,
   num_subtasks: number,
@@ -658,6 +666,7 @@ export const smvp_gpu = async (
     input_size,
     num_y_workgroups,
     num_z_workgroups,
+    offset
   ]);
   const params_ub = create_and_write_ub(device, params_bytes);
 
@@ -701,8 +710,7 @@ export const smvp_gpu = async (
     num_z_workgroups,
   );
 
-  // Debug the output of the shader. This should **not** be run in
-  // production.
+  // Debug the output of the shader. This should **not** be run in production.
   if (debug) {
     const data = await read_from_gpu(device, commandEncoder, [
       all_csc_col_ptr_sb,
