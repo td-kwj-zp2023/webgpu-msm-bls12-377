@@ -7,6 +7,7 @@ import { compute_msm } from '../submission/submission';
 import CSVExportButton from './CSVExportButton';
 import { TestCaseDropDown } from './TestCaseDropDown';
 import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
+//import { full_benchmarks } from '../submission/miscellaneous/full_benchmarks'
 
 export const AllBenchmarks: React.FC = () => {
   const initialDefaultInputSize = 2 ** 16
@@ -126,7 +127,7 @@ export const AllBenchmarks: React.FC = () => {
         bold={true}
       />
 
-      {/* <div className="flex items-left">
+      {/*<div className="flex items-left">
         <div className={`text-gray-800 w-40 px-2 font-bold'`}>{name}</div> 
           <h1>Miscellaneous benchmarks and tests</h1>
           <br />
@@ -142,8 +143,8 @@ export const AllBenchmarks: React.FC = () => {
         msmFunc={print_device_limits}
         postResult={postResult}
         bold={false}
-      />
-      <Benchmark
+      /> */}
+      {/* <Benchmark
         name={'Full benchmark suite'}
         disabled={disabledBenchmark}
         baseAffinePoints={baseAffineBigIntPoints}
