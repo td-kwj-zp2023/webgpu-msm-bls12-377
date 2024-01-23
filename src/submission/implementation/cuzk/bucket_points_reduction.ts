@@ -30,7 +30,7 @@ export const shader_invocation = async (
 
     const num_x_workgroups = 2 ** n;
     const num_y_workgroups = Math.ceil(
-      num_points / num_x_workgroups / num_subtasks,
+      num_points / num_x_workgroups / num_subtasks / 2,
     );
 
     return { num_x_workgroups, num_y_workgroups, num_z_workgroups };
