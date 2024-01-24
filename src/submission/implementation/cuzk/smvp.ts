@@ -1,5 +1,5 @@
 /// This module provides CPU-based operations, including Sparse Matrix-Vector Product (SMVP)
-/// and scalar multiplication with signed bucket indices in typescript. It leverages the
+/// with signed bucket indices in typescript. It leverages the
 /// `FieldMath` utility for mathematical operations on extended points.
 
 import { FieldMath } from "../../../reference/utils/FieldMath";
@@ -32,7 +32,7 @@ export const cpu_smvp = (
 };
 
 /**
- * Perform SMVP and scalar mul with signed bucket indices
+ * Perform SMVP with signed bucket indices
  */
 export const cpu_smvp_signed = (
   subtask_idx: number,
