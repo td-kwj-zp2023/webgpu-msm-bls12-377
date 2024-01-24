@@ -79,7 +79,13 @@ describe("cuzk", () => {
       let bucket_sum = fieldMath.customEdwards.ExtendedPoint.ZERO;
       for (let i = 0; i < buckets.length; i++) {
         if (!buckets[i].equals(fieldMath.customEdwards.ExtendedPoint.ZERO)) {
-          bucket_sum = bucket_sum.add(buckets[i]);
+          let b = buckets[i]
+          if (i === 0) {
+            b = b.multiply(BigInt(num_columns / 2))
+          } else {
+            b = b.multiply(BigInt(i))
+          }
+          bucket_sum = bucket_sum.add(b)
         }
       }
       bucket_sums.push(bucket_sum);
