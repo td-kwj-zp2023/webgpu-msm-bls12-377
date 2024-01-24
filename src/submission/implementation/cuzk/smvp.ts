@@ -88,8 +88,6 @@ export const cpu_smvp_signed = (
       }
 
       if (bucket_idx > 0) {
-        sum = sum.multiply(BigInt(bucket_idx));
-
         // Store the result in buckets[thread_id]. Each thread must use
         // a unique storage location (thread_id) to prevent race conditions.
         buckets[thread_id] = buckets[thread_id].add(sum);
