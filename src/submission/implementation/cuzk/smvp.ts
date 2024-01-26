@@ -64,7 +64,11 @@ export const cpu_smvp_signed = (
       // the same as the bucket index.
       let row_idx = thread_id + num_columns / 2;
       if (j === 1) {
-        row_idx = thread_id;
+        row_idx = num_columns / 2 - thread_id;
+      }
+
+      if (thread_id === 0 && j === 0) {
+        row_idx = 0
       }
 
       const row_begin = all_csc_col_ptr[rp_offset + row_idx];
