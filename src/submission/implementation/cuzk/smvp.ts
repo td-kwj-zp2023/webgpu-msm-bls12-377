@@ -49,7 +49,7 @@ export const cpu_smvp_signed = (
   const zero = fieldMath.customEdwards.ExtendedPoint.ZERO;
 
   const buckets: ExtPointType[] = [];
-  for (let i = 0; i < num_columns / 2 + 1; i++) {
+  for (let i = 0; i < num_columns / 2; i++) {
     buckets.push(zero);
   }
 
@@ -86,6 +86,7 @@ export const cpu_smvp_signed = (
       } else {
         bucket_idx = row_idx - h;
       }
+
 
       if (bucket_idx > 0) {
         // Store the result in buckets[thread_id]. Each thread must use
