@@ -104,7 +104,10 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     for (var j = 0u; j < 2u; j ++) {
         var row_idx = (id % h) + h;
         if (j == 1u) {
-            row_idx = (id % h);
+            row_idx = h - (id % h);
+        }
+        if (j == 0u && id % h == 0u) {
+            row_idx = 0u;
         }
 
         let row_begin = row_ptr[rp_offset + row_idx];
