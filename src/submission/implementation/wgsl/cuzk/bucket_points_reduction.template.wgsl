@@ -72,6 +72,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     out_y[id] = result.y;
     out_t[id] = result.t;
     out_z[id] = result.z;
+    storageBarrier();
 
     {{{ recompile }}}
 }

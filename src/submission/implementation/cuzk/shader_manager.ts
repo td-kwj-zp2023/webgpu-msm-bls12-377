@@ -14,6 +14,7 @@ import barrett_funcs from "../wgsl/cuzk/barrett.template.wgsl";
 import montgomery_product_funcs from "../wgsl/montgomery/mont_pro_product.template.wgsl";
 import transpose_serial_shader from "../wgsl/cuzk/transpose.wgsl";
 import smvp_shader from "../wgsl/cuzk/smvp.template.wgsl";
+import bpr_shader from '../wgsl/cuzk/bpr.template.wgsl'
 import bucket_points_reduction_shader from "../wgsl/cuzk/bucket_points_reduction.template.wgsl";
 
 import {
@@ -160,6 +161,35 @@ export class ShaderManager {
         workgroup_size,
         num_columns: num_csr_cols,
         half_num_columns: num_csr_cols / 2,
+        recompile: this.recompile,
+      },
+      {
+        structs,
+        bigint_funcs,
+        montgomery_product_funcs,
+        field_funcs,
+        ec_funcs,
+      },
+    );
+    return shaderCode;
+  }
+
+  public gen_bpr_shader(
+    workgroup_size: number,
+  ) {
+    const shaderCode = mustache.render(
+      bpr_shader,
+      {
+        word_size: this.word_size,
+        num_words: this.num_words,
+        n0: this.n0,
+        p_limbs: this.p_limbs,
+        r_limbs: this.r_limbs,
+        d_limbs: this.d_limbs,
+        mask: this.mask,
+        two_pow_word_size: this.two_pow_word_size,
+        index_shift: this.index_shift,
+        workgroup_size,
         recompile: this.recompile,
       },
       {
