@@ -197,26 +197,6 @@ export const AllBenchmarks: React.FC = () => {
         postResult={postResult}
         bold={true}
       />
-      <Benchmark
-        name={'Full benchmark suite'}
-        disabled={disabledBenchmark}
-        baseAffinePoints={baseAffineBigIntPoints}
-        scalars={bigIntScalars}
-        expectedResult={expectedResult}
-        msmFunc={full_benchmarks}
-        postResult={postResult}
-        bold={false}
-      />
-      <Benchmark
-        name={'Bucket points reduction'}
-        disabled={disabledBenchmark}
-        baseAffinePoints={baseAffineBigIntPoints}
-        scalars={bigIntScalars}
-        expectedResult={expectedResult}
-        msmFunc={bucket_points_reduction}
-        postResult={postResult}
-        bold={false}
-      />
 
       {/* <div className="flex items-left">
         <div className={`text-gray-800 w-40 px-2 font-bold'`}>{name}</div> 
