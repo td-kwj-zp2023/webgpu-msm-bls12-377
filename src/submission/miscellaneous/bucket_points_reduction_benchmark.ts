@@ -8,12 +8,12 @@ import {
   create_sb,
   read_from_gpu,
 } from "../implementation/cuzk/gpu";
-import structs from "./wgsl/struct/structs.template.wgsl";
-import bigint_funcs from "./wgsl/bigint/bigint.template.wgsl";
-import field_funcs from "./wgsl/field/field.template.wgsl";
-import ec_funcs from "./wgsl/curve/ec.template.wgsl";
-import montgomery_product_funcs from "./wgsl/montgomery/mont_pro_product.template.wgsl";
-import bucket_points_reduction_shader from "./wgsl/bucket_points_reduction.template.wgsl";
+import structs from "../implementation/wgsl/struct/structs.template.wgsl";
+import bigint_funcs from "../implementation/wgsl/bigint/bigint.template.wgsl";
+import field_funcs from "../implementation/wgsl/field/field.template.wgsl";
+import ec_funcs from "../implementation/wgsl/curve/ec.template.wgsl";
+import montgomery_product_funcs from "../implementation/wgsl/montgomery/mont_pro_product.template.wgsl";
+import bucket_points_reduction_shader from "../implementation/wgsl/cuzk/bucket_points_reduction.template.wgsl";
 import {
   are_point_arr_equal,
   compute_misc_params,
@@ -43,7 +43,6 @@ export const test_bucket_points_reduction = async (
 ) => {
   assert(baseAffinePoints.length >= input_size);
 
-  const workgroup_size = 32;
   const fieldMath = new FieldMath();
   const p = BigInt(
     "0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001",
@@ -110,7 +109,6 @@ export const test_bucket_points_reduction = async (
       d_limbs,
       mask: BigInt(2) ** BigInt(word_size) - BigInt(1),
       two_pow_word_size: BigInt(2) ** BigInt(word_size),
-      workgroup_size,
     },
     {
       structs,

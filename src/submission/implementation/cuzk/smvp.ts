@@ -58,7 +58,6 @@ export const cpu_smvp_signed = (
   // In a GPU implementation, each iteration of this loop should be performed by a thread.
   // Each thread handles two buckets
   for (let thread_id = 0; thread_id < num_columns / 2; thread_id++) {
-    const bucket_idxs: number[] = [];
     for (let j = 0; j < 2; j++) {
       // row_idx is the index of the row in the CSR matrix. It is *not*
       // the same as the bucket index.
@@ -87,16 +86,17 @@ export const cpu_smvp_signed = (
         bucket_idx = row_idx - h;
       }
 
-
       if (bucket_idx > 0) {
         // Store the result in buckets[thread_id]. Each thread must use
         // a unique storage location (thread_id) to prevent race conditions.
         buckets[thread_id] = buckets[thread_id].add(sum);
+      } else {
+        buckets[thread_id] = buckets[thread_id].add(zero);
       }
-
-      bucket_idxs.push(bucket_idx);
+      //console.log({ thread_id, bucket_idx })
     }
   }
+  //console.log('----')
 
   return buckets;
 };

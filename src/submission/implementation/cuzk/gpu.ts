@@ -60,6 +60,8 @@ export const read_from_gpu = async (
   commandEncoder: GPUCommandEncoder,
   storage_buffers: GPUBuffer[],
   custom_size = 0,
+  source_offset = 0,
+  dest_offset = 0,
 ) => {
   const staging_buffers: GPUBuffer[] = [];
   for (const storage_buffer of storage_buffers) {
@@ -70,9 +72,9 @@ export const read_from_gpu = async (
     });
     commandEncoder.copyBufferToBuffer(
       storage_buffer,
-      0,
+      source_offset,
       staging_buffer,
-      0,
+      dest_offset,
       size,
     );
     staging_buffers.push(staging_buffer);

@@ -1,4 +1,3 @@
-
 {{> structs }}
 {{> montgomery_product_funcs }}
 {{> field_funcs }}
@@ -16,6 +15,7 @@ var<storage, read> new_point_x: array<BigInt>;
 var<storage, read> new_point_y: array<BigInt>;
 
 // Output buffers
+// TODO: rename to bucket_x, etc
 @group(0) @binding(4)
 var<storage, read_write> bucket_sum_x: array<BigInt>;
 @group(0) @binding(5)
@@ -145,28 +145,31 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
             bucket_idx = row_idx - h;
         }
 
-        // Multiply the bucket sum by the scalar chunk / bucket ID
-        sum = double_and_add(sum, bucket_idx);
+        /*// Multiply the bucket sum by the bucket ID*/
+        /*sum = double_and_add(sum, bucket_idx);*/
 
-        // Store the result in buckets[thread_id]. Each thread must use
-        // a unique storage location (thread_id) to prevent race
-        // conditions.
-        if (j == 1) {
-            // Since the point has been set, add to it.
-            let bucket = Point(
-                bucket_sum_x[id + (subtask_offset * h)],
-                bucket_sum_y[id + (subtask_offset * h)],
-                bucket_sum_t[id + (subtask_offset * h)],
-                bucket_sum_z[id + (subtask_offset * h)]
-            );
-            sum = add_points(bucket, sum);
+        if (bucket_idx > 0u) {
+            // Store the result in buckets[thread_id]. Each thread must use
+            // a unique storage location (thread_id) to prevent race
+            // conditions.
+            if (j == 1) {
+                // Since the point has been set, add to it.
+                let bucket = Point(
+                    bucket_sum_x[id + (subtask_offset * h)],
+                    bucket_sum_y[id + (subtask_offset * h)],
+                    bucket_sum_t[id + (subtask_offset * h)],
+                    bucket_sum_z[id + (subtask_offset * h)]
+                );
+                sum = add_points(bucket, sum);
+            }
+
+            // Set the point. Since no point has been set when j == 0, we can just
+            // overwrite the data.
+            bucket_sum_x[id + (subtask_offset * h)] = sum.x;
+            bucket_sum_y[id + (subtask_offset * h)] = sum.y;
+            bucket_sum_z[id + (subtask_offset * h)] = sum.z;
+            bucket_sum_t[id + (subtask_offset * h)] = sum.t;
         }
-        // Set the point. Since no point has been set when j == 0, we can just
-        // overwrite the data.
-        bucket_sum_x[id + (subtask_offset * h)] = sum.x;
-        bucket_sum_y[id + (subtask_offset * h)] = sum.y;
-        bucket_sum_z[id + (subtask_offset * h)] = sum.z;
-        bucket_sum_t[id + (subtask_offset * h)] = sum.t;
     }
 
     {{{ recompile }}}
