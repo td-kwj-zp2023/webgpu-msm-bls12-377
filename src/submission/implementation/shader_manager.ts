@@ -12,6 +12,7 @@ import montgomery_product_funcs from './wgsl/montgomery/mont_pro_product.templat
 import transpose_serial_shader from './wgsl/transpose_serial.wgsl'
 import smvp_bls12_377_shader from './wgsl/smvp_bls12_377.template.wgsl'
 import bucket_points_reduction_shader from './wgsl/bucket_points_reduction.template.wgsl'
+import bpr_shader from './wgsl/cuzk/bpr.template.wgsl'
 
 import {
     compute_misc_params,
@@ -200,5 +201,32 @@ export class ShaderManager {
             },
         )
         return shaderCode
+    }
+    public gen_bpr_shader(
+        workgroup_size: number,
+    ) {
+        const shaderCode = mustache.render(
+            bpr_shader,
+            {
+                word_size: this.word_size,
+                num_words: this.num_words,
+                n0: this.n0,
+                p_limbs: this.p_limbs,
+                r_limbs: this.r_limbs,
+                mask: this.mask,
+                two_pow_word_size: this.two_pow_word_size,
+                index_shift: this.index_shift,
+                workgroup_size,
+                recompile: this.recompile,
+            },
+            {
+                structs,
+                bigint_funcs,
+                montgomery_product_funcs,
+                field_funcs,
+                ec_funcs: ec_bls12_377_funcs
+            },
+        );
+        return shaderCode;
     }
 }

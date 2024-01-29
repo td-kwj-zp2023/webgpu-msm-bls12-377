@@ -1,12 +1,7 @@
 import { G1 } from '@celo/bls12377js'
-import {
-    //createAffinePoint,
-    scalarMult,
-    negate,
-    ZERO,
-} from '../bls12_377'
+import { negate, ZERO } from '../bls12_377'
 
-// Perform SMVP and scalar mul with signed bucket indices.
+// Perform SMVP with signed bucket indices.
 export const cpu_smvp_signed = (
     subtask_idx: number,
     input_size: number,
@@ -21,7 +16,7 @@ export const cpu_smvp_signed = (
     const zero = ZERO
 
     const buckets: G1[] = [];
-    for (let i = 0; i < num_columns / 2 + 1; i++) {
+    for (let i = 0; i < num_columns / 2; i++) {
         buckets.push(zero)
     }
 
@@ -30,13 +25,16 @@ export const cpu_smvp_signed = (
     // In a GPU implementation, each iteration of this loop should be performed by a thread.
     // Each thread handles two buckets
     for (let thread_id = 0; thread_id < num_columns / 2; thread_id ++) {
-        const bucket_idxs: number[] = []
         for (let j = 0; j < 2; j ++) {
             // row_idx is the index of the row in the CSR matrix. It is *not*
             // the same as the bucket index.
-            let row_idx = thread_id + num_columns / 2
+            let row_idx = thread_id + num_columns / 2;
             if (j === 1) {
-                row_idx = thread_id
+                row_idx = num_columns / 2 - thread_id;
+            }
+
+            if (thread_id === 0 && j === 0) {
+                row_idx = 0
             }
 
             const row_begin = all_csc_col_ptr[rp_offset + row_idx];
@@ -58,17 +56,14 @@ export const cpu_smvp_signed = (
             }
 
             if (bucket_idx > 0) {
-                sum = scalarMult(sum, BigInt(bucket_idx))
-
                 // Store the result in buckets[thread_id]. Each thread must use
                 // a unique storage location (thread_id) to prevent race
                 // conditions.
                 buckets[thread_id] = buckets[thread_id].add(sum)
-            }
-
-            bucket_idxs.push(bucket_idx)
+           } else {
+                buckets[thread_id] = buckets[thread_id].add(zero);
+           }
         }
     }
-
     return buckets
 }
