@@ -93,11 +93,12 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     for (var i = 0u; i < buckets_per_thread - 1u; i ++) {
         let idx = (num_threads - thread_id) * buckets_per_thread - 1u - i;
+        let bi = bucket_sum_offset + idx;
         let b = Point(
-            bucket_sum_x[bucket_sum_offset + idx],
-            bucket_sum_y[bucket_sum_offset + idx],
-            bucket_sum_t[bucket_sum_offset + idx],
-            bucket_sum_z[bucket_sum_offset + idx]
+            bucket_sum_x[bi],
+            bucket_sum_y[bi],
+            bucket_sum_t[bi],
+            bucket_sum_z[bi]
         );
         m = add_points(m, b);
         g = add_points(g, m);

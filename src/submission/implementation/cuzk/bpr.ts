@@ -1,6 +1,6 @@
 import { ExtPointType } from "@noble/curves/abstract/edwards";
-import { FieldMath } from "../../../reference/utils/FieldMath";
 
+// Perform running sum in the classic fashion - one siumulated thread only
 export const running_sum_bucket_reduction = (buckets: ExtPointType[]) => {
   const n = buckets.length
   let m = buckets[0]
@@ -24,6 +24,8 @@ export const running_sum_bucket_reduction = (buckets: ExtPointType[]) => {
   return g
 }
 
+// Perform running sum with simulated parallelism. It is up to the caller
+// to add the resulting points.
 export const parallel_bucket_reduction = (
   buckets: ExtPointType[],
   num_threads = 4,
