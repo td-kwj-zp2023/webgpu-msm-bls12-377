@@ -69,8 +69,7 @@ const fieldMath = new FieldMath();
  *    - Signed bucket indices
  * 3. Careful memory management to stay within WebGPU's default buffer size
  *    limits.
- * 4. Bucket reduction via recursive tree-summation.
- * 5. Perform the final computation of the MSM result from the subtask results
+ * 4. Perform the final computation of the MSM result from the subtask results
  *    (Horner's rule) in the CPU instead of the GPU, as the number of points is
  *    small, and the time taken to compile a shader to perform this computation
  *    is greater than the time it takes for the CPU to do so.
