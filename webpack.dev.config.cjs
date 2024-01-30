@@ -75,7 +75,7 @@ const config = {
       ]
     }),
     new webpack.DefinePlugin({
-      'process.env.NODE_DEBUG': JSON.stringify(process.env.NODE_DEBUG),
+      'process.env.NODE_DEBUG': JSON.stringify('development'),
       'process.type': JSON.stringify(process.type),
       'process.version': JSON.stringify(process.version),
     })

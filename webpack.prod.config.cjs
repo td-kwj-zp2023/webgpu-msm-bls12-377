@@ -1,15 +1,19 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
 const path = require("path");
 const webpack = require("webpack");
-const webpackServer = require('webpack-dev-server');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const ForkTsCheckerWebpackPlugin = require("fork-ts-checker-webpack-plugin");
-const ESLintPlugin = require("eslint-webpack-plugin");
 const cleanWebpackPlugin = require("clean-webpack-plugin");
 
 const config = {
   mode: "production",
   entry: "./src/index.tsx",
+  devServer: {
+    client: {
+      overlay: false,
+    },
+  },
   experiments: {
     asyncWebAssembly: true
   },
@@ -20,6 +24,15 @@ const config = {
   },
   module: {
     rules: [
+      {
+        test: /\.css$/i,
+        exclude: /node_modules/,
+        use: ['style-loader', 'css-loader', 'postcss-loader'],
+      },
+      {
+        test: /\.wgsl/i,
+        type: 'asset/source',
+      },
       {
         test: /\.(ts|js)x?$/i,
         exclude: /node_modules/,
@@ -45,16 +58,30 @@ const config = {
     }
   },
   plugins: [
+    new webpack.ProvidePlugin({
+      Buffer: ['buffer', 'Buffer'],
+    }),
     new HtmlWebpackPlugin({
-      template: "src/index.html",
+      template: "public/index.html",
     }),
     new ForkTsCheckerWebpackPlugin({
       async: false,
     }),
-    new ESLintPlugin({
-      extensions: ["js", "jsx", "ts", "tsx"],
+    new CopyWebpackPlugin({
+      patterns: [
+        {
+          from: path.resolve(__dirname, 'public/test-data'),
+          to: path.resolve(__dirname, 'dist/test-data'),
+        }
+      ]
     }),
     new cleanWebpackPlugin.CleanWebpackPlugin(),
+    new webpack.DefinePlugin({
+      'process.env.NODE_ENV': JSON.stringify('production'),
+      'process.env.NODE_DEBUG': JSON.stringify(process.env.NODE_DEBUG),
+      'process.type': JSON.stringify(process.type),
+      'process.version': JSON.stringify(process.version),
+    })
   ],
 };
 
@@ -130,6 +157,5 @@ const workerConfig = {
     ]
   }
 };
-
 
 module.exports = [config, workerConfig];

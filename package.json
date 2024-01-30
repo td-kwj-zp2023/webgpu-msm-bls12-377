@@ -6,6 +6,8 @@
     "start": "webpack serve --config webpack.dev.config.cjs",
     "lint": "eslint --ext .js,.ts .",
     "test": "node --experimental-vm-modules $(yarn bin jest)",
+    "serve": "webpack serve --config webpack.dev.config.cjs",
+    "serve-prod": "webpack serve --config webpack.prod.config.cjs",
     "runningProcesses": "sudo lsof -i :4040",
     "convertPowersOfBeta": "ts-node --project ts-config-utility.json ./src/test-data/convert-binary-to-big-ints.ts",
     "convertXsToPoints": "ts-node --project ts-config-utility.json ./src/test-data/convert-x-to-points.ts",
