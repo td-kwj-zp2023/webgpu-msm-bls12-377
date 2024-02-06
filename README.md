@@ -1,4 +1,43 @@
-# webgpu-msm
+# ZPrize 2023 Prize 2 submission
+
+Authors: Tal Derei and Koh Wei Jie
+
+## Documentation
+
+**TODO**: replace this link with a Markdown file in the repo
+https://hackmd.io/HNH0DcSqSka4hAaIfJNHEA?both
+
+## Quick start (with test case data)
+
+```bash
+git clone https://github.com/demox-labs/webgpu-msm && \
+cd webgpu-msm && \
+git lfs fetch && \
+git lfs pull && \
+yarn && \
+yarn start
+```
+
+## Quick start (without test case data)
+
+```bash
+git clone https://github.com/demox-labs/webgpu-msm && \
+cd webgpu-msm && \
+yarn && \
+yarn start
+```
+
+## Production build
+
+We have also configured `webpack.prod.config` to allow Webpack to run a dev
+server with production settings, but this has no effect on the performance of
+our submission.
+
+```
+npm run serve-prod
+```
+
+# Original `webgpu-msm` docs
 
 - [Quick Start](#quick-start)
 - [Prize Desription](#prize-description)
