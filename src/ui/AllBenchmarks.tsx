@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Benchmark } from './Benchmark';
-import { bigIntToU32Array } from '../reference/webgpu/utils';
+import { bigIntToU32Array, generateRandomFields } from '../reference/webgpu/utils';
 //import { bigIntToU32Array, generateRandomFields } from '../reference/webgpu/utils';
 import { BigIntPoint, U32ArrayPoint } from '../reference/types';
 import { webgpu_compute_msm, wasm_compute_msm, webgpu_pippenger_msm, webgpu_best_msm, wasm_compute_msm_parallel } from '../reference/reference';
