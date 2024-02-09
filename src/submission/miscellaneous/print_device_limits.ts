@@ -1,9 +1,9 @@
-import { BigIntPoint } from "../../reference/types";
+import { BigIntPoint, U32ArrayPoint } from "../../reference/types";
 import { get_device } from "../implementation/cuzk/gpu";
 
 export const print_device_limits = async (
-  {}: BigIntPoint[],
-  {}: bigint[],
+  {}: BigIntPoint[] | U32ArrayPoint[],
+  {}: bigint[] | Uint32Array[],
 ): Promise<{ x: bigint; y: bigint }> => {
   const device = await get_device();
   console.log(device.limits);
