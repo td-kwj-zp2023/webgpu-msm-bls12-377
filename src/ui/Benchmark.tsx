@@ -1,7 +1,7 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState } from 'react';
-import { BigIntPoint, U32ArrayPoint } from '../reference/types';
+import { BigIntPoint } from '../reference/types';
 import { CheckIcon } from '@heroicons/react/20/solid';
 import { XMarkIcon } from '@heroicons/react/20/solid';
 

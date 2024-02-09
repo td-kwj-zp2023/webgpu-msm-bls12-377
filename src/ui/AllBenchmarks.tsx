@@ -1,11 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Benchmark } from './Benchmark';
-import { bigIntToU32Array, generateRandomFields } from '../reference/webgpu/utils';
+import { bigIntToU32Array } from '../reference/webgpu/utils';
+//import { bigIntToU32Array, generateRandomFields } from '../reference/webgpu/utils';
 import { BigIntPoint, U32ArrayPoint } from '../reference/types';
 import { webgpu_compute_msm, wasm_compute_msm, webgpu_pippenger_msm, webgpu_best_msm, wasm_compute_msm_parallel } from '../reference/reference';
-import CSVExportButton from './CSVExportButton';
-import { TestCaseDropDown } from './TestCaseDropDown';
-import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
 //import { convert_inputs_into_mont_benchmark } from '../submission/miscellaneous/convert_inputs_into_mont_benchmarks';
 //import { convert_bigints_to_bytes_benchmark } from '../submission/miscellaneous/convert_bigints_to_bytes_benchmark'
 //import { mont_mul_benchmarks } from '../submission/miscellaneous/mont_mul_benchmarks';
@@ -22,6 +20,16 @@ import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
 //import { smtvp_wgsl } from '../submission/miscellaneous/cuzk/smtvp_wgsl';
 //import { cuzk_typescript_serial } from '../submission/miscellaneous/cuzk/cuzk_serial'
 //import { transpose_wgsl } from '../submission/miscellaneous/cuzk/transpose_wgsl'
+import CSVExportButton from './CSVExportButton';
+import { TestCaseDropDown } from './TestCaseDropDown';
+import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
+//import { convert_inputs_into_mont_benchmark } from '../submission/miscellaneous/convert_inputs_into_mont_benchmarks';
+//import { convert_bigints_to_bytes_benchmark } from '../submission/miscellaneous/convert_bigints_to_bytes_benchmark'
+//import { mont_mul_benchmarks } from '../submission/miscellaneous/mont_mul_benchmarks';
+//import { barrett_mul_benchmarks } from '../submission/miscellaneous/barrett_mul_benchmarks';
+//import { barrett_domb_mul_benchmarks } from '../submission/miscellaneous/barrett_domb_mul_benchmarks';
+//import { add_points_benchmarks } from '../submission/miscellaneous/add_points_benchmarks';
+//import { decompose_scalars_ts_benchmark } from '../submission/miscellaneous/decompose_scalars_benchmark';
 //import { smvp_wgsl } from '../submission/miscellaneous/cuzk/smvp_wgsl';
 //import { data_transfer_cost_benchmarks } from '../submission/miscellaneous/data_transfer_cost_benchmarks'
 //import { bucket_points_reduction } from '../submission/miscellaneous/bucket_points_reduction_benchmark'
