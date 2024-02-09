@@ -19,25 +19,26 @@ export const shader_invocation = async (
   out_y_sb: GPUBuffer,
   out_t_sb: GPUBuffer,
   out_z_sb: GPUBuffer,
-  num_points: number,
+  num_buckets: number,
   num_words: number,
   num_subtasks: number,
 ) => {
-  const num_z_workgroups = 1;
-  const compute_ideal_num_workgroups = (num_points: number) => {
-    const m = Math.log2(num_points);
+  const compute_ideal_num_workgroups = (num_buckets: number) => {
+    const m = Math.log2(num_buckets);
     const n = Math.ceil(m / 2);
 
     const num_x_workgroups = 2 ** n;
     const num_y_workgroups = Math.ceil(
-      num_points / num_x_workgroups / num_subtasks / 2,
+      num_buckets / num_x_workgroups / num_subtasks / 2,
     );
 
-    return { num_x_workgroups, num_y_workgroups, num_z_workgroups };
+    return { num_x_workgroups, num_y_workgroups };
   };
 
   const { num_x_workgroups, num_y_workgroups } =
-    compute_ideal_num_workgroups(num_points);
+    compute_ideal_num_workgroups(num_buckets);
+
+  const num_z_workgroups = 1;
 
   const params_bytes = numbers_to_u8s_for_gpu([
     num_y_workgroups,
@@ -75,6 +76,8 @@ export const shader_invocation = async (
     "main",
   );
 
+  //console.log(num_buckets)
+  //console.log(num_x_workgroups, num_y_workgroups, num_z_workgroups)
   execute_pipeline(
     commandEncoder,
     computePipeline,
@@ -84,7 +87,7 @@ export const shader_invocation = async (
     num_z_workgroups,
   );
 
-  const size = Math.ceil(num_points / 2) * 4 * num_words * num_subtasks;
+  const size = Math.ceil(num_buckets / 2) * 4 * num_words * num_subtasks;
   commandEncoder.copyBufferToBuffer(out_x_sb, 0, x_coords_sb, 0, size);
   commandEncoder.copyBufferToBuffer(out_y_sb, 0, y_coords_sb, 0, size);
   commandEncoder.copyBufferToBuffer(out_t_sb, 0, t_coords_sb, 0, size);

@@ -1,5 +1,5 @@
 /// This module provides CPU-based operations, including Sparse Matrix-Vector Product (SMVP)
-/// and scalar multiplication with signed bucket indices in typescript. It leverages the
+/// with signed bucket indices in typescript. It leverages the
 /// `FieldMath` utility for mathematical operations on extended points.
 
 import { FieldMath } from "../../../reference/utils/FieldMath";
@@ -32,7 +32,7 @@ export const cpu_smvp = (
 };
 
 /**
- * Perform SMVP and scalar mul with signed bucket indices
+ * Perform SMVP with signed bucket indices
  */
 export const cpu_smvp_signed = (
   subtask_idx: number,
@@ -49,7 +49,7 @@ export const cpu_smvp_signed = (
   const zero = fieldMath.customEdwards.ExtendedPoint.ZERO;
 
   const buckets: ExtPointType[] = [];
-  for (let i = 0; i < num_columns / 2 + 1; i++) {
+  for (let i = 0; i < num_columns / 2; i++) {
     buckets.push(zero);
   }
 
@@ -58,7 +58,6 @@ export const cpu_smvp_signed = (
   // In a GPU implementation, each iteration of this loop should be performed by a thread.
   // Each thread handles two buckets
   for (let thread_id = 0; thread_id < num_columns / 2; thread_id++) {
-    const bucket_idxs: number[] = [];
     for (let j = 0; j < 2; j++) {
       // row_idx is the index of the row in the CSR matrix. It is *not*
       // the same as the bucket index.
@@ -88,16 +87,16 @@ export const cpu_smvp_signed = (
       }
 
       if (bucket_idx > 0) {
-        sum = sum.multiply(BigInt(bucket_idx));
-
         // Store the result in buckets[thread_id]. Each thread must use
         // a unique storage location (thread_id) to prevent race conditions.
         buckets[thread_id] = buckets[thread_id].add(sum);
+      } else {
+        buckets[thread_id] = buckets[thread_id].add(zero);
       }
-
-      bucket_idxs.push(bucket_idx);
+      //console.log({ thread_id, bucket_idx })
     }
   }
+  //console.log('----')
 
   return buckets;
 };

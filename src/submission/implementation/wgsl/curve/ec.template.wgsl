@@ -1,9 +1,3 @@
-fn fr_double(a: ptr<function, BigInt>) -> BigInt { 
-    var res: BigInt;
-    bigint_double(a, &res);
-    return fr_reduce(&res);
-}
-
 fn double_point(p1: Point) -> Point {
     var p1x = p1.x;
     var p1y = p1.y;
