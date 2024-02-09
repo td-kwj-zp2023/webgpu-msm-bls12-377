@@ -9,12 +9,12 @@ interface BenchmarkProps {
   bold?: boolean;
   disabled: boolean;
   name: string;
-  baseAffinePoints: BigIntPoint[];
-  scalars: bigint[];
+  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[];
+  scalars: bigint[] | Uint32Array[];
   expectedResult: {x: bigint, y: bigint} | null;
   msmFunc: (
-    baseAffinePoints: BigIntPoint[],
-    scalars: bigint[]
+    baseAffinePoints: BigIntPoint[] | U32ArrayPoint[],
+    scalars: bigint[] | Uint32Array[]
     ) => Promise<{x: bigint, y: bigint}>
   postResult: (result: {x: bigint, y: bigint}, timeMS: number, msmFunc: string) => void;
 }

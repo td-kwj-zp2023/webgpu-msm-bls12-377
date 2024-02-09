@@ -23,6 +23,13 @@ import { webgpu_compute_msm, wasm_compute_msm, webgpu_pippenger_msm, webgpu_best
 import CSVExportButton from './CSVExportButton';
 import { TestCaseDropDown } from './TestCaseDropDown';
 import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
+//import { convert_inputs_into_mont_benchmark } from '../submission/miscellaneous/convert_inputs_into_mont_benchmarks';
+//import { convert_bigints_to_bytes_benchmark } from '../submission/miscellaneous/convert_bigints_to_bytes_benchmark'
+//import { mont_mul_benchmarks } from '../submission/miscellaneous/mont_mul_benchmarks';
+//import { barrett_mul_benchmarks } from '../submission/miscellaneous/barrett_mul_benchmarks';
+//import { barrett_domb_mul_benchmarks } from '../submission/miscellaneous/barrett_domb_mul_benchmarks';
+//import { add_points_benchmarks } from '../submission/miscellaneous/add_points_benchmarks';
+//import { decompose_scalars_ts_benchmark } from '../submission/miscellaneous/decompose_scalars_benchmark';
 //import { smvp_wgsl } from '../submission/miscellaneous/cuzk/smvp_wgsl';
 //import { data_transfer_cost_benchmarks } from '../submission/miscellaneous/data_transfer_cost_benchmarks'
 //import { bucket_points_reduction } from '../submission/miscellaneous/bucket_points_reduction_benchmark'
@@ -108,8 +115,9 @@ export const AllBenchmarks: React.FC = () => {
         }});
       setU32Points(newU32Points);
 
-      //const newScalars = generateRandomFields(inputSize);
+      const newScalars = generateRandomFields(inputSize);
     
+    /*
       // Use constants instead of random field elements just for testing
       const newScalars: bigint[] = []
       for (let i = 0; i < inputSize; i ++) {
@@ -117,7 +125,6 @@ export const AllBenchmarks: React.FC = () => {
           const x = BigInt('1111111111111111111111111111111111111111111111111111111111111111111111111111')
           newScalars.push((x * BigInt(i) % p))
       }
-    /*
      */
         
       setBigIntScalars(newScalars);
