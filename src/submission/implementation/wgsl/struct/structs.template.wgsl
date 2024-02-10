@@ -8,11 +8,3 @@ struct Point {
   t: BigInt,
   z: BigInt
 }
-
-struct BigIntMediumWide {
-    limbs: array<u32, {{ num_words_plus_one }}>
-}
-
-struct BigIntWide {
-    limbs: array<u32, {{ num_words_mul_two }}>
-}

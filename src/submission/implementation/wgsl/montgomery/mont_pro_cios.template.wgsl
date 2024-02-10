@@ -13,6 +13,14 @@ const MASK = {{ mask }}u;
 const N0 = {{ n0 }}u;
 const COST = {{ cost }}u;
 
+struct BigIntMediumWide {
+    limbs: array<u32, {{ num_words_plus_one }}>
+}
+
+struct BigIntWide {
+    limbs: array<u32, {{ num_words_mul_two }}>
+}
+
 fn get_p() -> BigInt {
     var p: BigInt;
 {{{ p_limbs }}}

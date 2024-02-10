@@ -2,6 +2,14 @@
  * Adapted from https://github.com/ingonyama-zk/modular_multiplication
  */
 
+struct BigIntMediumWide {
+    limbs: array<u32, {{ num_words_plus_one }}>
+}
+
+struct BigIntWide {
+    limbs: array<u32, {{ num_words_mul_two }}>
+}
+
 const W_MASK = {{ w_mask }}u;
 const SLACK = {{ slack }}u;
 
