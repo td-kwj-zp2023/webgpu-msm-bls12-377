@@ -7,6 +7,10 @@ fn get_mu() -> BigInt {
     return mu;
 }
 
+struct BigIntWide {
+    limbs: array<u32, {{ num_words_mul_two }}>
+}
+
 fn get_p_wide() -> BigIntWide {
     var p: BigIntWide;
 {{{ p_limbs }}}
