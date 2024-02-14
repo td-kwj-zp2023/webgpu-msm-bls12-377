@@ -34,7 +34,7 @@ import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
 //import { data_transfer_cost_benchmarks } from '../submission/miscellaneous/data_transfer_cost_benchmarks'
 //import { bucket_points_reduction } from '../submission/miscellaneous/bucket_points_reduction_benchmark'
 //import { horners_rule_benchmark } from '../submission/miscellaneous/horners_rule_benchmark'
-import { print_device_limits } from '../submission/miscellaneous/print_device_limits'
+//import { print_device_limits } from '../submission/miscellaneous/print_device_limits'
 import { compute_msm } from '../submission/submission';
 
 export const AllBenchmarks: React.FC = () => {
@@ -206,7 +206,7 @@ export const AllBenchmarks: React.FC = () => {
         bold={true}
       />
 
-      <div className="flex items-left">
+      {/* <div className="flex items-left">
         <div className={`text-gray-800 w-40 px-2 font-bold'`}>{name}</div> 
           <h1>Miscellaneous benchmarks and tests</h1>
           <br />
@@ -223,7 +223,7 @@ export const AllBenchmarks: React.FC = () => {
         postResult={postResult}
         bold={false}
       />
-      {/* <Benchmark
+      <Benchmark
         name={'Full benchmark suite'}
         disabled={disabledBenchmark}
         baseAffinePoints={baseAffineBigIntPoints}
