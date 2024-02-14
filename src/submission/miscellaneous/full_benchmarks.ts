@@ -1,10 +1,10 @@
-import { BigIntPoint } from "../../reference/types";
+import { BigIntPoint, U32ArrayPoint } from "../../reference/types";
 import { PowersTestCase, loadTestCase } from "../../test-data/testCases";
 import { compute_msm } from "../submission";
 
 export const full_benchmarks = async (
-  {}: BigIntPoint[], // Use {} to prevent Typescript warnings about unused parameters
-  {}: bigint[],
+  {}: BigIntPoint[] | U32ArrayPoint[],
+  {}: bigint[] | Uint32Array[],
 ): Promise<{ x: bigint; y: bigint }> => {
   const DELAY = 100;
   const NUM_RUNS = 5;
