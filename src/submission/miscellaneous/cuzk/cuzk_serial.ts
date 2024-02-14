@@ -1,4 +1,4 @@
-import { BigIntPoint } from "../../../reference/types";
+import { BigIntPoint, U32ArrayPoint } from "../../../reference/types";
 import {
   ELLSparseMatrix,
   CSRSparseMatrix,
@@ -8,12 +8,12 @@ import { ExtPointType } from "@noble/curves/abstract/edwards";
 
 // Typescript implementation of cuZK
 export const cuzk_typescript_serial = async (
-  baseAffinePoints: BigIntPoint[],
-  scalars: bigint[],
+  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[],
+  scalars: bigint[] | Uint32Array[],
 ): Promise<any> => {
   console.log("Starting Serial cuZK!");
 
-  const result = await execute_cuzk(baseAffinePoints, scalars);
+  const result = await execute_cuzk(baseAffinePoints as BigIntPoint[], scalars as bigint[]);
 
   const result_affine = result.toAffine();
   const x = result_affine.x;
