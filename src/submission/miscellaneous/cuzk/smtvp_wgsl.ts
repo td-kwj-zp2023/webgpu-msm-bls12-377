@@ -10,7 +10,7 @@ import {
   gen_d_limbs,
   to_words_le,
 } from "../../implementation/cuzk/utils";
-import { BigIntPoint } from "../../../reference/types";
+import { BigIntPoint, U32ArrayPoint } from "../../../reference/types";
 import { FieldMath } from "../../../reference/utils/FieldMath";
 import { ELLSparseMatrix, CSRSparseMatrix } from "../matrices/matrices";
 import smtvp_shader from "../wgsl/smtvp.template.wgsl";
@@ -27,12 +27,12 @@ const fieldMath = new FieldMath();
 
 // WGSL implementation of Sparse-Matrix Transpose
 export const smtvp_wgsl = async (
-  baseAffinePoints: BigIntPoint[],
-  scalars: bigint[],
+  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[],
+  scalars: bigint[] | Uint32Array[],
 ): Promise<{ x: bigint; y: bigint }> => {
   console.log("Starting WGSL SMTVP!");
 
-  const result = await smtvp(baseAffinePoints, scalars);
+  const result = await smtvp(baseAffinePoints as BigIntPoint[], scalars as bigint[]);
   return result;
 };
 

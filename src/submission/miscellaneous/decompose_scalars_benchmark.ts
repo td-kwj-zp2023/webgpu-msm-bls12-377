@@ -1,6 +1,6 @@
 import assert from "assert";
 import mustache from "mustache";
-import { BigIntPoint } from "../../reference/types";
+import { BigIntPoint, U32ArrayPoint } from "../../reference/types";
 import {
   to_words_le,
   u8s_to_numbers,
@@ -22,8 +22,8 @@ import extract_word_from_bytes_le_shader from "../implementation/wgsl/cuzk/extra
 import decompose_scalars_shader from "./wgsl/decompose_scalars.template.wgsl";
 
 export const decompose_scalars_ts_benchmark = async (
-  baseAffinePoints: BigIntPoint[],
-  scalars: bigint[],
+  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[],
+  scalars: bigint[] | Uint32Array[],
 ): Promise<{ x: bigint; y: bigint }> => {
   const p = BigInt(
     "0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001",
@@ -36,7 +36,7 @@ export const decompose_scalars_ts_benchmark = async (
     const num_words = params.num_words;
 
     const start = Date.now();
-    decompose_scalars(scalars, num_words, word_size);
+    decompose_scalars(scalars as bigint[], num_words, word_size);
     const elapsed = Date.now() - start;
     console.log(
       `decompose_scalars() with ${word_size}-bit windows took ${elapsed}ms`,
@@ -48,7 +48,7 @@ export const decompose_scalars_ts_benchmark = async (
   for (let word_size = 16; word_size < 17; word_size++) {
     const params = compute_misc_params(p, word_size);
     const num_words = params.num_words;
-    await decompose_scalars_gpu(scalars, num_words, word_size);
+    await decompose_scalars_gpu(scalars as bigint[], num_words, word_size);
   }
 
   return { x: BigInt(0), y: BigInt(0) };

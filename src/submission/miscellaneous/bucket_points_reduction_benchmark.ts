@@ -1,6 +1,6 @@
 import assert from "assert";
 import mustache from "mustache";
-import { BigIntPoint } from "../../reference/types";
+import { BigIntPoint, U32ArrayPoint } from "../../reference/types";
 import { FieldMath } from "../../reference/utils/FieldMath";
 import {
   get_device,
@@ -26,14 +26,14 @@ import {
 import { shader_invocation } from "../implementation/cuzk/bucket_points_reduction";
 
 export const bucket_points_reduction = async (
-  baseAffinePoints: BigIntPoint[],
-  {}: bigint[],
+  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[],
+  {}: bigint[] | Uint32Array[],
 ): Promise<{ x: bigint; y: bigint }> => {
   for (const i of [2, 4, 8, 16, 32, 64]) {
-    await test_bucket_points_reduction(baseAffinePoints, i);
+    await test_bucket_points_reduction(baseAffinePoints as BigIntPoint[], i);
   }
   const points = baseAffinePoints.slice(0, 2 ** 15);
-  await test_bucket_points_reduction(points, points.length);
+  await test_bucket_points_reduction(points as BigIntPoint[], points.length);
   return { x: BigInt(0), y: BigInt(0) };
 };
 
