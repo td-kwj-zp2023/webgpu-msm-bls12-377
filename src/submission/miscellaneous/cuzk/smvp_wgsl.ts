@@ -1,4 +1,4 @@
-import { BigIntPoint } from "../../../reference/types";
+import { BigIntPoint, U32ArrayPoint } from "../../../reference/types";
 import mustache from "mustache";
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import {
@@ -35,12 +35,12 @@ import assert from "assert";
 
 // WGSL implementation of Sparse-Matrix Vector Multiplication
 export const smvp_wgsl = async (
-  baseAffinePoints: BigIntPoint[],
-  scalars: bigint[],
+  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[],
+  scalars: bigint[] | Uint32Array[],
 ): Promise<{ x: bigint; y: bigint }> => {
   console.log("Starting WGSL SMVP!");
 
-  const result = await smvp(baseAffinePoints, scalars);
+  const result = await smvp(baseAffinePoints as BigIntPoint[], scalars as bigint[]);
   return result;
 };
 

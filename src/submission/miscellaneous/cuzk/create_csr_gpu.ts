@@ -1,6 +1,6 @@
 import assert from "assert";
 import mustache from "mustache";
-import { BigIntPoint } from "../../../reference/types";
+import { BigIntPoint, U32ArrayPoint } from "../../../reference/types";
 import { CSRSparseMatrix } from "../../miscellaneous/matrices/matrices";
 import { FieldMath } from "../../../reference/utils/FieldMath";
 import {
@@ -362,15 +362,15 @@ export const create_csr_gpu = async (
 };
 
 export async function create_csr_precomputation_benchmark(
-  baseAffinePoints: BigIntPoint[],
-  scalars: bigint[],
+  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[],
+  scalars: bigint[] | Uint32Array[],
 ): Promise<{ x: bigint; y: bigint }> {
   const num_rows = 16;
   const num_words = 16;
   const word_size = 16;
 
   const start_decomposed = Date.now();
-  const decomposed_scalars = decompose_scalars(scalars, num_words, word_size);
+  const decomposed_scalars = decompose_scalars(scalars as bigint[], num_words, word_size);
   const elapsed_decomposed = Date.now() - start_decomposed;
   console.log(`CPU took ${elapsed_decomposed}ms to decompose scalars`);
 
@@ -384,17 +384,17 @@ export async function create_csr_precomputation_benchmark(
 }
 
 export async function create_csr_sparse_matrices_from_points_benchmark(
-  baseAffinePoints: BigIntPoint[],
-  scalars: bigint[],
+  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[],
+  scalars: bigint[] | Uint32Array[],
 ): Promise<{ x: bigint; y: bigint }> {
   const num_rows = 8;
   const points = baseAffinePoints.map((x) =>
-    bigIntPointToExtPointType(x, fieldMath),
+    bigIntPointToExtPointType(x as BigIntPoint, fieldMath),
   );
   /* eslint-disable @typescript-eslint/no-unused-vars */
   const csr_sms = await create_csr_sparse_matrices_from_points(
     points,
-    scalars,
+    scalars as bigint[],
     num_rows,
   );
   return { x: BigInt(0), y: BigInt(1) };

@@ -80,7 +80,7 @@ export const compute_msm = async (
   baseAffinePoints: BigIntPoint[] | U32ArrayPoint[],
   scalars: bigint[] | Uint32Array[],
   log_result = true,
-  force_recompile = false,
+  force_recompile = true,
 ): Promise<{ x: bigint; y: bigint }> => {
   const input_size = baseAffinePoints.length;
   const chunk_size = input_size >= 65536 ? 16 : 4;
