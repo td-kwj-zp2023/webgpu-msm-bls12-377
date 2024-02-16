@@ -1,6 +1,6 @@
 import mustache from "mustache";
 import assert from "assert";
-import { BigIntPoint } from "../../reference/types";
+import { BigIntPoint, U32ArrayPoint } from "../../reference/types";
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import { FieldMath } from "../../reference/utils/FieldMath";
 import { genRandomFieldElement } from "../implementation/cuzk/utils";
@@ -79,8 +79,8 @@ const expensive_computation = (
   return c;
 };
 export const add_points_benchmarks = async (
-  {}: BigIntPoint[],
-  {}: bigint[],
+  {}: BigIntPoint[] | U32ArrayPoint[],
+  {}: bigint[] | Uint32Array[],
 ): Promise<{ x: bigint; y: bigint }> => {
   const cost = 2;
   const fieldMath = new FieldMath();
