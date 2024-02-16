@@ -1,6 +1,6 @@
 import assert from "assert";
 import mustache from "mustache";
-import { BigIntPoint } from "../../reference/types";
+import { BigIntPoint, U32ArrayPoint } from "../../reference/types";
 import {
   gen_p_limbs,
   gen_r_limbs,
@@ -21,8 +21,8 @@ import convert_inputs_shader from "./wgsl/convert_inputs.template.wgsl";
 import montgomery_product_funcs from "../implementation/wgsl/montgomery/mont_pro_product.template.wgsl";
 
 export const convert_inputs_into_mont_benchmark = async (
-  baseAffinePoints: BigIntPoint[],
-  scalars: bigint[],
+  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[],
+  scalars: bigint[] | Uint32Array[],
 ): Promise<{ x: bigint; y: bigint }> => {
   const workgroup_size = 64;
   const num_x_workgroups = 256;
@@ -45,7 +45,7 @@ export const convert_inputs_into_mont_benchmark = async (
   const converted_t: any[] = [];
   const converted_z: any[] = [];
 
-  for (const pt of baseAffinePoints) {
+  for (const pt of baseAffinePoints as BigIntPoint[]) {
     const xr = (pt.x * r) % p;
     const yr = (pt.y * r) % p;
     const tr = (xr * pt.y) % p;
@@ -109,7 +109,7 @@ export const convert_inputs_into_mont_benchmark = async (
 
     const start_convert = Date.now();
     const points_bytes = points_to_u8s_for_gpu(
-      baseAffinePoints,
+      baseAffinePoints as BigIntPoint[],
       num_words,
       word_size,
     );

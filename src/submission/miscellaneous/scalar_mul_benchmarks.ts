@@ -1,7 +1,7 @@
 import assert from "assert";
 import mustache from "mustache";
 import { ExtPointType } from "@noble/curves/abstract/edwards";
-import { BigIntPoint } from "../../reference/types";
+import { BigIntPoint, U32ArrayPoint } from "../../reference/types";
 import { FieldMath } from "../../reference/utils/FieldMath";
 import { createHash } from "crypto";
 import {
@@ -52,8 +52,8 @@ const word_size = 13;
  * with a random 16-bit scalar.
  */
 export const scalar_mul_benchmarks = async (
-  baseAffinePoints: BigIntPoint[],
-  {}: bigint[],
+  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[],
+  {}: bigint[] | Uint32Array[],
 ): Promise<{ x: bigint; y: bigint }> => {
   const cost = 1024;
 
@@ -72,7 +72,7 @@ export const scalar_mul_benchmarks = async (
   }
 
   // Convert baseAffinePoints to ETE points
-  const points = baseAffinePoints.slice(0, num_scalars).map((x) => {
+  const points = (baseAffinePoints as BigIntPoint[]).slice(0, num_scalars).map((x) => {
     return fieldMath.createPoint(
       x.x,
       x.y,

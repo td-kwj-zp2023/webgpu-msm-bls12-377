@@ -1,6 +1,6 @@
 import assert from "assert";
 import mustache from "mustache";
-import { BigIntPoint } from "../../reference/types";
+import { BigIntPoint, U32ArrayPoint } from "../../reference/types";
 import { FieldMath } from "../../reference/utils/FieldMath";
 import {
   get_device,
@@ -28,8 +28,8 @@ import {
 } from "../implementation/cuzk/utils";
 
 export const horners_rule_benchmark = async (
-  baseAffinePoints: BigIntPoint[],
-  {}: bigint[],
+  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[],
+  {}: bigint[] | Uint32Array[],
 ): Promise<{ x: bigint; y: bigint }> => {
   const fieldMath = new FieldMath();
   const p = BigInt(
@@ -53,14 +53,14 @@ export const horners_rule_benchmark = async (
   // Take the first num_subtasks points
   const x_y_coords: bigint[] = [];
   const t_z_coords: bigint[] = [];
-  for (const pt of baseAffinePoints.slice(0, num_subtasks)) {
+  for (const pt of (baseAffinePoints as BigIntPoint[]).slice(0, num_subtasks)) {
     x_y_coords.push(fieldMath.Fp.mul(pt.x, r));
     x_y_coords.push(fieldMath.Fp.mul(pt.y, r));
     t_z_coords.push(fieldMath.Fp.mul(pt.t, r));
     t_z_coords.push(fieldMath.Fp.mul(pt.z, r));
   }
 
-  const points = baseAffinePoints
+  const points = (baseAffinePoints as BigIntPoint[])
     .slice(0, num_subtasks)
     .map((x) => fieldMath.createPoint(x.x, x.y, x.t, x.z));
 
