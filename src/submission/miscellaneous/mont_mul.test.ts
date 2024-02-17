@@ -57,6 +57,73 @@ const do_tests = (desc: string, p: bigint) => {
             }
         })
 
+        it('montgomery squaring', () => {
+          //for (let word_size = 12; word_size < 16; word_size ++) {
+          //}
+          //
+          const word_size = 13
+          const { num_words, n0, r, p_words } = params[word_size]
+          const { a, ar, ar_words } = inputs[word_size][0]
+
+          const d = BigInt(2) ** BigInt(32)
+          const rhs = (d - BigInt(1)) / BigInt(4) - BigInt(1)
+          expect(p_words[num_words - 1] <= rhs).toBeTruthy()
+
+          /*
+             for i=0 to N-1
+               C, t[i] = a[i] * a[i] + t[i]
+               p = 0
+               for j=i+1 to N-1
+                   p,C,t[j] = 2*a[j]*a[i] + t[j] + (p,C)
+
+               A = C
+
+               m = t[0] * q'[0]
+               C, _ = t[0] + q[0]*m
+               for j=1 to N-1
+                   C, t[j-1] = q[j]*m +  t[j] + C
+
+               t[N-1] = C + A
+           */
+          const x = ar_words
+
+          const t = Array(num_words).fill(0)
+          for (let i = 0; i < num_words; i ++) {
+            const ct = machine_add(machine_mul(x[i], x[i]), t[i])
+            let c = hi(ct, word_size)
+            t[i] = lo(ct, word_size)
+
+            let pp = 0
+            for (let j = i + 1; j < num_words; j ++) {
+              // pp,C,t[j] = 2*a[j]*a[i] + t[j] + (pp,C)
+              const ppc = BigInt(c) + BigInt(pp << word_size)
+              const r = BigInt(2) * BigInt(x[j]) * BigInt(x[i]) + BigInt(t[j]) + ppc
+
+              // correct order??
+              const r_words = to_words_le(r, 3, word_size)
+              t[j] = r_words[0]
+              c = r_words[1]
+              pp = r_words[2]
+            }
+            const aa = c
+            const m = machine_mul(t[0], n0)
+            c = hi(machine_add(t[0], machine_mul(p_words[0], m)), word_size)
+
+            for (let j = 1; j < num_words; j ++) {
+              const pm = machine_mul(p_words[j], m)
+              const r = machine_add(machine_add(Number(pm), Number(t[j])), Number(c))
+              c = hi(r, word_size)
+              t[j - 1] = lo(r, word_size)
+            }
+            t[num_words - 1] = machine_add(Number(c), Number(aa))
+          }
+
+          const expected = BigInt(a * a * r) % p
+          const result = from_words_le(new Uint16Array(t), num_words, word_size)
+
+          expect(expected).toEqual(result)
+        })
+
         it('iterative algo for 12 to 15-bit words', () => {
             for (let word_size = 13; word_size < 14; word_size ++) {
                 const { num_words, n0, r, p_words } = params[word_size]
