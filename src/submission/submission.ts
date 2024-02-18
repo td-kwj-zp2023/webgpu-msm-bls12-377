@@ -32,7 +32,7 @@ import {
   u8s_to_bigints,
   u8s_to_numbers,
   u8s_to_numbers_32,
-  bigints_to_u8_for_gpu,
+  bigints_to_u8_for_gpu_optimised,
   numbers_to_u8s_for_gpu,
   compute_misc_params,
   decompose_scalars_signed,
@@ -417,11 +417,11 @@ export const convert_point_coords_and_decompose_shaders = async (
 
   // Convert points to bytes (performs ~2x faster than
   // `bigints_to_16_bit_words_for_gpu`)
-  const x_coords_bytes = bigints_to_u8_for_gpu(x_coords, 16, 16);
-  const y_coords_bytes = bigints_to_u8_for_gpu(y_coords, 16, 16);
+  const x_coords_bytes = bigints_to_u8_for_gpu_optimised(x_coords);
+  const y_coords_bytes = bigints_to_u8_for_gpu_optimised(y_coords);
 
   // Convert scalars to bytes
-  const scalars_bytes = bigints_to_u8_for_gpu(scalars, 16, 16);
+  const scalars_bytes = bigints_to_u8_for_gpu_optimised(scalars);
 
   const elapsed = Date.now() - start
   console.log('bigints_to_u8_for_gpu took:', elapsed, 'ms')
