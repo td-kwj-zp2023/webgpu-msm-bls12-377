@@ -4,7 +4,12 @@ import { ExtPointType } from "@noble/curves/abstract/edwards";
 import { decompose_scalars_signed } from "../../implementation/cuzk/utils";
 import { cpu_transpose } from "../../implementation/cuzk/transpose";
 import { cpu_smvp_signed } from "../../implementation/cuzk/smvp";
-import { running_sum_bucket_reduction, parallel_bucket_reduction } from '../../implementation/cuzk/bpr'
+import {
+  running_sum_bucket_reduction,
+  parallel_bucket_reduction,
+  parallel_bucket_reduction_1,
+  parallel_bucket_reduction_2,
+} from '../../implementation/cuzk/bpr'
 
 const fieldMath = new FieldMath();
 const x = BigInt(
@@ -80,15 +85,30 @@ describe("cuzk", () => {
       const bucket_sum_serial = serial_bucket_reduction(buckets)
       const bucket_sum_rs = running_sum_bucket_reduction(buckets)
 
+      // Use the full pBucketPointReduciton algo
       let bucket_sum = fieldMath.customEdwards.ExtendedPoint.ZERO;
       for (const b of parallel_bucket_reduction(buckets)) {
         bucket_sum = bucket_sum.add(b)
       }
 
-      expect(bucket_sum_rs.toAffine().x).toEqual(bucket_sum.toAffine().x)
-      expect(bucket_sum_serial.toAffine().x).toEqual(bucket_sum.toAffine().x)
+      expect(bucket_sum_rs.equals(bucket_sum)).toBeTruthy()
+      expect(bucket_sum_serial.equals(bucket_sum)).toBeTruthy()
 
       bucket_sums.push(bucket_sum);
+
+      // Use the pBucketPointReduciton algo in 2 stages
+      const num_buckets = buckets.length
+      const { g_points, m_points } = parallel_bucket_reduction_1(buckets)
+
+      const p_result = parallel_bucket_reduction_2(g_points, m_points, num_buckets)
+      let bucket_sum_2 = fieldMath.customEdwards.ExtendedPoint.ZERO;
+      for (const b of p_result) {
+        bucket_sum_2 = bucket_sum_2.add(b)
+      }
+
+      expect(bucket_sum_rs.equals(bucket_sum_2)).toBeTruthy()
+      expect(bucket_sum_serial.equals(bucket_sum_2)).toBeTruthy()
+
       //console.log('-----')
     }
 
