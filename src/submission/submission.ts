@@ -403,7 +403,7 @@ export const convert_point_coords_and_decompose_shaders = async (
   chunk_size: number,
   debug = false,
 ) => {
-  const start = Date.now()
+  //const start = Date.now()
   assert(num_subtasks * chunk_size === 256);
   const input_size = baseAffinePoints.length;
 
@@ -422,8 +422,8 @@ export const convert_point_coords_and_decompose_shaders = async (
   // Convert scalars to bytes
   const scalars_bytes = bigints_to_u8_for_gpu(scalars);
 
-  const elapsed = Date.now() - start
-  console.log('bigints_to_u8_for_gpu took:', elapsed, 'ms')
+  //const elapsed = Date.now() - start
+  //console.log('bigints_to_u8_for_gpu took:', elapsed, 'ms')
 
   // Input buffers
   const x_coords_sb = create_and_write_sb(device, x_coords_bytes);
