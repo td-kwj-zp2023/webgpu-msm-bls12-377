@@ -237,6 +237,29 @@ export const u8s_to_numbers_32 = (u8s: Uint8Array): number[] => {
   return result;
 };
 
+export const bigints_to_u8_for_gpu_optimised = (
+  vals: bigint[],
+): Uint8Array => {
+  const size = vals.length * 64;
+  const result = new Uint8Array(size);
+
+  for (let i = 0; i < vals.length; i++) {
+    const bytes = new Uint8Array(64);
+    const limbs = to_words_le(BigInt(vals[i]), 16, 16);
+    for (let i = 0; i < limbs.length; i++) {
+      const i4 = i * 4;
+      bytes[i4] = limbs[i] & 255;
+      bytes[i4 + 1] = limbs[i] >> 8;
+    }
+
+    for (let j = 0; j < bytes.length; j++) {
+      result[i * bytes.length + j] = bytes[j];
+    }
+  }
+
+  return result;
+};
+
 export const bigints_to_u8_for_gpu = (
   vals: bigint[],
   num_words: number,
