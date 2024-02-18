@@ -13,7 +13,7 @@ export const convert_bigints_to_bytes_benchmark = async (
   scalars: bigint[] | Uint32Array[],
 ): Promise<{ x: bigint; y: bigint }> => {
   const start_0 = Date.now();
-  const x_y_coords_bytes = bigints_to_u8_for_gpu(scalars as bigint[], num_words, word_size);
+  const x_y_coords_bytes = bigints_to_u8_for_gpu(scalars as bigint[]);
   const elapsed_0 = Date.now() - start_0;
   console.log(
     `bigints_to_u8_for_gpu took ${elapsed_0}ms to convert ${scalars.length} scalars`,
