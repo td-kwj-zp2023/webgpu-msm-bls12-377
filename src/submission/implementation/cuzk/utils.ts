@@ -237,41 +237,22 @@ export const u8s_to_numbers_32 = (u8s: Uint8Array): number[] => {
   return result;
 };
 
-export const bigints_to_u8_for_gpu_optimised = (
-  vals: bigint[],
-): Uint8Array => {
-  const size = vals.length * 64;
-  const result = new Uint8Array(size);
-
-  for (let i = 0; i < vals.length; i++) {
-    const bytes = new Uint8Array(64);
-    const limbs = to_words_le(BigInt(vals[i]), 16, 16);
-    for (let i = 0; i < limbs.length; i++) {
-      const i4 = i * 4;
-      bytes[i4] = limbs[i] & 255;
-      bytes[i4 + 1] = limbs[i] >> 8;
-    }
-
-    for (let j = 0; j < bytes.length; j++) {
-      result[i * bytes.length + j] = bytes[j];
-    }
-  }
-
-  return result;
-};
-
 export const bigints_to_u8_for_gpu = (
   vals: bigint[],
-  num_words: number,
-  word_size: number,
 ): Uint8Array => {
-  const size = vals.length * num_words * 4;
-  const result = new Uint8Array(size);
+  const result = new Uint8Array(vals.length * 64);
+  const mask = BigInt(255)
+  const eight = BigInt(8)
 
   for (let i = 0; i < vals.length; i++) {
-    const bytes = bigint_to_u8_for_gpu(vals[i], num_words, word_size);
-    for (let j = 0; j < bytes.length; j++) {
-      result[i * bytes.length + j] = bytes[j];
+    const val = vals[i]
+
+    for (let j = 0; j < 16; j ++) {
+      const shift = BigInt((15 - j) * 16)
+      const a = (val >> shift) & mask
+      const b = (val >> (shift + eight)) & mask
+      result[i * 64 + (15 - j) * 4] = Number(a)
+      result[i * 64 + (15 - j) * 4 + 1] = Number(b)
     }
   }
 
