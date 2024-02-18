@@ -3,7 +3,7 @@ import { PowersTestCase, loadTestCase } from "../../test-data/testCases";
 import { compute_msm } from "../submission";
 
 export const full_benchmarks = async (
-  {}: BigIntPoint[] | U32ArrayPoint[], // Use {} to prevent Typescript warnings about unused parameters
+  {}: BigIntPoint[] | U32ArrayPoint[],
   {}: bigint[] | Uint32Array[],
 ): Promise<{ x: bigint; y: bigint }> => {
   const DELAY = 100;

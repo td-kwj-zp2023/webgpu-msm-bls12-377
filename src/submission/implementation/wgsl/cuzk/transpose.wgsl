@@ -105,6 +105,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
             all_csc_val_idxs[cci_offset + loc] = val;
             val ++;
+            storageBarrier();
         }
     }
 
