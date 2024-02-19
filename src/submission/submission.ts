@@ -77,8 +77,8 @@ const fieldMath = new FieldMath();
  *    is greater than the time it takes for the CPU to do so.
  */
 export const compute_msm = async (
-  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[],
-  scalars: bigint[] | Uint32Array[],
+  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[] | Buffer,
+  scalars: bigint[] | Uint32Array[] | Buffer,
   log_result = true,
   force_recompile = false,
 ): Promise<{ x: bigint; y: bigint }> => {
