@@ -198,6 +198,26 @@ export const AllBenchmarks: React.FC = () => {
         postResult={postResult}
         bold={true}
       />
+      <Benchmark
+        name={'Full benchmark suite'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={full_benchmarks}
+        postResult={postResult}
+        bold={false}
+      />
+      <Benchmark
+        name={'BigInts to bytes benchmarks'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={baseAffineBigIntPoints}
+        scalars={bigIntScalars}
+        expectedResult={expectedResult}
+        msmFunc={convert_bigints_to_bytes_benchmark}
+        postResult={postResult}
+        bold={false}
+      />
 
       {/* <div className="flex items-left">
         <div className={`text-gray-800 w-40 px-2 font-bold'`}>{name}</div> 
