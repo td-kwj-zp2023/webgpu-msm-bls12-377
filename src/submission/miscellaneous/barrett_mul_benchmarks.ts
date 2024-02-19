@@ -96,7 +96,7 @@ export const barrett_mul_benchmarks = async (): Promise<{
     expected.push(expensive_computation(a, b, cost));
   }
 
-  const input_bytes = bigints_to_u8_for_gpu(inputs, num_words, word_size);
+  const input_bytes = bigints_to_u8_for_gpu(inputs);
 
   const device = await get_device();
 
