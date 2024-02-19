@@ -33,6 +33,23 @@ export const create_and_write_sb = (
   return sb;
 };
 
+// Create and write a storage buffer
+export const create_and_write_sb_from_buffer = (
+  device: GPUDevice,
+  buffer: Buffer,
+): GPUBuffer => {
+  const sb = device.createBuffer({
+    mappedAtCreation: true,
+    size: buffer.length * 4,
+    usage: read_write_buffer_usage,
+  });
+
+  const arrayBufferInput = sb.getMappedRange();
+  new Uint32Array(arrayBufferInput).set(buffer);
+  sb.unmap();
+  return sb;
+};
+
 // Create and write a uniform buffer
 export const create_and_write_ub = (
   device: GPUDevice,
