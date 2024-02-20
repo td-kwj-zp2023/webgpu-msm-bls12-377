@@ -9,6 +9,25 @@ import { ExtPointType } from "@noble/curves/abstract/edwards";
 import { EDWARDS_D } from "../../../reference/params/AleoConstants";
 
 /*
+ * Given a Buffer with values [a, b, c, d, ...] return a Buffer twice the size,
+ * with pairs of 0s interspersed betwen each pair of values.
+ * e.g. [a, b, 0, 0, c, d, 0, 0, ...]
+ */
+export const format_buffer_for_gpu = (buf: Buffer) => {
+  const bytes = new Uint8Array(buf.length * 2)
+  
+  let k = 0
+  for (let i = 0; i < buf.length; i += 2) {
+    // Take each consecutive pair of values and space them out by two 0s
+    const a = buf[i]
+    const b = buf[i + 1]
+    bytes[k] = a
+    bytes[k + 1] = b
+    k += 4
+  }
+  return bytes
+}
+/*
  * Converts the BigInts in vals to byte arrays in the form of
  * [b0, b1, 0, 0, b2, b3, 0, 0, ...]
  * This is slower than bigints_to_u8_for_gpu, so don't use it
