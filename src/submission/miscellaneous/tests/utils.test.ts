@@ -153,7 +153,7 @@ describe("utils", () => {
       ];
       for (const vals of test_cases) {
         const b = bigints_to_16_bit_words_for_gpu(vals);
-        const c = bigints_to_u8_for_gpu(vals, 16, 16);
+        const c = bigints_to_u8_for_gpu(vals);
         expect(b.toString()).toEqual(c.toString());
       }
     });
@@ -193,7 +193,9 @@ describe("utils", () => {
         r: r % p,
         rinv: misc.rinv,
       };
-      expect(misc).toEqual(expected);
+      for (const k of Object.keys(expected)) {
+        expect((misc as any)[k]).toEqual((expected as any)[k]);
+      }
     });
   });
 });

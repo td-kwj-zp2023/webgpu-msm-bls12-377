@@ -134,7 +134,7 @@ const decompose_scalars_gpu = async (
   word_size: number,
 ) => {
   // Convert scalars to bytes
-  const scalar_bytes = bigints_to_u8_for_gpu(scalars, 16, 16);
+  const scalar_bytes = bigints_to_u8_for_gpu(scalars);
 
   // Calculate expected decomposed scalars
   const expected: number[][] = [];
