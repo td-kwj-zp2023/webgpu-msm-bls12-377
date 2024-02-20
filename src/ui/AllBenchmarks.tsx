@@ -7,27 +7,27 @@ import { compute_msm } from '../submission/submission';
 import CSVExportButton from './CSVExportButton';
 import { TestCaseDropDown } from './TestCaseDropDown';
 import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
-import {
-    create_csr_precomputation_benchmark,
-    create_csr_sparse_matrices_from_points_benchmark,
-} from '../submission/miscellaneous/cuzk/create_csr_gpu'
-import { full_benchmarks } from '../submission/miscellaneous/full_benchmarks'
-import { scalar_mul_benchmarks } from '../submission/miscellaneous/scalar_mul_benchmarks'
-import { smtvp_wgsl } from '../submission/miscellaneous/cuzk/smtvp_wgsl';
-import { cuzk_typescript_serial } from '../submission/miscellaneous/cuzk/cuzk_serial'
-import { transpose_wgsl } from '../submission/miscellaneous/cuzk/transpose_wgsl'
-import { convert_inputs_into_mont_benchmark } from '../submission/miscellaneous/convert_inputs_into_mont_benchmarks';
-import { convert_bigints_to_bytes_benchmark } from '../submission/miscellaneous/convert_bigints_to_bytes_benchmark'
-import { mont_mul_benchmarks } from '../submission/miscellaneous/mont_mul_benchmarks';
-import { barrett_mul_benchmarks } from '../submission/miscellaneous/barrett_mul_benchmarks';
-import { barrett_domb_mul_benchmarks } from '../submission/miscellaneous/barrett_domb_mul_benchmarks';
-import { add_points_benchmarks } from '../submission/miscellaneous/add_points_benchmarks';
-import { decompose_scalars_ts_benchmark } from '../submission/miscellaneous/decompose_scalars_benchmark';
-import { smvp_wgsl } from '../submission/miscellaneous/cuzk/smvp_wgsl';
-import { data_transfer_cost_benchmarks } from '../submission/miscellaneous/data_transfer_cost_benchmarks'
-import { bucket_points_reduction } from '../submission/miscellaneous/bucket_points_reduction_benchmark'
-import { horners_rule_benchmark } from '../submission/miscellaneous/horners_rule_benchmark'
-import { print_device_limits } from '../submission/miscellaneous/print_device_limits'
+//import {
+    //create_csr_precomputation_benchmark,
+    //create_csr_sparse_matrices_from_points_benchmark,
+//} from '../submission/miscellaneous/cuzk/create_csr_gpu'
+//import { full_benchmarks } from '../submission/miscellaneous/full_benchmarks'
+//import { scalar_mul_benchmarks } from '../submission/miscellaneous/scalar_mul_benchmarks'
+//import { smtvp_wgsl } from '../submission/miscellaneous/cuzk/smtvp_wgsl';
+//import { cuzk_typescript_serial } from '../submission/miscellaneous/cuzk/cuzk_serial'
+//import { transpose_wgsl } from '../submission/miscellaneous/cuzk/transpose_wgsl'
+//import { convert_inputs_into_mont_benchmark } from '../submission/miscellaneous/convert_inputs_into_mont_benchmarks';
+//import { convert_bigints_to_bytes_benchmark } from '../submission/miscellaneous/convert_bigints_to_bytes_benchmark'
+//import { mont_mul_benchmarks } from '../submission/miscellaneous/mont_mul_benchmarks';
+//import { barrett_mul_benchmarks } from '../submission/miscellaneous/barrett_mul_benchmarks';
+//import { barrett_domb_mul_benchmarks } from '../submission/miscellaneous/barrett_domb_mul_benchmarks';
+//import { add_points_benchmarks } from '../submission/miscellaneous/add_points_benchmarks';
+//import { decompose_scalars_ts_benchmark } from '../submission/miscellaneous/decompose_scalars_benchmark';
+//import { smvp_wgsl } from '../submission/miscellaneous/cuzk/smvp_wgsl';
+//import { data_transfer_cost_benchmarks } from '../submission/miscellaneous/data_transfer_cost_benchmarks'
+//import { bucket_points_reduction } from '../submission/miscellaneous/bucket_points_reduction_benchmark'
+//import { horners_rule_benchmark } from '../submission/miscellaneous/horners_rule_benchmark'
+//import { print_device_limits } from '../submission/miscellaneous/print_device_limits'
 
 export const AllBenchmarks: React.FC = () => {
   const initialDefaultInputSize = 2 ** 16;
@@ -220,18 +220,7 @@ export const AllBenchmarks: React.FC = () => {
         postResult={postResult}
         bold={true}
       />
-      {/* <Benchmark
-        name={'Full benchmarks'}
-        disabled={disabledBenchmark}
-        baseAffinePoints={bufferPoints}
-        scalars={bufferScalars}
-        expectedResult={expectedResult}
-        msmFunc={full_benchmarks}
-        postResult={postResult}
-        bold={true}
-      />
-
-      <div className="flex items-left">
+      {/* <div className="flex items-left">
         <div className={`text-gray-800 w-40 px-2 font-bold'`}>{name}</div> 
           <h1>Miscellaneous benchmarks and tests</h1>
           <br />

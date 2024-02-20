@@ -407,16 +407,17 @@ export const convert_point_coords_and_decompose_shaders = async (
   chunk_size: number,
   debug = false,
 ) => {
+  //const start = Date.now()
   assert(num_subtasks * chunk_size === 256);
   const input_size = scalars_buffer.length / 32
 
-  const start = Date.now()
   const { x_coords_bytes, y_coords_bytes } = format_points_buffer_for_gpu(bufferPoints)
 
   // Convert scalars to bytes
   const scalars_bytes = format_buffer_for_gpu(scalars_buffer)
-  const elapsed = Date.now() - start
-  console.log('elapsed:', elapsed)
+
+  //const elapsed = Date.now() - start
+  //console.log('bigints_to_u8_for_gpu took:', elapsed, 'ms')
 
   // Input buffers
   const x_coords_sb = create_and_write_sb(device, x_coords_bytes);

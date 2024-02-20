@@ -84,10 +84,10 @@ export const test_bucket_points_reduction = async (
   const device = await get_device();
   const commandEncoder = device.createCommandEncoder();
 
-  const x_coords_bytes = bigints_to_u8_for_gpu(x_coords, num_words, word_size);
-  const y_coords_bytes = bigints_to_u8_for_gpu(y_coords, num_words, word_size);
-  const t_coords_bytes = bigints_to_u8_for_gpu(t_coords, num_words, word_size);
-  const z_coords_bytes = bigints_to_u8_for_gpu(z_coords, num_words, word_size);
+  const x_coords_bytes = bigints_to_u8_for_gpu(x_coords);
+  const y_coords_bytes = bigints_to_u8_for_gpu(y_coords);
+  const t_coords_bytes = bigints_to_u8_for_gpu(t_coords);
+  const z_coords_bytes = bigints_to_u8_for_gpu(z_coords);
 
   const x_coords_sb = create_and_write_sb(device, x_coords_bytes);
   const y_coords_sb = create_and_write_sb(device, y_coords_bytes);
