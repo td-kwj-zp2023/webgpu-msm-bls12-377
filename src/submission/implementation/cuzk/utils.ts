@@ -9,48 +9,6 @@ import { ExtPointType } from "@noble/curves/abstract/edwards";
 import { EDWARDS_D } from "../../../reference/params/AleoConstants";
 
 /*
- * Given a Buffer with values [a, b, c, d, ...] return a Buffer twice the size,
- * with pairs of 0s interspersed betwen each pair of values.
- * e.g. [a, b, 0, 0, c, d, 0, 0, ...]
- */
-export const format_buffer_for_gpu = (buf: Buffer) => {
-  const bytes = new Uint8Array(buf.length * 2)
-  
-  let k = 0
-  for (let i = 0; i < buf.length; i += 2) {
-    // Take each consecutive pair of values and space them out by two 0s
-    const a = buf[i]
-    const b = buf[i + 1]
-    bytes[k] = a
-    bytes[k + 1] = b
-    k += 4
-  }
-  return bytes
-}
-
-export const format_points_buffer_for_gpu = (
-  bufferPoints: Buffer,
-  bytes_per_coord = 32,
-) => {
-  const input_size = bufferPoints.length / (bytes_per_coord * 2)
-  const x_coords_bytes = new Uint8Array(bufferPoints.length)
-  const y_coords_bytes = new Uint8Array(bufferPoints.length)
-
-  // 32 bytes for extended twisted edwards, 48 for the BLS12-377 base field
-  let k = 0
-  for (let i = 0; i < input_size; i ++) {
-    for (let j = 0; j < bytes_per_coord; j += 2) {
-      x_coords_bytes[k]     = bufferPoints[i * bytes_per_coord * 2 + j]
-      x_coords_bytes[k + 1] = bufferPoints[i * bytes_per_coord * 2 + j + 1]
-      y_coords_bytes[k]     = bufferPoints[i * bytes_per_coord * 2 + bytes_per_coord + j]
-      y_coords_bytes[k + 1] = bufferPoints[i * bytes_per_coord * 2 + bytes_per_coord + j + 1]
-      k += 4
-    }
-  }
-  return { x_coords_bytes, y_coords_bytes }
-}
-
-/*
  * Converts the BigInts in vals to byte arrays in the form of
  * [b0, b1, 0, 0, b2, b3, 0, 0, ...]
  * This is slower than bigints_to_u8_for_gpu, so don't use it

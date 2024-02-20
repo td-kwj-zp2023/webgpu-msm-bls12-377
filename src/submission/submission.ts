@@ -31,11 +31,9 @@ import {
 } from "./implementation/cuzk/gpu";
 import {
   u8s_to_bigints,
-  format_points_buffer_for_gpu,
   u8s_to_numbers,
   u8s_to_numbers_32,
   from_words_le,
-  format_buffer_for_gpu,
   numbers_to_u8s_for_gpu,
   compute_misc_params,
   decompose_scalars_signed,
@@ -167,7 +165,9 @@ export const compute_msm = async (
       num_subtasks,
       num_columns,
       chunk_size,
+      //true,
     );
+  //device.destroy(); return { x: BigInt(0), y: BigInt(1) }
 
   // Buffers to  store the SMVP result (the bucket sum). They are overwritten
   // per iteration
@@ -398,7 +398,7 @@ export const convert_point_coords_and_decompose_shaders = async (
   num_y_workgroups: number,
   device: GPUDevice,
   commandEncoder: GPUCommandEncoder,
-  bufferPoints: Buffer,
+  points_buffer: Buffer,
   num_words: number,
   word_size: number,
   scalars_buffer: Buffer,
@@ -407,22 +407,12 @@ export const convert_point_coords_and_decompose_shaders = async (
   chunk_size: number,
   debug = false,
 ) => {
-  //const start = Date.now()
   assert(num_subtasks * chunk_size === 256);
   const input_size = scalars_buffer.length / 32
 
-  const { x_coords_bytes, y_coords_bytes } = format_points_buffer_for_gpu(bufferPoints)
-
-  // Convert scalars to bytes
-  const scalars_bytes = format_buffer_for_gpu(scalars_buffer)
-
-  //const elapsed = Date.now() - start
-  //console.log('bigints_to_u8_for_gpu took:', elapsed, 'ms')
-
   // Input buffers
-  const x_coords_sb = create_and_write_sb(device, x_coords_bytes);
-  const y_coords_sb = create_and_write_sb(device, y_coords_bytes);
-  const scalars_sb = create_and_write_sb(device, scalars_bytes);
+  const points_sb = create_and_write_sb(device, points_buffer);
+  const scalars_sb = create_and_write_sb(device, scalars_buffer);
 
   // Output buffers
   const point_x_sb = create_sb(device, input_size * num_words * 4);
@@ -436,15 +426,13 @@ export const convert_point_coords_and_decompose_shaders = async (
   const bindGroupLayout = create_bind_group_layout(device, [
     "read-only-storage",
     "read-only-storage",
-    "read-only-storage",
     "storage",
     "storage",
     "storage",
     "uniform",
   ]);
   const bindGroup = create_bind_group(device, bindGroupLayout, [
-    x_coords_sb,
-    y_coords_sb,
+    points_sb,
     scalars_sb,
     point_x_sb,
     point_y_sb,
@@ -485,9 +473,9 @@ export const convert_point_coords_and_decompose_shaders = async (
     const y_coords: bigint[] = []
 
     for (let i = 0; i < input_size; i ++) {
-      const x_slice = bufferPoints.slice(i * 64, i * 64 + 32);
+      const x_slice = points_buffer.slice(i * 64, i * 64 + 32);
       x_coords.push(from_words_le(new Uint16Array(x_slice), 32, 8));
-      const y_slice = bufferPoints.slice(i * 64, i * 64 + 32);
+      const y_slice = points_buffer.slice(i * 64 + 32, i * 64 + 64);
       y_coords.push(from_words_le(new Uint16Array(y_slice), 32, 8));
     }
 

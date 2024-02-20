@@ -4,7 +4,6 @@ import {
   compute_misc_params,
   bigints_to_16_bit_words_for_gpu,
   bigints_to_u8_for_gpu,
-  format_points_buffer_for_gpu,
 } from "../../implementation/cuzk/utils";
 import * as bigintCryptoUtils from "bigint-crypto-utils";
 
@@ -25,21 +24,6 @@ describe("utils", () => {
       word_size,
     ],
   ];
-
-  describe("buffer formatting", () => {
-    it('format_points_buffer_for_gpu', () => {
-      const bufferPoints = [1, 2, 3, 4, 5, 6, 7, 8];
-      const expected_x = [1, 2, 0, 0, 3, 4, 0, 0];
-      const expected_y = [5, 6, 0, 0, 7, 8, 0, 0];
-      const { x_coords_bytes, y_coords_bytes } = format_points_buffer_for_gpu(
-        Buffer.from(bufferPoints),
-        4,
-      )
-
-      expect(x_coords_bytes.toString()).toEqual(expected_x.toString())
-      expect(y_coords_bytes.toString()).toEqual(expected_y.toString())
-    });
-  });
 
   describe("bigint to limbs and vice versa", () => {
     it.each(testData)(
