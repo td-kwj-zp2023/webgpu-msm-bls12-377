@@ -21,8 +21,8 @@ import convert_inputs_shader from "./wgsl/convert_inputs.template.wgsl";
 import montgomery_product_funcs from "../implementation/wgsl/montgomery/mont_pro_product.template.wgsl";
 
 export const convert_inputs_into_mont_benchmark = async (
-  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[],
-  scalars: bigint[] | Uint32Array[],
+  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[] | Buffer,
+  scalars: bigint[] | Uint32Array[] | Buffer,
 ): Promise<{ x: bigint; y: bigint }> => {
   const workgroup_size = 64;
   const num_x_workgroups = 256;

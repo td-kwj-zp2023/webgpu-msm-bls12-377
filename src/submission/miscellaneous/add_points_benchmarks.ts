@@ -79,8 +79,8 @@ const expensive_computation = (
   return c;
 };
 export const add_points_benchmarks = async (
-  {}: BigIntPoint[] | U32ArrayPoint[],
-  {}: bigint[] | Uint32Array[],
+  {}: BigIntPoint[] | U32ArrayPoint[] | Buffer,
+  {}: bigint[] | Uint32Array[] | Buffer,
 ): Promise<{ x: bigint; y: bigint }> => {
   const cost = 2;
   const fieldMath = new FieldMath();

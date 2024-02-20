@@ -14,6 +14,7 @@
  */
 
 import assert from "assert";
+import { readBigIntsFromBufferLE } from '../reference/webgpu/utils';
 import { BigIntPoint, U32ArrayPoint } from "../reference/types";
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 import { ShaderManager } from "./implementation/cuzk/shader_manager";
@@ -30,9 +31,11 @@ import {
 } from "./implementation/cuzk/gpu";
 import {
   u8s_to_bigints,
+  format_points_buffer_for_gpu,
   u8s_to_numbers,
   u8s_to_numbers_32,
-  bigints_to_u8_for_gpu,
+  from_words_le,
+  format_buffer_for_gpu,
   numbers_to_u8s_for_gpu,
   compute_misc_params,
   decompose_scalars_signed,
@@ -77,12 +80,13 @@ const fieldMath = new FieldMath();
  *    is greater than the time it takes for the CPU to do so.
  */
 export const compute_msm = async (
-  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[] | Buffer,
-  scalars: bigint[] | Uint32Array[] | Buffer,
+  bufferPoints: BigIntPoint[] | U32ArrayPoint[] | Buffer,
+  bufferScalars: bigint[] | Uint32Array[] | Buffer,
   log_result = true,
   force_recompile = false,
 ): Promise<{ x: bigint; y: bigint }> => {
-  const input_size = baseAffinePoints.length;
+  const input_size = bufferScalars.length / 32;
+
   const chunk_size = input_size >= 65536 ? 16 : 4;
 
   const shaderManager = new ShaderManager(
@@ -156,10 +160,10 @@ export const compute_msm = async (
       c_num_y_workgroups,
       device,
       commandEncoder,
-      baseAffinePoints as BigIntPoint[],
+      bufferPoints as Buffer,
       num_words,
       word_size,
-      scalars as bigint[],
+      bufferScalars as Buffer,
       num_subtasks,
       num_columns,
       chunk_size,
@@ -394,33 +398,25 @@ export const convert_point_coords_and_decompose_shaders = async (
   num_y_workgroups: number,
   device: GPUDevice,
   commandEncoder: GPUCommandEncoder,
-  baseAffinePoints: BigIntPoint[],
+  bufferPoints: Buffer,
   num_words: number,
   word_size: number,
-  scalars: bigint[],
+  scalars_buffer: Buffer,
   num_subtasks: number,
   num_columns: number,
   chunk_size: number,
   debug = false,
 ) => {
   assert(num_subtasks * chunk_size === 256);
-  const input_size = baseAffinePoints.length;
+  const input_size = scalars_buffer.length / 32
 
-  // An affine point only contains X and Y points.
-  const x_coords = Array(input_size).fill(BigInt(0));
-  const y_coords = Array(input_size).fill(BigInt(0));
-  for (let i = 0; i < input_size; i++) {
-    x_coords[i] = baseAffinePoints[i].x;
-    y_coords[i] = baseAffinePoints[i].y;
-  }
-
-  // Convert points to bytes (performs ~2x faster than
-  // `bigints_to_16_bit_words_for_gpu`)
-  const x_coords_bytes = bigints_to_u8_for_gpu(x_coords, 16, 16);
-  const y_coords_bytes = bigints_to_u8_for_gpu(y_coords, 16, 16);
+  const start = Date.now()
+  const { x_coords_bytes, y_coords_bytes } = format_points_buffer_for_gpu(bufferPoints)
 
   // Convert scalars to bytes
-  const scalars_bytes = bigints_to_u8_for_gpu(scalars, 16, 16);
+  const scalars_bytes = format_buffer_for_gpu(scalars_buffer)
+  const elapsed = Date.now() - start
+  console.log('elapsed:', elapsed)
 
   // Input buffers
   const x_coords_sb = create_and_write_sb(device, x_coords_bytes);
@@ -484,9 +480,19 @@ export const convert_point_coords_and_decompose_shaders = async (
     const computed_x_coords = u8s_to_bigints(data[0], num_words, word_size);
     const computed_y_coords = u8s_to_bigints(data[1], num_words, word_size);
 
+    const x_coords: bigint[] = []
+    const y_coords: bigint[] = []
+
+    for (let i = 0; i < input_size; i ++) {
+      const x_slice = bufferPoints.slice(i * 64, i * 64 + 32);
+      x_coords.push(from_words_le(new Uint16Array(x_slice), 32, 8));
+      const y_slice = bufferPoints.slice(i * 64, i * 64 + 32);
+      y_coords.push(from_words_le(new Uint16Array(y_slice), 32, 8));
+    }
+
     for (let i = 0; i < input_size; i++) {
-      const expected_x = (baseAffinePoints[i].x * r) % p;
-      const expected_y = (baseAffinePoints[i].y * r) % p;
+      const expected_x = (x_coords[i] * r) % p;
+      const expected_y = (y_coords[i] * r) % p;
 
       if (
         !(
@@ -501,6 +507,8 @@ export const convert_point_coords_and_decompose_shaders = async (
 
     // Verify scalar chunks
     const computed_chunks = u8s_to_numbers(data[2]);
+
+    const scalars = readBigIntsFromBufferLE(scalars_buffer)
 
     const expected = decompose_scalars_signed(
       scalars,
