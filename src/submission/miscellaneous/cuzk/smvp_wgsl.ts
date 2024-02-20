@@ -35,8 +35,8 @@ import assert from "assert";
 
 // WGSL implementation of Sparse-Matrix Vector Multiplication
 export const smvp_wgsl = async (
-  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[],
-  scalars: bigint[] | Uint32Array[],
+  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[] | Buffer,
+  scalars: bigint[] | Uint32Array[] | Buffer,
 ): Promise<{ x: bigint; y: bigint }> => {
   console.log("Starting WGSL SMVP!");
 

@@ -9,8 +9,8 @@ const num_words = 16;
 const word_size = 16;
 
 export const convert_bigints_to_bytes_benchmark = async (
-  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[],
-  scalars: bigint[] | Uint32Array[],
+  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[] | Buffer,
+  scalars: bigint[] | Uint32Array[] | Buffer,
 ): Promise<{ x: bigint; y: bigint }> => {
   const start_0 = Date.now();
   const x_y_coords_bytes = bigints_to_u8_for_gpu(scalars as bigint[], num_words, word_size);
