@@ -15,6 +15,7 @@
 
 import assert from 'assert'
 import { Curve, base_field_modulus } from './implementation/curves'
+import { readBigIntsFromBufferLE } from '../reference/webgpu/utils';
 import { BigIntPoint, U32ArrayPoint } from "../reference/types"
 import { ShaderManager } from './implementation/shader_manager'
 import { G1 } from '@celo/bls12377js'
@@ -72,19 +73,6 @@ import { parallel_bucket_reduction } from './implementation/cuzk/bpr'
 export const compute_msm = async (
   baseAffinePoints: BigIntPoint[] | U32ArrayPoint[] | Buffer,
   scalars: bigint[] | Uint32Array[] | Buffer,
-  log_result = true,
-  force_recompile = false,
-): Promise<{x: bigint, y: bigint}> => {
-  return do_cuzk_gpu(
-    baseAffinePoints as BigIntPoint[],
-    scalars as bigint[],
-    log_result,
-    force_recompile)
-}
-
-export const do_cuzk_gpu = async (
-  baseAffinePoints: BigIntPoint[],
-  scalars: bigint[],
   log_result = true,
   force_recompile = false,
 ): Promise<{x: bigint, y: bigint}> => {
@@ -173,16 +161,18 @@ export const do_cuzk_gpu = async (
       c_num_y_workgroups,
       device,
       commandEncoder,
-      baseAffinePoints,
+      baseAffinePoints as BigIntPoint[],
       num_words, 
       word_size,
-      scalars,
+      scalars as Buffer,
       num_subtasks,
       num_columns,
       chunk_size,
       p,
       params,
+      //true,
     )
+    //device.destroy(); return { x: BigInt(0), y: BigInt(1) }
 
   // Buffers to  store the SMVP result (the bucket sum). They are overwritten
   // per iteration
@@ -381,7 +371,7 @@ export const convert_point_coords_and_decompose_shaders = async (
   baseAffinePoints: BigIntPoint[],
   num_words: number,
   word_size: number,
-  scalars: bigint[],
+  scalars_buffer: Buffer,
   num_subtasks: number,
   num_columns: number,
   chunk_size: number,
@@ -411,13 +401,10 @@ export const convert_point_coords_and_decompose_shaders = async (
   const x_coords_bytes = bigints_to_u8_for_gpu(x_coords, m, 16)
   const y_coords_bytes = bigints_to_u8_for_gpu(y_coords, m, 16)
 
-  // Convert scalars to bytes
-  const scalars_bytes = bigints_to_u8_for_gpu(scalars, 16, 16)
-
   // Input buffers
   const x_coords_sb = create_and_write_sb(device, x_coords_bytes)
   const y_coords_sb = create_and_write_sb(device, y_coords_bytes)
-  const scalars_sb = create_and_write_sb(device, scalars_bytes)
+  const scalars_sb = create_and_write_sb(device, scalars_buffer)
 
   // Output buffers
   const point_x_sb = create_sb(device, input_size * num_words * 4)
@@ -495,6 +482,8 @@ export const convert_point_coords_and_decompose_shaders = async (
 
     // Verify scalar chunks
     const computed_chunks = u8s_to_numbers(data[2])
+
+    const scalars = readBigIntsFromBufferLE(scalars_buffer)
 
     const expected = decompose_scalars_signed(scalars, num_subtasks, chunk_size)
 

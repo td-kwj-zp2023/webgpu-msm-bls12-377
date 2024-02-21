@@ -76,8 +76,12 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     // Decompose scalars
     var scalar_bytes: array<u32, 16>;
-    for (var i = 0u; i < 16u; i++) {
-        scalar_bytes[15u - i] = scalars[id * 16 + i];
+    for (var i = 0u; i < 8u; i++) {
+        let s = scalars[id * 8 + i];
+        let hi = s >> 16u;
+        let lo = s & 65535u;
+        scalar_bytes[15 - (i * 2)] = lo;
+        scalar_bytes[15 - (i * 2) - 1] = hi;
     }
 
     // Extract scalar chunks and store them in chunks_arr

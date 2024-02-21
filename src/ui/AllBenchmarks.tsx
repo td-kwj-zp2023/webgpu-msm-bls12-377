@@ -149,7 +149,7 @@ export const AllBenchmarks: React.FC = () => {
         name={'Your MSM'}
         disabled={disabledBenchmark}
         baseAffinePoints={baseAffineBigIntPoints}
-        scalars={bigIntScalars}
+        scalars={bufferScalars}
         expectedResult={expectedResult}
         msmFunc={compute_msm}
         postResult={postResult}
