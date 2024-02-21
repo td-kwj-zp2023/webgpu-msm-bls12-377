@@ -47,8 +47,10 @@ import {
 } from './implementation/cuzk/utils'
 import { cpu_transpose } from './implementation/cuzk/transpose'
 import { cpu_smvp_signed } from './implementation/cuzk/smvp'
-import { shader_invocation } from './implementation/cuzk/bucket_points_reduction'
-import { parallel_bucket_reduction } from './implementation/cuzk/bpr'
+import {
+  parallel_bucket_reduction_1,
+  parallel_bucket_reduction_2,
+} from './implementation/cuzk/bpr'
 
 /*
  * End-to-end implementation of the modified cuZK MSM algorithm by Lu et al,
@@ -70,6 +72,13 @@ import { parallel_bucket_reduction } from './implementation/cuzk/bpr'
  *    small, and the time taken to compile a shader to perform this computation
  *    is greater than the time it takes for the CPU to do so.
  */
+
+const p = base_field_modulus[Curve.BLS12_377]
+const word_size = 13
+const params = compute_misc_params(p, word_size)
+const num_words = params.num_words
+const rinv = params.rinv
+
 export const compute_msm = async (
   baseAffinePoints: BigIntPoint[] | U32ArrayPoint[] | Buffer,
   scalars: bigint[] | Uint32Array[] | Buffer,
@@ -84,13 +93,6 @@ export const compute_msm = async (
 
   const chunk_size = input_size >= 65536 ? 16 : 4
 
-  const p = base_field_modulus[Curve.BLS12_377]
-  const word_size = 13
-  const params = compute_misc_params(p, word_size)
-  const num_words = params.num_words
-  //const r = params.r
-  const rinv = params.rinv
-
   const shaderManager = new ShaderManager(
     word_size,
     chunk_size,
@@ -100,7 +102,6 @@ export const compute_msm = async (
 
   const num_columns = 2 ** chunk_size
   const num_rows = Math.ceil(input_size / num_columns)
-
   const num_chunks_per_scalar = Math.ceil(256 / chunk_size)
   const num_subtasks = num_chunks_per_scalar
 
@@ -166,13 +167,8 @@ export const compute_msm = async (
       word_size,
       scalars as Buffer,
       num_subtasks,
-      num_columns,
       chunk_size,
-      p,
-      params,
-      //true,
     )
-    //device.destroy(); return { x: BigInt(0), y: BigInt(1) }
 
   // Buffers to  store the SMVP result (the bucket sum). They are overwritten
   // per iteration
@@ -228,7 +224,6 @@ export const compute_msm = async (
 
   // SMVP and multiplication by the bucket index
   for (let offset = 0; offset < num_subtasks; offset += num_subtask_chunk_size) {
-    // SMVP and multiplication by the bucket index
     await smvp_gpu(
       smvp_shader,
       s_num_x_workgroups / (num_subtasks / num_subtask_chunk_size),
@@ -248,8 +243,6 @@ export const compute_msm = async (
       bucket_sum_x_sb,
       bucket_sum_y_sb,
       bucket_sum_z_sb,
-      p,
-      params,
     )
   }
 
@@ -259,19 +252,18 @@ export const compute_msm = async (
   const b_num_threads = b_num_x_workgroups * b_workgroup_size
 
   // Output of the parallel bucket points reduction (BPR) shader
-  const reduced_bucket_coord_bytelength = num_subtasks * b_num_threads * num_words * 4;
-  const reduced_bucket_x_sb = create_sb(device, reduced_bucket_coord_bytelength);
-  const reduced_bucket_y_sb = create_sb(device, reduced_bucket_coord_bytelength);
-  const reduced_bucket_z_sb = create_sb(device, reduced_bucket_coord_bytelength);
+  const g_points_coord_bytelength = num_subtasks * b_num_threads * num_words * 4;
+  const g_points_x_sb = create_sb(device, g_points_coord_bytelength);
+  const g_points_y_sb = create_sb(device, g_points_coord_bytelength);
+  const g_points_z_sb = create_sb(device, g_points_coord_bytelength);
 
   const bpr_shader = shaderManager.gen_bpr_shader(b_workgroup_size) 
 
-  //const b_debug = 0
-  for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx ++) {
-    await bpr(
+  // Bucket points reduction (BPR) - stage 1
+  for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx++) {
+    await bpr_stage_1(
       bpr_shader,
       subtask_idx,
-      num_subtasks,
       b_num_x_workgroups,
       b_workgroup_size,
       num_columns,
@@ -280,45 +272,57 @@ export const compute_msm = async (
       bucket_sum_x_sb,
       bucket_sum_y_sb,
       bucket_sum_z_sb,
-      reduced_bucket_x_sb,
-      reduced_bucket_y_sb,
-      reduced_bucket_z_sb,
-      p,
-      params,
-      //subtask_idx === b_debug,
+      g_points_x_sb,
+      g_points_y_sb,
+      g_points_z_sb,
     )
-    //if (subtask_idx === b_debug) { device.destroy(); return { x: BigInt(0), y: BigInt(1) } }
   }
 
+  // Bucket points reduction (BPR) - stage 2
+  for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx ++) {
+    await bpr_stage_2(
+      bpr_shader,
+      subtask_idx,
+      b_num_x_workgroups,
+      b_workgroup_size,
+      num_columns,
+      device,
+      commandEncoder,
+      bucket_sum_x_sb,
+      bucket_sum_y_sb,
+      bucket_sum_z_sb,
+      g_points_x_sb,
+      g_points_y_sb,
+      g_points_z_sb,
+    )
+  }
+
+  // Read results back from GPU
   const data = await read_from_gpu(device, commandEncoder, [
-    reduced_bucket_x_sb,
-    reduced_bucket_y_sb,
-    reduced_bucket_z_sb,
+    g_points_x_sb,
+    g_points_y_sb,
+    g_points_z_sb,
   ]);
-  const reduced_buckets_x_mont_coords = u8s_to_bigints(data[0], num_words, word_size);
-  const reduced_buckets_y_mont_coords = u8s_to_bigints(data[1], num_words, word_size);
-  const reduced_buckets_z_mont_coords = u8s_to_bigints(data[2], num_words, word_size);
+
+  const g_points_x_mont_coords = u8s_to_bigints(data[0], num_words, word_size);
+  const g_points_y_mont_coords = u8s_to_bigints(data[1], num_words, word_size);
+  const g_points_z_mont_coords = u8s_to_bigints(data[2], num_words, word_size);
 
   const points: G1[] = [];
 
   // For a small number of points, this is extremely fast in the CPU
-  for (let i = 0; i < num_subtasks; i ++) {
+  for (let i = 0; i < num_subtasks; i++) {
     let point = ZERO;
-    for (let j = 0; j < b_num_threads; j ++) {
+    for (let j = 0; j < b_num_threads; j++) {
       const reduced_point = createAffinePoint(
-        reduced_buckets_x_mont_coords[i * b_num_threads + j] * rinv % p,
-        reduced_buckets_y_mont_coords[i * b_num_threads + j] * rinv % p,
-        reduced_buckets_z_mont_coords[i * b_num_threads + j] * rinv % p,
+        g_points_x_mont_coords[i * b_num_threads + j] * rinv % p,
+        g_points_y_mont_coords[i * b_num_threads + j] * rinv % p,
+        g_points_z_mont_coords[i * b_num_threads + j] * rinv % p,
       );
-      //if (!reduced_point.equals(zero)) { reduced_point.assertValidity(); }
       point = point.add(reduced_point);
-      //if (i == 15) { debugger }
     }
     points.push(point);
   }
-
-  // Destroy the GPU device object
-  device.destroy();
 
   // Calculate the final result using Horner's method (Formula 3 of the cuZK
   // paper)
@@ -334,9 +338,8 @@ export const compute_msm = async (
   if (log_result) {
     console.log(r);
   }
-  return r;
-  //return { x: BigInt(0), y: BigInt(1) }
 
+  return r;
 }
 
 /*
@@ -373,17 +376,13 @@ export const convert_point_coords_and_decompose_shaders = async (
   word_size: number,
   scalars_buffer: Buffer,
   num_subtasks: number,
-  num_columns: number,
   chunk_size: number,
-  p: bigint,
-  params: any,
   debug = false,
 ) => {
   const r = params.r
   assert(num_subtasks * chunk_size === 256)
   const input_size = scalars_buffer.length / 32
 
-  //const start = Date.now()
   // The X and Y coordiantes are arranged in points_buffer as
   // [x * 48, y * 48, x * 48, y * 48, ...]
   const x_coords_bytes = new Uint8Array(points_buffer.length / 2)
@@ -394,8 +393,6 @@ export const convert_point_coords_and_decompose_shaders = async (
       y_coords_bytes[i * 48 + j] = points_buffer[i * 96 + 48 + j]
     }
   }
-  //const elapsed = Date.now() - start
-  //console.log('buffer processing took', elapsed, 'ms')
 
   // Input buffers
   const x_coords_sb = create_and_write_sb(device, x_coords_bytes)
@@ -645,8 +642,6 @@ export const smvp_gpu = async (
   bucket_sum_x_sb: GPUBuffer,
   bucket_sum_y_sb: GPUBuffer,
   bucket_sum_z_sb: GPUBuffer,
-  p: bigint,
-  params: any,
   debug = false,
 ) => {
   const num_words = params.num_words
@@ -725,7 +720,6 @@ export const smvp_gpu = async (
 
     // Assertion checks take a long time!
     for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx++) {
-      console.log(subtask_idx)
       // Convert GPU output out of Montgomery coordinates
       const output_points_gpu: G1[] = []
       for (let i = subtask_idx * (num_csr_cols / 2); i < subtask_idx * (num_csr_cols / 2) + (num_csr_cols / 2); i++) {
@@ -769,10 +763,9 @@ export const smvp_gpu = async (
   }
 }
 
-const bpr = async (
+const bpr_stage_1 = async (
   shaderCode: string,
   subtask_idx: number,
-  num_subtasks: number,
   num_x_workgroups: number,
   workgroup_size: number,
   num_columns: number,
@@ -781,16 +774,44 @@ const bpr = async (
   bucket_sum_x_sb: GPUBuffer,
   bucket_sum_y_sb: GPUBuffer,
   bucket_sum_z_sb: GPUBuffer,
-  reduced_bucket_x_sb: GPUBuffer,
-  reduced_bucket_y_sb: GPUBuffer,
-  reduced_bucket_z_sb: GPUBuffer,
-  p: bigint,
-  params: any,
+  g_points_x_sb: GPUBuffer,
+  g_points_y_sb: GPUBuffer,
+  g_points_z_sb: GPUBuffer,
   debug = false,
 ) => {
-  const word_size = params.word_size
-  const num_words = params.num_words
-  const rinv = params.rinv
+  let original_bucket_sum_x_sb;
+  let original_bucket_sum_y_sb;
+  let original_bucket_sum_z_sb;
+
+  // Debug the output of the shader. This should **not** be run in
+  // production.
+  if (debug) {
+    original_bucket_sum_x_sb = create_sb(device, bucket_sum_x_sb.size);
+    original_bucket_sum_y_sb = create_sb(device, bucket_sum_y_sb.size);
+    original_bucket_sum_z_sb = create_sb(device, bucket_sum_z_sb.size);
+
+    commandEncoder.copyBufferToBuffer(
+      bucket_sum_x_sb,
+      0,
+      original_bucket_sum_x_sb,
+      0,
+      bucket_sum_x_sb.size,
+    );
+    commandEncoder.copyBufferToBuffer(
+      bucket_sum_y_sb,
+      0,
+      original_bucket_sum_y_sb,
+      0,
+      bucket_sum_y_sb.size,
+    );
+    commandEncoder.copyBufferToBuffer(
+      bucket_sum_z_sb,
+      0,
+      original_bucket_sum_z_sb,
+      0,
+      bucket_sum_z_sb.size,
+    );
+  }
 
   // Parameters as a uniform buffer
   const params_bytes = numbers_to_u8s_for_gpu([
@@ -800,22 +821,21 @@ const bpr = async (
   const params_ub = create_and_write_ub(device, params_bytes);
 
   const bindGroupLayout = create_bind_group_layout(device, [
-    "read-only-storage",
-    "read-only-storage",
-    "read-only-storage",
+    "storage",
+    "storage",
+    "storage",
     "storage",
     "storage",
     "storage",
     "uniform",
   ]);
-
   const bindGroup = create_bind_group(device, bindGroupLayout, [
     bucket_sum_x_sb,
     bucket_sum_y_sb,
     bucket_sum_z_sb,
-    reduced_bucket_x_sb,
-    reduced_bucket_y_sb,
-    reduced_bucket_z_sb,
+    g_points_x_sb,
+    g_points_y_sb,
+    g_points_z_sb,
     params_ub,
   ]);
 
@@ -823,13 +843,12 @@ const bpr = async (
     device,
     [bindGroupLayout],
     shaderCode,
-    "main",
+    "stage_1",
   );
 
   const num_threads = num_x_workgroups * workgroup_size
   const num_y_workgroups = 1
   const num_z_workgroups = 1
-  //console.log({ num_threads, num_x_workgroups, workgroup_size })
 
   execute_pipeline(
     commandEncoder,
@@ -840,14 +859,152 @@ const bpr = async (
     num_z_workgroups,
   );
 
+  if (
+    debug &&
+    original_bucket_sum_x_sb != undefined && // prevent TS warnings
+    original_bucket_sum_y_sb != undefined &&
+    original_bucket_sum_z_sb != undefined
+  ) {
+    const data = await read_from_gpu(device, commandEncoder, [
+      bucket_sum_x_sb,
+      bucket_sum_y_sb,
+      bucket_sum_z_sb,
+      g_points_x_sb,
+      g_points_y_sb,
+      g_points_z_sb,
+      original_bucket_sum_x_sb,
+      original_bucket_sum_y_sb,
+      original_bucket_sum_z_sb,
+    ])
+
+    // The number of buckets per subtask
+    const n = num_columns / 2
+    const start = subtask_idx * n * num_words * 4
+    const end = (subtask_idx * n + n) * num_words * 4
+
+    const m_points_x_mont_coords = u8s_to_bigints(data[0].slice(start, end), num_words, word_size);
+    const m_points_y_mont_coords = u8s_to_bigints(data[1].slice(start, end), num_words, word_size);
+    const m_points_z_mont_coords = u8s_to_bigints(data[2].slice(start, end), num_words, word_size);
+
+    const g_points_x_mont_coords = u8s_to_bigints(data[3], num_words, word_size);
+    const g_points_y_mont_coords = u8s_to_bigints(data[4], num_words, word_size);
+    const g_points_z_mont_coords = u8s_to_bigints(data[5], num_words, word_size);
+
+    const original_bucket_sum_x_mont_coords = u8s_to_bigints(data[6].slice(start, end), num_words, word_size);
+    const original_bucket_sum_y_mont_coords = u8s_to_bigints(data[7].slice(start, end), num_words, word_size);
+    const original_bucket_sum_z_mont_coords = u8s_to_bigints(data[8].slice(start, end), num_words, word_size);
+
+    // Convert the bucket sums out of Montgomery form
+    const original_bucket_sums: G1[] = []
+    for (let i = 0; i < n; i++) {
+      const pt = createAffinePoint(
+        original_bucket_sum_x_mont_coords[i] * rinv % p,
+        original_bucket_sum_y_mont_coords[i] * rinv % p,
+        original_bucket_sum_z_mont_coords[i] * rinv % p,
+      );
+      original_bucket_sums.push(pt);
+    }
+
+    const m_points: G1[] = []
+    for (let i = 0; i < n; i++) {
+      const pt = createAffinePoint(
+        m_points_x_mont_coords[i] * rinv % p,
+        m_points_y_mont_coords[i] * rinv % p,
+        m_points_z_mont_coords[i] * rinv % p,
+      );
+      m_points.push(pt);
+    }
+
+    // Convert the reduced buckets out of Montgomery form
+    const g_points: G1[] = []
+    for (let i = 0; i < num_threads; i++) {
+      const idx = subtask_idx * num_threads + i
+      const pt = createAffinePoint(
+        g_points_x_mont_coords[idx] * rinv % p,
+        g_points_y_mont_coords[idx] * rinv % p,
+        g_points_z_mont_coords[idx] * rinv % p,
+      );
+      g_points.push(pt);
+    }
+
+    const expected = parallel_bucket_reduction_1(original_bucket_sums, num_threads)
+    for (let i = 0; i < expected.g_points.length; i ++) {
+      assert(g_points[i].equals(expected.g_points[i]), `mismatch at ${i}`)
+    }
+  }
+}
+
+const bpr_stage_2 = async (
+  shaderCode: string,
+  subtask_idx: number,
+  num_x_workgroups: number,
+  workgroup_size: number,
+  num_columns: number,
+  device: GPUDevice,
+  commandEncoder: GPUCommandEncoder,
+  bucket_sum_x_sb: GPUBuffer,
+  bucket_sum_y_sb: GPUBuffer,
+  bucket_sum_z_sb: GPUBuffer,
+  g_points_x_sb: GPUBuffer,
+  g_points_y_sb: GPUBuffer,
+  g_points_z_sb: GPUBuffer,
+  debug = false,
+) => {
+  // Parameters as a uniform buffer
+  const params_bytes = numbers_to_u8s_for_gpu([
+    subtask_idx,
+    num_columns,
+  ]);
+  const params_ub = create_and_write_ub(device, params_bytes);
+
+  const bindGroupLayout = create_bind_group_layout(device, [
+    "storage",
+    "storage",
+    "storage",
+    "storage",
+    "storage",
+    "storage",
+    "uniform",
+  ]);
+
+  const bindGroup = create_bind_group(device, bindGroupLayout, [
+    bucket_sum_x_sb,
+    bucket_sum_y_sb,
+    bucket_sum_z_sb,
+    g_points_x_sb,
+    g_points_y_sb,
+    g_points_z_sb,
+    params_ub,
+  ]);
+
+  const computePipeline = await create_compute_pipeline(
+    device,
+    [bindGroupLayout],
+    shaderCode,
+    "stage_2",
+  );
+
+  const num_threads = num_x_workgroups * workgroup_size
+  const num_y_workgroups = 1
+  const num_z_workgroups = 1
+
+  execute_pipeline(
+    commandEncoder,
+    computePipeline,
+    bindGroup,
+    num_x_workgroups,
+    num_y_workgroups,
+    num_z_workgroups,
+  );
+  
   if (debug) {
     const data = await read_from_gpu(device, commandEncoder, [
       bucket_sum_x_sb,
       bucket_sum_y_sb,
       bucket_sum_z_sb,
-      reduced_bucket_x_sb,
-      reduced_bucket_y_sb,
-      reduced_bucket_z_sb,
+      g_points_x_sb,
+      g_points_y_sb,
+      g_points_z_sb,
     ])
 
     // The number of buckets per subtask
@@ -856,187 +1013,41 @@ const bpr = async (
     const start = subtask_idx * n * num_words * 4
     const end = (subtask_idx * n + n) * num_words * 4
 
-    const bucket_sum_x_mont_coords = u8s_to_bigints(data[0].slice(start, end), num_words, word_size);
-    const bucket_sum_y_mont_coords = u8s_to_bigints(data[1].slice(start, end), num_words, word_size);
-    const bucket_sum_z_mont_coords = u8s_to_bigints(data[2].slice(start, end), num_words, word_size);
+    const m_points_x_mont_coords = u8s_to_bigints(data[0].slice(start, end), num_words, word_size);
+    const m_points_y_mont_coords = u8s_to_bigints(data[1].slice(start, end), num_words, word_size);
+    const m_points_z_mont_coords = u8s_to_bigints(data[2].slice(start, end), num_words, word_size);
 
-    const reduced_bucket_x_mont_coords = u8s_to_bigints(data[3], num_words, word_size);
-    const reduced_bucket_y_mont_coords = u8s_to_bigints(data[4], num_words, word_size);
-    const reduced_bucket_z_mont_coords = u8s_to_bigints(data[5], num_words, word_size);
+    const g_points_x_mont_coords = u8s_to_bigints(data[3], num_words, word_size);
+    const g_points_y_mont_coords = u8s_to_bigints(data[4], num_words, word_size);
+    const g_points_z_mont_coords = u8s_to_bigints(data[5], num_words, word_size);
 
-    // Convert the bucket sums out of Montgomery form
-    const bucket_sums: G1[] = []
-    for (let i = 0; i < n; i ++) {
+    const m_points: G1[] = []
+    for (let i = 0; i < n; i++) {
       const pt = createAffinePoint(
-        bucket_sum_x_mont_coords[i] * rinv % p,
-        bucket_sum_y_mont_coords[i] * rinv % p,
-        bucket_sum_z_mont_coords[i] * rinv % p,
+        m_points_x_mont_coords[i] * rinv % p,
+        m_points_y_mont_coords[i] * rinv % p,
+        m_points_z_mont_coords[i] * rinv % p,
       );
-      bucket_sums.push(pt);
+      m_points.push(pt);
     }
 
     // Convert the reduced buckets out of Montgomery form
-    const reduced_buckets: G1[] = []
-    for (let i = 0; i < num_threads; i ++) {
+    const g_points: G1[] = []
+    for (let i = 0; i < num_threads; i++) {
       const idx = subtask_idx * num_threads + i
       const pt = createAffinePoint(
-        reduced_bucket_x_mont_coords[idx] * rinv % p,
-        reduced_bucket_y_mont_coords[idx] * rinv % p,
-        reduced_bucket_z_mont_coords[idx] * rinv % p,
+        g_points_x_mont_coords[i] * rinv % p,
+        g_points_y_mont_coords[i] * rinv % p,
+        g_points_z_mont_coords[i] * rinv % p,
       );
-      reduced_buckets.push(pt);
+      g_points.push(pt);
     }
 
-    const expected = parallel_bucket_reduction(bucket_sums, num_threads)
-    for (let i = 0; i < expected.length; i ++) {
-      const r = reduced_buckets[i].toAffine()
-      const e = expected[i].toAffine()
-      assert(r.x === e.x && r.y === e.y, `mismatch at ${i}`)
+    const expected = parallel_bucket_reduction_2(g_points, m_points, n, num_threads)
+
+    // TODO: figure out why the following fails at index 0
+    for (let i = 0; i < expected.length; i++) {
+      assert(g_points[i].equals(expected[i]), `mismatch at ${i}`)
     }
-  }
-}
-
-/*
- * Add up all the buckets (which have already been multiplied by their bucket
- * indices) using a recursive tree-summation method.
- */
-export const bucket_aggregation = async (
-  shaderCode: string,
-  device: GPUDevice,
-  commandEncoder: GPUCommandEncoder,
-  out_x_sb: GPUBuffer,
-  out_y_sb: GPUBuffer,
-  out_z_sb: GPUBuffer,
-  bucket_sum_x_sb: GPUBuffer,
-  bucket_sum_y_sb: GPUBuffer,
-  bucket_sum_z_sb: GPUBuffer,
-  num_columns: number,
-  num_subtasks: number,
-  p: bigint,
-  params: any,
-  debug = false,
-) => {
-  const word_size = params.word_size
-  const num_words = params.num_words
-  const rinv = params.rinv
-
-  let original_bucket_sum_x_sb
-  let original_bucket_sum_y_sb
-  let original_bucket_sum_z_sb
-
-  // Debug the output of the shader. This should **not** be run in
-  // production.
-  if (debug) {
-    original_bucket_sum_x_sb = create_sb(device, bucket_sum_x_sb.size)
-    original_bucket_sum_y_sb = create_sb(device, bucket_sum_y_sb.size)
-    original_bucket_sum_z_sb = create_sb(device, bucket_sum_z_sb.size)
-
-    commandEncoder.copyBufferToBuffer(
-      bucket_sum_x_sb,
-      0,
-      original_bucket_sum_x_sb,
-      0,
-      bucket_sum_x_sb.size,
-    )
-    commandEncoder.copyBufferToBuffer(
-      bucket_sum_y_sb,
-      0,
-      original_bucket_sum_y_sb,
-      0,
-      bucket_sum_y_sb.size,
-    )
-    commandEncoder.copyBufferToBuffer(
-      bucket_sum_z_sb,
-      0,
-      original_bucket_sum_z_sb,
-      0,
-      bucket_sum_z_sb.size,
-    )
-  }
-
-  let s = num_columns
-  while (s > 1) {
-    await shader_invocation(
-      device,
-      commandEncoder,
-      shaderCode,
-      bucket_sum_x_sb,
-      bucket_sum_y_sb,
-      bucket_sum_z_sb,
-      out_x_sb,
-      out_y_sb,
-      out_z_sb,
-      s,
-      num_words,
-      num_subtasks,
-    )
-
-    const e = s
-    s = Math.ceil(s / 2)
-    if (e === 1 && s === 1) {
-      break
-    }
-  }
-
-  // Debug the output of the shader. This should **not** be run in
-  // production.
-  if (
-    debug
-    && original_bucket_sum_x_sb != undefined // prevent TS warnings
-    && original_bucket_sum_y_sb != undefined
-    && original_bucket_sum_z_sb != undefined
-  ) {
-    const data = await read_from_gpu(
-      device,
-      commandEncoder,
-      [
-        out_x_sb,
-        out_y_sb,
-        out_z_sb,
-        original_bucket_sum_x_sb,
-        original_bucket_sum_y_sb,
-        original_bucket_sum_z_sb,
-      ]
-    )
-
-    const x_mont_coords_result = u8s_to_bigints(data[0], num_words, word_size)
-    const y_mont_coords_result = u8s_to_bigints(data[1], num_words, word_size)
-    const z_mont_coords_result = u8s_to_bigints(data[2], num_words, word_size)
-
-    for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx++) {
-      // Convert the resulting point coordiantes out of Montgomery form
-      const result = createAffinePoint(
-        x_mont_coords_result[subtask_idx] * rinv % p,
-        y_mont_coords_result[subtask_idx] * rinv % p,
-        z_mont_coords_result[subtask_idx] * rinv % p,
-      )
-
-      // Check that the sum of the points is correct
-      const bucket_x_mont = u8s_to_bigints(data[3], num_words, word_size)
-      const bucket_y_mont = u8s_to_bigints(data[4], num_words, word_size)
-      const bucket_z_mont = u8s_to_bigints(data[5], num_words, word_size)
-
-      const points: G1[] = []
-      for (let i = subtask_idx * num_columns; i < subtask_idx * num_columns + num_columns; i++) {
-        points.push(createAffinePoint(
-          bucket_x_mont[i] * rinv % p,
-          bucket_y_mont[i] * rinv % p,
-          bucket_z_mont[i] * rinv % p,
-        ))
-      }
-
-      // Add up the original points
-      let expected = points[0]
-      for (let i = 1; i < points.length; i ++) {
-        expected = expected.add(points[i])
-      }
-      assert(result.equals(expected))
-    }
-  }
-
-  return {
-    out_x_sb,
-    out_y_sb,
-    out_z_sb,
   }
 }
