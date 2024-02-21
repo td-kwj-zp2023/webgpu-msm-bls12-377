@@ -473,9 +473,9 @@ export const convert_point_coords_and_decompose_shaders = async (
     const y_coords: bigint[] = []
 
     for (let i = 0; i < input_size; i ++) {
-      const x_slice = points_buffer.slice(i * 64, i * 64 + 32);
+      const x_slice = points_buffer.subarray(i * 64, i * 64 + 32);
       x_coords.push(from_words_le(new Uint16Array(x_slice), 32, 8));
-      const y_slice = points_buffer.slice(i * 64 + 32, i * 64 + 64);
+      const y_slice = points_buffer.subarray(i * 64 + 32, i * 64 + 64);
       y_coords.push(from_words_le(new Uint16Array(y_slice), 32, 8));
     }
 
