@@ -27,8 +27,8 @@ const fieldMath = new FieldMath();
 
 // WGSL implementation of Sparse-Matrix Transpose
 export const smtvp_wgsl = async (
-  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[],
-  scalars: bigint[] | Uint32Array[],
+  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[] | Buffer,
+  scalars: bigint[] | Uint32Array[] | Buffer,
 ): Promise<{ x: bigint; y: bigint }> => {
   console.log("Starting WGSL SMTVP!");
 

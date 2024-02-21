@@ -8,8 +8,8 @@ import { ExtPointType } from "@noble/curves/abstract/edwards";
 
 // Typescript implementation of cuZK
 export const cuzk_typescript_serial = async (
-  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[],
-  scalars: bigint[] | Uint32Array[],
+  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[] | Buffer,
+  scalars: bigint[] | Uint32Array[] | Buffer,
 ): Promise<any> => {
   console.log("Starting Serial cuZK!");
 

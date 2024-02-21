@@ -22,8 +22,8 @@ import extract_word_from_bytes_le_shader from "../implementation/wgsl/cuzk/extra
 import decompose_scalars_shader from "./wgsl/decompose_scalars.template.wgsl";
 
 export const decompose_scalars_ts_benchmark = async (
-  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[],
-  scalars: bigint[] | Uint32Array[],
+  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[] | Buffer,
+  scalars: bigint[] | Uint32Array[] | Buffer,
 ): Promise<{ x: bigint; y: bigint }> => {
   const p = BigInt(
     "0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001",

@@ -25,8 +25,8 @@ import mont_pro_cios_shader from "../implementation/wgsl/montgomery/mont_pro_cio
 import montgomery_product_funcs from "../implementation/wgsl/montgomery/mont_pro_product.template.wgsl";
 
 export const mont_mul_benchmarks = async (
-  {}: BigIntPoint[] | U32ArrayPoint[],
-  {}: bigint[] | Uint32Array[],
+  {}: BigIntPoint[] | U32ArrayPoint[] | Buffer,
+  {}: bigint[] | Uint32Array[] | Buffer,
 ): Promise<{ x: bigint; y: bigint }> => {
   // Define and generate params
   const num_inputs = 1;

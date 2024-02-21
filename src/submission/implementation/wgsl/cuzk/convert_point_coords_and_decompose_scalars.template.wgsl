@@ -7,22 +7,20 @@
 
 // Input buffers
 @group(0) @binding(0)
-var<storage, read> x_coords: array<u32>;
+var<storage, read> coords: array<u32>;
 @group(0) @binding(1)
-var<storage, read> y_coords: array<u32>;
-@group(0) @binding(2)
 var<storage, read> scalars: array<u32>;
 
 // Output buffers
-@group(0) @binding(3)
+@group(0) @binding(2)
 var<storage, read_write> point_x: array<BigInt>;
-@group(0) @binding(4)
+@group(0) @binding(3)
 var<storage, read_write> point_y: array<BigInt>;
-@group(0) @binding(5)
+@group(0) @binding(4)
 var<storage, read_write> chunks: array<u32>;
 
 // Uniform buffer for parameters
-@group(0) @binding(6)
+@group(0) @binding(5)
 var<uniform> input_size: u32;
 
 const NUM_SUBTASKS = {{ num_subtasks }}u;
@@ -46,11 +44,21 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let INPUT_SIZE = input_size;
 
     // Store the x and y coordinates as byte arrays for easier indexing
+    // [x8, y8, x8, y8]
+    // id = [0, ..., num_points]
+    // 
     var x_bytes: array<u32, 16>;
     var y_bytes: array<u32, 16>;
-    for (var i = 0u; i < 16u; i ++) {
-        x_bytes[15u - i] = x_coords[id * 16 + i];
-        y_bytes[15u - i] = y_coords[id * 16 + i];
+    for (var i = 0u; i < 8u; i++) {
+        let offset = id * 16u;
+
+        let x = coords[offset + i];
+        x_bytes[15 - (i * 2)] = x & 65535u;
+        x_bytes[15 - (i * 2) - 1] = x >> 16u;
+
+        let y = coords[offset + 8 + i];
+        y_bytes[15 - (i * 2)] = y & 65535u;
+        y_bytes[15 - (i * 2) - 1] = y >> 16u;
     }
 
     // Convert the byte arrays to BigInts with word_size limbs
@@ -75,8 +83,12 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     // Decompose scalars
     var scalar_bytes: array<u32, 16>;
-    for (var i = 0u; i < 16u; i++) {
-        scalar_bytes[15u - i] = scalars[id * 16 + i];
+    for (var i = 0u; i < 8u; i++) {
+        let s = scalars[id * 8 + i];
+        let hi = s >> 16u;
+        let lo = s & 65535u;
+        scalar_bytes[15 - (i * 2)] = lo;
+        scalar_bytes[15 - (i * 2) - 1] = hi;
     }
 
     // Extract scalar chunks and store them in chunks_arr
