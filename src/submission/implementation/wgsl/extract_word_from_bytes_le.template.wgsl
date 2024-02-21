@@ -1,12 +1,11 @@
 fn extract_word_from_coord_bytes_le(
     input: array<u32, {{ num_16_bit_words_per_coord }}>,
     word_idx: u32,
-    chunk_size: u32,
-    m: u32
+    chunk_size: u32
 ) -> u32 {
     var word = 0u;
-    let start_byte_idx = m - 1u - ((word_idx * chunk_size + chunk_size) / 16u);
-    let end_byte_idx = m - 1u - ((word_idx * chunk_size) / 16u);
+    let start_byte_idx = {{ num_16_bit_words_per_coord }}u - 1u - ((word_idx * chunk_size + chunk_size) / 16u);
+    let end_byte_idx = {{ num_16_bit_words_per_coord }}u - 1u - ((word_idx * chunk_size) / 16u);
 
     let start_byte_offset = (word_idx * chunk_size + chunk_size) % 16u;
     let end_byte_offset = (word_idx * chunk_size) % 16u;

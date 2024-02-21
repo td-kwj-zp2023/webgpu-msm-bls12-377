@@ -47,19 +47,31 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     let NUM_16_BIT_WORDS_PER_COORD = {{ num_16_bit_words_per_coord }}u;
 
     // Store the x and y coordinates as byte arrays for easier indexing
+    // Problem:
+    //   x_coords contains input_size * 12 u32s
+    //   y_coords contains input_size * 12 u32s
+    // 
+    //   x_bytes needs to have 25 16-bit values stored as u32s
+    //   y_bytes needs to have 25 16-bit values stored as u32s
+
     var x_bytes: array<u32, {{ num_16_bit_words_per_coord }}>;
     var y_bytes: array<u32, {{ num_16_bit_words_per_coord }}>;
-    for (var i = 0u; i < NUM_16_BIT_WORDS_PER_COORD; i ++) {
-        x_bytes[NUM_16_BIT_WORDS_PER_COORD - 1 - i] = x_coords[id * NUM_16_BIT_WORDS_PER_COORD + i];
-        y_bytes[NUM_16_BIT_WORDS_PER_COORD - 1 - i] = y_coords[id * NUM_16_BIT_WORDS_PER_COORD + i];
+    for (var i = 0u; i < 12u; i ++) {
+        let x = x_coords[id * 12u + i];
+        x_bytes[NUM_16_BIT_WORDS_PER_COORD - 1 - (i * 2)] = x & 65535u;
+        x_bytes[NUM_16_BIT_WORDS_PER_COORD - 1 - (i * 2) - 1] = x >> 16u;
+
+        let y = y_coords[id * 12u + i];
+        y_bytes[NUM_16_BIT_WORDS_PER_COORD - 1 - (i * 2)] = y & 65535u;
+        y_bytes[NUM_16_BIT_WORDS_PER_COORD - 1 - (i * 2) - 1] = y >> 16u;
     }
 
     // Convert the byte arrays to BigInts with word_size limbs
     var x_bigint: BigInt;
     var y_bigint: BigInt;
     for (var i = 0u; i < NUM_WORDS - 1u; i ++) {
-        x_bigint.limbs[i] = extract_word_from_coord_bytes_le(x_bytes, i, WORD_SIZE, NUM_16_BIT_WORDS_PER_COORD);
-        y_bigint.limbs[i] = extract_word_from_coord_bytes_le(y_bytes, i, WORD_SIZE, NUM_16_BIT_WORDS_PER_COORD);
+        x_bigint.limbs[i] = extract_word_from_coord_bytes_le(x_bytes, i, WORD_SIZE);
+        y_bigint.limbs[i] = extract_word_from_coord_bytes_le(y_bytes, i, WORD_SIZE);
     }
 
     let shift = (((NUM_WORDS * WORD_SIZE - 256u) + 16u) - WORD_SIZE);
@@ -76,8 +88,12 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
 
     // Decompose scalars
     var scalar_bytes: array<u32, 16>;
-    for (var i = 0u; i < 16u; i++) {
-        scalar_bytes[15u - i] = scalars[id * 16 + i];
+    for (var i = 0u; i < 8u; i++) {
+        let s = scalars[id * 8 + i];
+        let hi = s >> 16u;
+        let lo = s & 65535u;
+        scalar_bytes[15 - (i * 2)] = lo;
+        scalar_bytes[15 - (i * 2) - 1] = hi;
     }
 
     // Extract scalar chunks and store them in chunks_arr
