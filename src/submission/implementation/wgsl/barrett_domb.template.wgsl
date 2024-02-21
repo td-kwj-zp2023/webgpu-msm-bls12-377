@@ -13,7 +13,6 @@ struct BigIntMediumWide {
     limbs: array<u32, {{ num_words_plus_one }}>
 }
 
-
 fn get_m() -> BigInt {
     var m: BigInt;
 {{{ m_limbs }}}

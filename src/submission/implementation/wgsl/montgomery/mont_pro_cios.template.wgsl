@@ -7,6 +7,10 @@ struct BigIntMediumWide {
     limbs: array<u32, {{ num_words_plus_one }}>
 }
 
+struct BigIntWide {
+    limbs: array<u32, {{ num_words_mul_two }}>
+}
+
 @group(0)
 @binding(0)
 var<storage, read_write> buf: array<BigInt>;
