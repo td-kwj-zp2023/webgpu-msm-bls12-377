@@ -1,4 +1,4 @@
-import { FieldMath } from "../reference/utils/FieldMath";
+import { FieldMath } from "../../reference/utils/FieldMath";
 import { ExtPointType } from "@noble/curves/abstract/edwards";
 
 export const add_points_any_a = (
