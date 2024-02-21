@@ -7,6 +7,7 @@ import { compute_msm } from '../submission/submission';
 import CSVExportButton from './CSVExportButton';
 import { TestCaseDropDown } from './TestCaseDropDown';
 import { PowersTestCase, TestCase, loadTestCase } from '../test-data/testCases';
+//import { full_benchmarks } from '../submission/miscellaneous/full_benchmarks'
 
 export const AllBenchmarks: React.FC = () => {
   const initialDefaultInputSize = 2 ** 16;
@@ -148,13 +149,23 @@ export const AllBenchmarks: React.FC = () => {
       <Benchmark
         name={'Your MSM'}
         disabled={disabledBenchmark}
-        baseAffinePoints={baseAffineBigIntPoints}
+        baseAffinePoints={bufferPoints}
         scalars={bufferScalars}
         expectedResult={expectedResult}
         msmFunc={compute_msm}
         postResult={postResult}
         bold={true}
       />
+      {/*<Benchmark
+        name={'Full benchmark suite'}
+        disabled={disabledBenchmark}
+        baseAffinePoints={bufferPoints}
+        scalars={bufferScalars}
+        expectedResult={expectedResult}
+        msmFunc={full_benchmarks}
+        postResult={postResult}
+        bold={true}
+      /> */}
     </div>
   )
 };

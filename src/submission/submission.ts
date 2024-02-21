@@ -76,7 +76,7 @@ export const compute_msm = async (
   log_result = true,
   force_recompile = false,
 ): Promise<{x: bigint, y: bigint}> => {
-  const input_size = baseAffinePoints.length
+  const input_size = scalars.length / 32
 
   if (input_size === 0) {
     return { x: BigInt(0), y: BigInt(1) }
@@ -161,7 +161,7 @@ export const compute_msm = async (
       c_num_y_workgroups,
       device,
       commandEncoder,
-      baseAffinePoints as BigIntPoint[],
+      baseAffinePoints as Buffer,
       num_words, 
       word_size,
       scalars as Buffer,
@@ -368,7 +368,7 @@ export const convert_point_coords_and_decompose_shaders = async (
   num_y_workgroups: number,
   device: GPUDevice,
   commandEncoder: GPUCommandEncoder,
-  baseAffinePoints: BigIntPoint[],
+  points_buffer: Buffer,
   num_words: number,
   word_size: number,
   scalars_buffer: Buffer,
@@ -381,25 +381,21 @@ export const convert_point_coords_and_decompose_shaders = async (
 ) => {
   const r = params.r
   assert(num_subtasks * chunk_size === 256)
-  const input_size = baseAffinePoints.length
+  const input_size = scalars_buffer.length / 32
 
-  // An affine point only contains X and Y points.
-  const x_coords = Array(input_size).fill(BigInt(0))
-  const y_coords = Array(input_size).fill(BigInt(0))
+  //const start = Date.now()
+  // The X and Y coordiantes are arranged in points_buffer as
+  // [x * 48, y * 48, x * 48, y * 48, ...]
+  const x_coords_bytes = new Uint8Array(points_buffer.length / 2)
+  const y_coords_bytes = new Uint8Array(points_buffer.length / 2)
   for (let i = 0; i < input_size; i ++) {
-    x_coords[i] = baseAffinePoints[i].x
-    y_coords[i] = baseAffinePoints[i].y
+    for (let j = 0; j < 96; j ++) {
+      x_coords_bytes[i * 48 + j] = points_buffer[i * 96 + j]
+      y_coords_bytes[i * 48 + j] = points_buffer[i * 96 + 48 + j]
+    }
   }
-
-  // Convert it into bytes to pass to the shader
-  const bits_per_coord = num_words * word_size
-
-  // Number of 16-bit words per coordinate
-  const m = Math.ceil(bits_per_coord / 16)
-
-  // Convert point coordiantes to 16-bit words
-  const x_coords_bytes = bigints_to_u8_for_gpu(x_coords, m, 16)
-  const y_coords_bytes = bigints_to_u8_for_gpu(y_coords, m, 16)
+  //const elapsed = Date.now() - start
+  //console.log('buffer processing took', elapsed, 'ms')
 
   // Input buffers
   const x_coords_sb = create_and_write_sb(device, x_coords_bytes)
@@ -469,14 +465,21 @@ export const convert_point_coords_and_decompose_shaders = async (
     const computed_x_coords = u8s_to_bigints(data[0], num_words, word_size)
     const computed_y_coords = u8s_to_bigints(data[1], num_words, word_size)
 
+    const x_coords: bigint[] = []
+    const y_coords: bigint[] = []
+
+    const all_coords = readBigIntsFromBufferLE(points_buffer, 384)
     for (let i = 0; i < input_size; i ++) {
-      const expected_x = baseAffinePoints[i].x * r % p
-      const expected_y = baseAffinePoints[i].y * r % p
+      x_coords.push(all_coords[i * 2])
+      y_coords.push(all_coords[i * 2 + 1])
+    }
+
+    for (let i = 0; i < input_size; i ++) {
+      const expected_x = x_coords[i] * r % p
+      const expected_y = y_coords[i] * r % p
 
       if (!(expected_x === computed_x_coords[i] && expected_y === computed_y_coords[i])) {
-        console.log('point coord mismatch at', i)
-        debugger
-        break
+        throw Error(`point coord mismatch at ${i}`)
       }
     }
 

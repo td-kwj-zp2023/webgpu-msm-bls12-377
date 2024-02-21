@@ -1,15 +1,11 @@
 import { BigIntPoint, U32ArrayPoint } from "../../reference/types"
 import { PowersTestCase, loadTestCase } from '../../test-data/testCases';
 import { compute_msm } from '../submission'
+import { bigIntsToBufferLE } from '../../reference/webgpu/utils';
 
 export const full_benchmarks = async (
-  {}: BigIntPoint[] | U32ArrayPoint[],
-  {}: bigint[] | Uint32Array[],
-): Promise<{x: bigint, y: bigint}> => {
-    return await do_full_benchmarks()
-}
-
-export const do_full_benchmarks = async (
+  {}: BigIntPoint[] | U32ArrayPoint[] | Buffer,
+  {}: bigint[] | Uint32Array[] | Buffer,
 ): Promise<{x: bigint, y: bigint}> => {
     const DELAY = 100
     const NUM_RUNS = 5
@@ -28,6 +24,19 @@ export const do_full_benchmarks = async (
     for (let power = START_POWER; power <= END_POWER; power ++) {
         const testcase = await loadTestCase(power)
         testcases[power] = testcase
+        const xyArray: bigint[] = [];
+        testcase.baseAffinePoints.map((point: any) => {
+          xyArray.push(point.x);
+          xyArray.push(point.y);
+        });
+
+        const bufferPoints = bigIntsToBufferLE(xyArray, 384);
+        const bufferScalars = bigIntsToBufferLE(testcase.scalars, 256);
+        testcases[power] = {
+          bufferPoints,
+          bufferScalars,
+          expectedResult: testcase.expectedResult,
+        };
     }
 
     for (let power = START_POWER; power <= END_POWER; power ++) {
@@ -44,13 +53,11 @@ export const do_full_benchmarks = async (
               excluding the first (compile) run in JSON and Markdown
         */
 
-        // TODO: inject random variables in to the shader
-
         // Measure the first run, which forces a recompile
         const first_run_start = Date.now()
         const msm = await compute_msm(
-            testcase.baseAffinePoints,
-            testcase.scalars,
+            testcase.bufferPoints,
+            testcase.bufferScalars,
             false,
             do_recompile,
         )
@@ -84,8 +91,8 @@ export const do_full_benchmarks = async (
             const start = Date.now()
             // Run without forcing a recompile
             await compute_msm(
-                testcase.baseAffinePoints,
-                testcase.scalars,
+                testcase.bufferPoints,
+                testcase.bufferScalars,
                 false,
                 false,
             )
