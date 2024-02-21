@@ -4,21 +4,22 @@
 {{> bigint_funcs }}
 {{> ec_funcs }}
 
-// Input buffers
+// Used as input buffers for the bucket sums from SMVP, but also repurposed to
+// store the m points
 @group(0) @binding(0)
-var<storage, read> bucket_sum_x: array<BigInt>;
+var<storage, read_write> bucket_sum_x: array<BigInt>;
 @group(0) @binding(1)
-var<storage, read> bucket_sum_y: array<BigInt>;
+var<storage, read_write> bucket_sum_y: array<BigInt>;
 @group(0) @binding(2)
-var<storage, read> bucket_sum_z: array<BigInt>;
+var<storage, read_write> bucket_sum_z: array<BigInt>;
 
-// Output buffers
+// Output buffers to store the g points
 @group(0) @binding(3)
-var<storage, read_write> reduced_bucket_x: array<BigInt>;
+var<storage, read_write> g_points_x: array<BigInt>;
 @group(0) @binding(4)
-var<storage, read_write> reduced_bucket_y: array<BigInt>;
+var<storage, read_write> g_points_y: array<BigInt>;
 @group(0) @binding(5)
-var<storage, read_write> reduced_bucket_z: array<BigInt>;
+var<storage, read_write> g_points_z: array<BigInt>;
 
 // Params buffer
 @group(0) @binding(6)
@@ -57,7 +58,7 @@ fn double_and_add(point: Point, scalar: u32) -> Point {
 
 @compute
 @workgroup_size({{ workgroup_size }})
-fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {    
+fn stage_1(@builtin(global_invocation_id) global_id: vec3<u32>) {    
     let thread_id = global_id.x; 
     let num_threads = {{ workgroup_size }}u;
 
@@ -96,15 +97,60 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
         g = add_points(g, m);
     }
 
-    let s = buckets_per_thread * (num_threads - thread_id - 1u);
-    if (s > 0u) {
-        g = add_points(g, double_and_add(m, s));
-    }
+    bucket_sum_x[idx] = m.x;
+    bucket_sum_y[idx] = m.y;
+    bucket_sum_z[idx] = m.z;
 
     let t = subtask_idx * num_threads + thread_id;
-    reduced_bucket_x[t] = g.x;
-    reduced_bucket_y[t] = g.y;
-    reduced_bucket_z[t] = g.z;
+    g_points_x[t] = g.x;
+    g_points_y[t] = g.y;
+    g_points_z[t] = g.z;
+
+    {{{ recompile }}}
+}
+
+@compute
+@workgroup_size({{ workgroup_size }})
+fn stage_2(@builtin(global_invocation_id) global_id: vec3<u32>) {    
+    let thread_id = global_id.x; 
+    let num_threads = {{ workgroup_size }}u;
+
+    let subtask_idx = params[0];
+    let num_columns = params[1];
+
+    // Number of buckets per subtask
+    let n = num_columns / 2u;
+
+    // Number of buckets to reduce per thread
+    let buckets_per_thread = n / num_threads;
+
+    let bucket_sum_offset = n * subtask_idx;
+
+    var idx = bucket_sum_offset; 
+    if (thread_id != 0u) {
+        idx = (num_threads - thread_id) * buckets_per_thread + bucket_sum_offset;
+    }
+
+    var m = Point(
+        bucket_sum_x[idx],
+        bucket_sum_y[idx],
+        bucket_sum_z[idx]
+    );
+
+    let t = subtask_idx * num_threads + thread_id;
+    var g = Point(
+        g_points_x[t],
+        g_points_y[t],
+        g_points_z[t],
+    );
+
+    // Perform scalar mul on m and add the result to g
+    let s = buckets_per_thread * (num_threads - thread_id - 1u);
+    g = add_points(g, double_and_add(m, s));
+
+    g_points_x[t] = g.x;
+    g_points_y[t] = g.y;
+    g_points_z[t] = g.z;
 
     {{{ recompile }}}
 }
