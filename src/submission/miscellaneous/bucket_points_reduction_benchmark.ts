@@ -26,8 +26,8 @@ import {
 import { shader_invocation } from "../implementation/cuzk/bucket_points_reduction";
 
 export const bucket_points_reduction = async (
-  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[],
-  {}: bigint[] | Uint32Array[],
+  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[] | Buffer,
+  {}: bigint[] | Uint32Array[] | Buffer,
 ): Promise<{ x: bigint; y: bigint }> => {
   for (const i of [2, 4, 8, 16, 32, 64]) {
     await test_bucket_points_reduction(baseAffinePoints as BigIntPoint[], i);

@@ -52,8 +52,8 @@ const word_size = 13;
  * with a random 16-bit scalar.
  */
 export const scalar_mul_benchmarks = async (
-  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[],
-  {}: bigint[] | Uint32Array[],
+  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[] | Buffer,
+  {}: bigint[] | Uint32Array[] | Buffer,
 ): Promise<{ x: bigint; y: bigint }> => {
   const cost = 1024;
 

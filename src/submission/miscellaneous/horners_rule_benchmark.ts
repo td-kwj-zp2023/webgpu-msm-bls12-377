@@ -28,8 +28,8 @@ import {
 } from "../implementation/cuzk/utils";
 
 export const horners_rule_benchmark = async (
-  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[],
-  {}: bigint[] | Uint32Array[],
+  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[] | Buffer,
+  {}: bigint[] | Uint32Array[] | Buffer,
 ): Promise<{ x: bigint; y: bigint }> => {
   const fieldMath = new FieldMath();
   const p = BigInt(

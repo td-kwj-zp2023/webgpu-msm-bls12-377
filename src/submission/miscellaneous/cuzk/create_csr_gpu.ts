@@ -362,8 +362,8 @@ export const create_csr_gpu = async (
 };
 
 export async function create_csr_precomputation_benchmark(
-  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[],
-  scalars: bigint[] | Uint32Array[],
+  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[] | Buffer,
+  scalars: bigint[] | Uint32Array[] | Buffer,
 ): Promise<{ x: bigint; y: bigint }> {
   const num_rows = 16;
   const num_words = 16;
@@ -384,11 +384,11 @@ export async function create_csr_precomputation_benchmark(
 }
 
 export async function create_csr_sparse_matrices_from_points_benchmark(
-  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[],
-  scalars: bigint[] | Uint32Array[],
+  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[] | Buffer,
+  scalars: bigint[] | Uint32Array[] | Buffer,
 ): Promise<{ x: bigint; y: bigint }> {
   const num_rows = 8;
-  const points = baseAffinePoints.map((x) =>
+  const points = (baseAffinePoints as BigIntPoint[]).map((x) =>
     bigIntPointToExtPointType(x as BigIntPoint, fieldMath),
   );
   /* eslint-disable @typescript-eslint/no-unused-vars */

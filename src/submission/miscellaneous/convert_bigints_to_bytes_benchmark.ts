@@ -9,8 +9,8 @@ const num_words = 16;
 const word_size = 16;
 
 export const convert_bigints_to_bytes_benchmark = async (
-  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[],
-  scalars: bigint[] | Uint32Array[],
+  baseAffinePoints: BigIntPoint[] | U32ArrayPoint[] | Buffer,
+  scalars: bigint[] | Uint32Array[] | Buffer,
 ): Promise<{ x: bigint; y: bigint }> => {
   //let code = ''
   //for (let i = 0; i < 16; i ++) {

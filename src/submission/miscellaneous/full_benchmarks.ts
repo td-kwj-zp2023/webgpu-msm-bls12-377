@@ -1,10 +1,11 @@
 import { BigIntPoint, U32ArrayPoint } from "../../reference/types";
+import { bigIntsToBufferLE } from '../../reference/webgpu/utils';
 import { PowersTestCase, loadTestCase } from "../../test-data/testCases";
 import { compute_msm } from "../submission";
 
 export const full_benchmarks = async (
-  {}: BigIntPoint[] | U32ArrayPoint[],
-  {}: bigint[] | Uint32Array[],
+  {}: BigIntPoint[] | U32ArrayPoint[] | Buffer,
+  {}: bigint[] | Uint32Array[] | Buffer,
 ): Promise<{ x: bigint; y: bigint }> => {
   const DELAY = 100;
   const NUM_RUNS = 5;
@@ -24,7 +25,19 @@ export const full_benchmarks = async (
   const testcases: any = {};
   for (let power = START_POWER; power <= END_POWER; power++) {
     const testcase = await loadTestCase(power);
-    testcases[power] = testcase;
+    const xyArray: bigint[] = [];
+    testcase.baseAffinePoints.map((point: any) => {
+      xyArray.push(point.x);
+      xyArray.push(point.y);
+    });
+
+    const bufferPoints = bigIntsToBufferLE(xyArray, 256);
+    const bufferScalars = bigIntsToBufferLE(testcase.scalars, 256);
+    testcases[power] = {
+      bufferPoints,
+      bufferScalars,
+      expectedResult: testcase.expectedResult,
+    };
   }
 
   for (let power = START_POWER; power <= END_POWER; power++) {
@@ -36,22 +49,20 @@ export const full_benchmarks = async (
     const testcase = testcases[power];
 
     /*
-          Iterate test cases of powers 16 to 20 inclusive
-          For each test case:
-            - inject some random variables into each shader to force recompilation
-            - measure the first run
-            - measure NUM_RUNS more runs
-            - report the time taken for all runs, the average, and the average
-              excluding the first (compile) run in JSON and Markdown
-        */
-
-    // TODO: inject random variables in to the shader
+      Iterate test cases of powers 16 to 20 inclusive
+      For each test case:
+        - inject some random variables into each shader to force recompilation
+        - measure the first run
+        - measure NUM_RUNS more runs
+        - report the time taken for all runs, the average, and the average
+          excluding the first (compile) run in JSON and Markdown
+    */
 
     // Measure the first run, which forces a recompile
     const first_run_start = Date.now();
     const msm = await compute_msm(
-      testcase.baseAffinePoints,
-      testcase.scalars,
+      testcase.bufferPoints,
+      testcase.bufferScalars,
       false,
       do_recompile,
     );
@@ -87,8 +98,8 @@ export const full_benchmarks = async (
       const start = Date.now();
       // Run without forcing a recompile
       await compute_msm(
-        testcase.baseAffinePoints,
-        testcase.scalars,
+        testcase.bufferPoints,
+        testcase.bufferScalars,
         false,
         false,
       );
