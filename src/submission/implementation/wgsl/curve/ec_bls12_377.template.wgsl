@@ -1,9 +1,3 @@
-struct Point {
-  x: BigInt,
-  y: BigInt,
-  z: BigInt
-}
-
 // Assumes that p1.z and p2.z are both equal to 1
 // 10M + 15add
 fn add_points_zs_1(p1: Point, p2: Point) -> Point {
