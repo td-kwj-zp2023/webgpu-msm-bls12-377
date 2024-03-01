@@ -4,7 +4,7 @@ import {
   compute_misc_params,
   genRandomFieldElement,
   gen_p_limbs,
-  bigints_to_u8_for_gpu,
+  bigints_to_u8_for_gpu_old,
   u8s_to_bigints,
 } from "../implementation/cuzk/utils";
 import {
@@ -28,10 +28,12 @@ export const mont_mul_benchmarks = async (
   {}: BigIntPoint[] | U32ArrayPoint[] | Buffer,
   {}: bigint[] | Uint32Array[] | Buffer,
 ): Promise<{ x: bigint; y: bigint }> => {
+  const cost = 2 ** 17;
+  const num_runs = 10;
+
   // Define and generate params
   const num_inputs = 1;
   const num_x_workgroups = 1;
-  const cost = 2 ** 16;
 
   const p = BigInt(
     "0x12ab655e9a2ca55660b44d1e5c37b00159aa76fed00000010a11800000000001",
@@ -47,11 +49,9 @@ export const mont_mul_benchmarks = async (
     return (c * b * r) % p;
   };
 
-  const num_runs = 5;
-
   const timings: any = {};
 
-  for (let word_size = 12; word_size < 17; word_size++) {
+  for (let word_size = 13; word_size < 14; word_size++) {
     timings[word_size] = [];
 
     const misc_params = compute_misc_params(p, word_size);
@@ -157,7 +157,7 @@ export const mont_mul_benchmarks = async (
         expected.push(expensive_computation(a, b, r, cost));
       }
 
-      const input_bytes = bigints_to_u8_for_gpu(inputs);
+      const input_bytes = bigints_to_u8_for_gpu_old(inputs, num_words, word_size);
 
       const device = await get_device();
 

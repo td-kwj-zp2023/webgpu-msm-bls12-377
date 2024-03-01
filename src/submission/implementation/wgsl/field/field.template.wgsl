@@ -19,7 +19,7 @@ fn fr_sub(a: ptr<function, BigInt>, b: ptr<function, BigInt>) -> BigInt {
     var res: BigInt;
     
     var c = bigint_gt(a, b);
-    if (c == 0u) { // a < b
+    if (c == 0u) { // a <= b
         var r: BigInt;
         bigint_sub(b, a, &r);
         var p = get_p();
