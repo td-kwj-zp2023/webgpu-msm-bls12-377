@@ -27,7 +27,7 @@ const do_tests = (desc: string, p: bigint) => {
       for (let word_size = 12; word_size < 16; word_size++) {
         const num_words = calc_num_words(word_size, p_width);
         const r = compute_mont_radix(num_words, word_size);
-        const { n0 } = compute_mont_constants(p, r, word_size);
+        const { n0, rinv } = compute_mont_constants(p, r, word_size);
         const nsafe = Math.ceil(2 ** 32 / 2 ** (word_size * 2)) / 2;
         params[word_size] = {
           p_words: to_words_le(p, num_words, word_size),
@@ -35,6 +35,7 @@ const do_tests = (desc: string, p: bigint) => {
           n0,
           r,
           nsafe,
+          rinv,
         };
 
         inputs[word_size] = [];
@@ -61,6 +62,51 @@ const do_tests = (desc: string, p: bigint) => {
         }
       }
     });
+
+    it("test if inputs can be greater than p (13-bit words)", () => {
+      const word_size = 13;
+      const { num_words, n0, r, p_words } = params[word_size];
+
+      for (let i = 0; i < inputs[word_size].length; i ++) {
+        const { a, b, ar, br, ar_words, br_words } = inputs[word_size][i]
+        const arp = ar + p
+        const brp = br + p
+        const arp_words = to_words_le(arp, num_words, word_size)
+        const brp_words = to_words_le(arp, num_words, word_size)
+
+        expect(from_words_le(arp_words, num_words, word_size) === arp)
+        expect(from_words_le(brp_words, num_words, word_size) === brp)
+
+        const expected_mod_p = BigInt(a * b * r) % BigInt(p)
+        const expected_mod_p_words = to_words_le(expected_mod_p, num_words, word_size)
+
+        const product_0 = mont_optimised(
+          ar_words,
+          br_words,
+          p_words,
+          num_words,
+          word_size,
+          n0,
+        );
+        const product_1 = mont_optimised(
+          arp_words,
+          brp_words,
+          p_words,
+          num_words,
+          word_size,
+          n0,
+        );
+
+        expect(product_0).toEqual(expected_mod_p_words)
+
+        // montgomery_product(ar + p, br + p) does not give a correct result
+        expect(product_1.toString()).not.toEqual(expected_mod_p_words.toString())
+
+        // Even reducing the result does not give the expected value
+        const product_1_mod_p = from_words_le(product_1, num_words, word_size) % p
+        expect(product_1_mod_p).not.toEqual(expected_mod_p)
+      }
+    })
 
     it("iterative algo for 12 to 15-bit words", () => {
       for (let word_size = 13; word_size < 14; word_size++) {
