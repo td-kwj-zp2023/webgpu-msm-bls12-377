@@ -1,17 +1,24 @@
 fn double_point(p1: Point) -> Point {
     var p1x = p1.x;
     var p1y = p1.y;
+    var p1z = p1.z;
+
     var a = montgomery_product(&p1x, &p1x);
     var b = montgomery_product(&p1y, &p1y);
-    var p1z = p1.z;
+
+    // a + b
+    var a_p_b = fr_add(&a, &b);
+
     var z1_m_z1 = montgomery_product(&p1z, &p1z);
     var c = fr_add(&z1_m_z1, &z1_m_z1);
     var p = get_p();
     var d = fr_sub(&p, &a);
     var x1_m_y1 = fr_add(&p1x, &p1y);
     var x1y1_m_x1y1 = montgomery_product(&x1_m_y1, &x1_m_y1);
-    var x1y1_m_x1y1_s_a = fr_sub(&x1y1_m_x1y1, &a);
-    var e = fr_sub(&x1y1_m_x1y1_s_a, &b);
+
+    // x1y1_m_x1y1 - a - b
+    var e = fr_sub(&x1y1_m_x1y1, &a_p_b);
+
     var g = fr_add(&d, &b);
     var f = fr_sub(&g, &c);
     var h = fr_sub(&d, &b);
@@ -33,28 +40,32 @@ fn add_points(p1: Point, p2: Point) -> Point {
 
     var p1x = p1.x;
     var p2x = p2.x;
-    var a = montgomery_product(&p1x, &p2x);
-
     var p1y = p1.y;
     var p2y = p2.y;
-    var b = montgomery_product(&p1y, &p2y);
-
     var p1t = p1.t;
     var p2t = p2.t;
+    var p1z = p1.z;
+    var p2z = p2.z;
+
+    var a = montgomery_product(&p1x, &p2x);
+    var b = montgomery_product(&p1y, &p2y);
+
+    // a + b
+    var a_p_b = fr_add(&a, &b);
+
     var t2 = montgomery_product(&p1t, &p2t);
 
     var EDWARDS_D = get_edwards_d();
     var c = montgomery_product(&EDWARDS_D, &t2);
 
-    var p1z = p1.z;
-    var p2z = p2.z;
     var d = montgomery_product(&p1z, &p2z);
 
     var xpy = fr_add(&p1x, &p1y);
     var xpy2 = fr_add(&p2x, &p2y);
     var e = montgomery_product(&xpy, &xpy2);
-    e = fr_sub(&e, &a);
-    e = fr_sub(&e, &b);
+
+    // e - a - b
+    e = fr_sub(&e, &a_p_b);
 
     var f = fr_sub(&d, &c);
     var g = fr_add(&d, &c);
