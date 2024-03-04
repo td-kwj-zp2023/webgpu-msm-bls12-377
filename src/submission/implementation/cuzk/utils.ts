@@ -237,6 +237,24 @@ export const u8s_to_numbers_32 = (u8s: Uint8Array): number[] => {
   return result;
 };
 
+export const bigints_to_u8_for_gpu_old = (
+  vals: bigint[],
+  num_words: number,
+  word_size: number,
+): Uint8Array => {
+  const size = vals.length * num_words * 4;
+  const result = new Uint8Array(size);
+
+  for (let i = 0; i < vals.length; i++) {
+    const bytes = bigint_to_u8_for_gpu(vals[i], num_words, word_size);
+    for (let j = 0; j < bytes.length; j++) {
+      result[i * bytes.length + j] = bytes[j];
+    }
+  }
+
+  return result;
+};
+
 // Assumes 32-byte BigInts
 export const bigints_to_u8_for_gpu = (
   vals: bigint[],

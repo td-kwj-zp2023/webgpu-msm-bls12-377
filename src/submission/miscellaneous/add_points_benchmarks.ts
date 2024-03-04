@@ -11,7 +11,7 @@ import {
   gen_p_limbs,
   gen_d_limbs,
 } from "../implementation/cuzk/utils";
-import { add_points_any_a, add_points_a_minus_one } from "./add_points";
+import { add_points_any_a } from "./add_points";
 import {
   GPUExecution,
   IEntryInfo,
@@ -25,8 +25,7 @@ import structs from "../implementation/wgsl/struct/structs.template.wgsl";
 import bigint_funcs from "../implementation/wgsl/bigint/bigint.template.wgsl";
 import field_funcs from "../implementation/wgsl/field/field.template.wgsl";
 import ec_funcs from "../implementation/wgsl/curve/ec.template.wgsl";
-import add_points_any_a_shader from "./wgsl/add_points_any_a.template.wgsl";
-import add_points_a_minus_one_shader from "./wgsl/add_points_a_minus_one.template.wgsl";
+import add_points_benchmark_shader from "./wgsl/add_points_benchmark.template.wgsl";
 import montgomery_product_funcs from "../implementation/wgsl/montgomery/mont_pro_product.template.wgsl";
 
 const setup_shader_code = (
@@ -82,7 +81,8 @@ export const add_points_benchmarks = async (
   {}: BigIntPoint[] | U32ArrayPoint[] | Buffer,
   {}: bigint[] | Uint32Array[] | Buffer,
 ): Promise<{ x: bigint; y: bigint }> => {
-  const cost = 2;
+  const cost = 2 ** 12;
+
   const fieldMath = new FieldMath();
   fieldMath.aleoD = BigInt(-1);
   const p = BigInt(
@@ -115,7 +115,7 @@ export const add_points_benchmarks = async (
   const num_x_workgroups = 1;
   const word_size = 13;
 
-  const num_runs = 1;
+  const num_runs = 5;
 
   console.log("Cost:", cost);
   const print_avg_timings = (timings: any[]) => {
@@ -151,7 +151,7 @@ export const add_points_benchmarks = async (
   const timings_any_a: any[] = [];
   for (let i = 0; i < num_runs; i++) {
     const r = await do_benchmark(
-      add_points_any_a_shader,
+      add_points_benchmark_shader,
       a,
       b,
       p,
@@ -164,30 +164,8 @@ export const add_points_benchmarks = async (
     timings_any_a.push(r);
   }
 
-  const timings_any = print_avg_timings(timings_any_a);
+  print_avg_timings(timings_any_a);
 
-  console.log("Benchmarking add_points for add-2008-hwcd-4");
-  const timings_a_minus_one: any[] = [];
-  for (let i = 0; i < num_runs; i++) {
-    const r = await do_benchmark(
-      add_points_a_minus_one_shader,
-      a,
-      b,
-      p,
-      cost,
-      num_x_workgroups,
-      word_size,
-      fieldMath,
-      add_points_a_minus_one,
-    );
-    timings_a_minus_one.push(r);
-  }
-
-  const timings_minus = print_avg_timings(timings_a_minus_one);
-
-  const gpu_diff = timings_any.avg_gpu - timings_minus.avg_gpu;
-  const percent_diff = (gpu_diff / timings_any.avg_gpu) * 100;
-  console.log(`Difference: ${percent_diff}%`);
 
   return { x: BigInt(1), y: BigInt(0) };
 };
