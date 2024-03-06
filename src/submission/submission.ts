@@ -402,18 +402,14 @@ export const convert_point_coords_and_decompose_shaders = async (
 
   // The X and Y coordiantes are arranged in points_buffer as
   // [x * 48, y * 48, x * 48, y * 48, ...]
-  const x_coords_bytes = new Uint8Array(points_buffer.length / 2);
-  const y_coords_bytes = new Uint8Array(points_buffer.length / 2);
-  for (let i = 0; i < input_size; i++) {
-    for (let j = 0; j < 96; j++) {
-      x_coords_bytes[i * 48 + j] = points_buffer[i * 96 + j];
-      y_coords_bytes[i * 48 + j] = points_buffer[i * 96 + 48 + j];
-    }
-  }
+
+  const half_length = points_buffer.length / 2
+  const first_half_bytes = points_buffer.slice(0, half_length)
+  const second_half_bytes = points_buffer.slice(half_length, points_buffer.length)
 
   // Input buffers
-  const x_coords_sb = create_and_write_sb(device, x_coords_bytes);
-  const y_coords_sb = create_and_write_sb(device, y_coords_bytes);
+  const first_half_coords_sb = create_and_write_sb(device, first_half_bytes);
+  const second_half_coords_sb = create_and_write_sb(device, second_half_bytes);
   const scalars_sb = create_and_write_sb(device, scalars_buffer);
 
   // Output buffers
@@ -435,8 +431,8 @@ export const convert_point_coords_and_decompose_shaders = async (
     "uniform",
   ]);
   const bindGroup = create_bind_group(device, bindGroupLayout, [
-    x_coords_sb,
-    y_coords_sb,
+    first_half_coords_sb,
+    second_half_coords_sb,
     scalars_sb,
     point_x_sb,
     point_y_sb,
