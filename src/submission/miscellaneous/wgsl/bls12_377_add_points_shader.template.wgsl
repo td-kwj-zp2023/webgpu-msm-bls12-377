@@ -48,7 +48,7 @@ fn main(@builtin(global_invocation_id) global_id: vec3<u32>) {
     out_z_coords[id] = added.z;
 
     // dbl(pt + pt2)
-    var doubled = double_point(add_points_zs_1(pt, pt2));
+    var doubled = double_point(add_points(pt, pt2));
     out_x_coords[id + 1u] = doubled.x;
     out_y_coords[id + 1u] = doubled.y;
     out_z_coords[id + 1u] = doubled.z;
