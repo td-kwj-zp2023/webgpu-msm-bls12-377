@@ -192,6 +192,21 @@ export const u8s_to_bigints = (
   return result;
 };
 
+export const u8s_to_bigints_without_assertion = (
+  u8s: Uint8Array,
+  num_words: number,
+  word_size: number,
+): bigint[] => {
+  const num_u8s_per_scalar = num_words * 4;
+  const result = [];
+  for (let i = 0; i < u8s.length / num_u8s_per_scalar; i++) {
+    const p = i * num_u8s_per_scalar;
+    const s = u8s.slice(p, p + num_u8s_per_scalar);
+    result.push(u8s_to_bigint_without_assertion(s, num_words, word_size));
+  }
+  return result;
+};
+
 export const u8s_to_bigint = (
   u8s: Uint8Array,
   num_words: number,
@@ -204,6 +219,20 @@ export const u8s_to_bigint = (
   }
 
   return from_words_le(new Uint16Array(limbs), num_words, word_size);
+};
+
+export const u8s_to_bigint_without_assertion = (
+  u8s: Uint8Array,
+  num_words: number,
+  word_size: number,
+): bigint => {
+  const a = new Uint16Array(u8s.buffer);
+  const limbs: number[] = [];
+  for (let i = 0; i < a.length; i += 2) {
+    limbs.push(a[i]);
+  }
+
+  return from_words_le_without_assertion(new Uint16Array(limbs), num_words, word_size);
 };
 
 export const numbers_to_u8s_for_gpu = (vals: number[]): Uint8Array => {
@@ -380,6 +409,21 @@ export const from_words_le = (
   for (let i = 0; i < num_words; i++) {
     assert(words[i] < 2 ** word_size);
     assert(words[i] >= 0);
+    val +=
+      BigInt(2) ** BigInt((num_words - i - 1) * word_size) *
+      BigInt(words[num_words - 1 - i]);
+  }
+
+  return val;
+};
+
+export const from_words_le_without_assertion = (
+  words: Uint16Array,
+  num_words: number,
+  word_size: number,
+): bigint => {
+  let val = BigInt(0);
+  for (let i = 0; i < num_words; i++) {
     val +=
       BigInt(2) ** BigInt((num_words - i - 1) * word_size) *
       BigInt(words[num_words - 1 - i]);
