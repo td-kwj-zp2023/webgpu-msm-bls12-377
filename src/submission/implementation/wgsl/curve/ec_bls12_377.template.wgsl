@@ -1,45 +1,3 @@
-// Assumes that p1.z and p2.z are both equal to 1
-// 10M + 15add
-fn add_points_zs_1(p1: Point, p2: Point) -> Point {
-    var X1 = p1.x; var Y1 = p1.y;
-    var X2 = p2.x; var Y2 = p2.y;
-
-    var T = fr_add(&X1, &X2);
-    var TT = montgomery_product(&T, &T);
-    var F = fr_add(&Y1, &Y2);
-
-    var U1U2 = montgomery_product(&X1, &X2);
-    var R = fr_sub(&TT, &U1U2);
-
-    var L = montgomery_product(&F, &F);
-    var LL = montgomery_product(&L, &L);
-
-    var TL = fr_add(&T, &L);
-    var TLTL = montgomery_product(&TL, &TL);
-    var TTLL = fr_add(&TT, &LL);
-    var G = fr_sub(&TLTL, &TTLL);
-
-    var RR = montgomery_product(&R, &R);
-    var RR2 = fr_add(&RR, &RR);
-    var W = fr_sub(&RR2, &G);
-
-    var FW = montgomery_product(&F, &W);
-    var X3 = fr_add(&FW, &FW);
-
-    var LL2 = fr_add(&LL, &LL);
-    var W2 = fr_add(&W, &W);
-    var GW2 = fr_sub(&G, &W2);
-    var RGW2 = montgomery_product(&R, &GW2);
-    var Y3 = fr_sub(&RGW2, &LL2);
-
-    var F2 = fr_add(&F, &F);
-    var F4 = fr_add(&F2, &F2);
-    var FS = montgomery_product(&F, &F);
-    var Z3 = montgomery_product(&F4, &FS);
-
-    return Point(X3, Y3, Z3);
-}
-
 fn is_zero(coord: BigInt) -> bool {
     for (var i = 0u; i < NUM_WORDS; i ++) {
         if (coord.limbs[i] != 0u) {
@@ -51,12 +9,11 @@ fn is_zero(coord: BigInt) -> bool {
 
 // Adds any two projective points
 // https://www.hyperelliptic.org/EFD/g1p/auto-shortw-projective.html#addition-add-2007-bl
-// 16M + 15add
+// 16M + 10add + 5sub
 fn add_points(p1: Point, p2: Point) -> Point {
     var X1 = p1.x; var Y1 = p1.y; var Z1 = p1.z;
     var X2 = p2.x; var Y2 = p2.y; var Z2 = p2.z;
 
-    // TODO: optimise this within SMVP
     if (is_zero(Z1)) {
         return p2;
     }
@@ -108,7 +65,7 @@ fn add_points(p1: Point, p2: Point) -> Point {
 
 // https://www.hyperelliptic.org/EFD/g1p/auto-shortw-projective.html#doubling-dbl-2007-bl
 fn double_point(p1: Point) -> Point {
-    // 10M + 11add
+    // 10M + 7add + 4 sub
     var x = p1.x; var y = p1.y; var z = p1.z;
     var XX = montgomery_product(&x, &x);
     var w = fr_add(&XX, &XX);
