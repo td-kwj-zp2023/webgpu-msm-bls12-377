@@ -43,6 +43,7 @@ import {
   numbers_to_u8s_for_gpu,
   compute_misc_params,
   decompose_scalars_signed,
+  u8s_to_bigints_without_assertion,
 } from "./implementation/cuzk/utils";
 import { cpu_transpose } from "./implementation/cuzk/transpose";
 import { cpu_smvp_signed } from "./implementation/cuzk/smvp";
@@ -282,9 +283,9 @@ export const compute_msm = async (
   // Destroy the GPU device object
   device.destroy();
 
-  const g_points_x_mont_coords = u8s_to_bigints(data[0], num_words, word_size);
-  const g_points_y_mont_coords = u8s_to_bigints(data[1], num_words, word_size);
-  const g_points_z_mont_coords = u8s_to_bigints(data[2], num_words, word_size);
+  const g_points_x_mont_coords = u8s_to_bigints_without_assertion(data[0], num_words, word_size);
+  const g_points_y_mont_coords = u8s_to_bigints_without_assertion(data[1], num_words, word_size);
+  const g_points_z_mont_coords = u8s_to_bigints_without_assertion(data[2], num_words, word_size);
 
   const points: G1[] = [];
 
@@ -402,18 +403,14 @@ export const convert_point_coords_and_decompose_shaders = async (
 
   // The X and Y coordiantes are arranged in points_buffer as
   // [x * 48, y * 48, x * 48, y * 48, ...]
-  const x_coords_bytes = new Uint8Array(points_buffer.length / 2);
-  const y_coords_bytes = new Uint8Array(points_buffer.length / 2);
-  for (let i = 0; i < input_size; i++) {
-    for (let j = 0; j < 96; j++) {
-      x_coords_bytes[i * 48 + j] = points_buffer[i * 96 + j];
-      y_coords_bytes[i * 48 + j] = points_buffer[i * 96 + 48 + j];
-    }
-  }
+
+  const half_length = points_buffer.length / 2
+  const first_half_bytes = points_buffer.slice(0, half_length)
+  const second_half_bytes = points_buffer.slice(half_length, points_buffer.length)
 
   // Input buffers
-  const x_coords_sb = create_and_write_sb(device, x_coords_bytes);
-  const y_coords_sb = create_and_write_sb(device, y_coords_bytes);
+  const first_half_coords_sb = create_and_write_sb(device, first_half_bytes);
+  const second_half_coords_sb = create_and_write_sb(device, second_half_bytes);
   const scalars_sb = create_and_write_sb(device, scalars_buffer);
 
   // Output buffers
@@ -435,8 +432,8 @@ export const convert_point_coords_and_decompose_shaders = async (
     "uniform",
   ]);
   const bindGroup = create_bind_group(device, bindGroupLayout, [
-    x_coords_sb,
-    y_coords_sb,
+    first_half_coords_sb,
+    second_half_coords_sb,
     scalars_sb,
     point_x_sb,
     point_y_sb,
