@@ -53,7 +53,7 @@ fn add_points(p1: Point, p2: Point) -> Point {
 
 // https://www.hyperelliptic.org/EFD/g1p/auto-shortw-projective.html#doubling-dbl-2007-bl
 fn double_point(p1: Point) -> Point {
-    // 10M + 11add
+    // 10M + 7add + 4 sub
     var x = p1.x; var y = p1.y; var z = p1.z;
     var XX = montgomery_product(&x, &x);
     var w = fr_add(&XX, &XX);
