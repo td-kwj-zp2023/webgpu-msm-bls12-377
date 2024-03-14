@@ -8,8 +8,8 @@ fn is_zero(coord: BigInt) -> bool {
 }
 
 // Adds any two projective points
-// https://www.hyperelliptic.org/EFD/g1p/auto-shortw-projective.html#addition-add-2007-bl
-// 16M + 10add + 5sub
+// https://www.hyperelliptic.org/EFD/g1p/auto-shortw-projective.html#addition-add-2002-bj
+// 16M, 5 add, 4 sub
 fn add_points(p1: Point, p2: Point) -> Point {
     var X1 = p1.x; var Y1 = p1.y; var Z1 = p1.z;
     var X2 = p2.x; var Y2 = p2.y; var Z2 = p2.z;
@@ -27,38 +27,26 @@ fn add_points(p1: Point, p2: Point) -> Point {
     var S2 = montgomery_product(&Y2, &Z1);
     var ZZ = montgomery_product(&Z1, &Z2);
     var T = fr_add(&U1, &U2);
-    var TT = montgomery_product(&T, &T);
     var M = fr_add(&S1, &S2);
-
     var U1U2 = montgomery_product(&U1, &U2);
+    var TT = montgomery_product(&T, &T);
     var R = fr_sub(&TT, &U1U2);
-
     var F = montgomery_product(&ZZ, &M);
     var L = montgomery_product(&M, &F);
-    var LL = montgomery_product(&L, &L);
-
-    var TL = fr_add(&T, &L);
-    var TLTL = montgomery_product(&TL, &TL);
-    var TTLL = fr_add(&TT, &LL);
-    var G = fr_sub(&TLTL, &TTLL);
-
+    var G = montgomery_product(&T, &L);
     var RR = montgomery_product(&R, &R);
-    var RR2 = fr_add(&RR, &RR);
-    var W = fr_sub(&RR2, &G);
-
+    var W = fr_sub(&RR, &G);
     var FW = montgomery_product(&F, &W);
     var X3 = fr_add(&FW, &FW);
-
-    var LL2 = fr_add(&LL, &LL);
     var W2 = fr_add(&W, &W);
     var GW2 = fr_sub(&G, &W2);
     var RGW2 = montgomery_product(&R, &GW2);
-    var Y3 = fr_sub(&RGW2, &LL2);
+    var LL = montgomery_product(&L, &L);
+    var Y3 = fr_sub(&RGW2, &LL);
 
-    var F2 = fr_add(&F, &F);
-    var F4 = fr_add(&F2, &F2);
-    var FS = montgomery_product(&F, &F);
-    var Z3 = montgomery_product(&F4, &FS);
+    var FF = montgomery_product(&F, &F);
+    var FFF = montgomery_product(&FF, &F);
+    var Z3 = fr_add(&FFF, &FFF);
 
     return Point(X3, Y3, Z3);
 }
