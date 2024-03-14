@@ -43,6 +43,7 @@ import {
   numbers_to_u8s_for_gpu,
   compute_misc_params,
   decompose_scalars_signed,
+  u8s_to_bigints_without_assertion,
 } from "./implementation/cuzk/utils";
 import { cpu_transpose } from "./implementation/cuzk/transpose";
 import { cpu_smvp_signed } from "./implementation/cuzk/smvp";
@@ -282,9 +283,9 @@ export const compute_msm = async (
   // Destroy the GPU device object
   device.destroy();
 
-  const g_points_x_mont_coords = u8s_to_bigints(data[0], num_words, word_size);
-  const g_points_y_mont_coords = u8s_to_bigints(data[1], num_words, word_size);
-  const g_points_z_mont_coords = u8s_to_bigints(data[2], num_words, word_size);
+  const g_points_x_mont_coords = u8s_to_bigints_without_assertion(data[0], num_words, word_size);
+  const g_points_y_mont_coords = u8s_to_bigints_without_assertion(data[1], num_words, word_size);
+  const g_points_z_mont_coords = u8s_to_bigints_without_assertion(data[2], num_words, word_size);
 
   const points: G1[] = [];
 
