@@ -11,6 +11,37 @@ This document (https://hackmd.io/HNH0DcSqSka4hAaIfJNHEA) describes our implement
 
 Our work is heavily inspired by the <u>cuZK</u> paper ([Lu et al, 2022](https://eprint.iacr.org/2022/1321.pdf)), as well as techniques employed by competitors in the 2022 iteration of ZPrize. We also explored other techniques that no other prior teams had employed, and chose only those which performed the most efficiently. We strove to cite all third-party sources and will update this documentation to credit any that we missed.
 
+## Quick Start
+
+Ensure you have:
+
+- [Git LFS](https://docs.github.com/en/repositories/working-with-files/managing-large-files/installing-git-large-file-storage)  installed
+- [Node.js](https://nodejs.org) 16 or later installed
+- [Yarn](https://yarnpkg.com) v1 or v2 installed
+
+Then run the following:
+
+### 1) Clone the repository
+
+```bash
+git clone https://github.com/demox-labs/webgpu-msm && cd webgpu-msm
+```
+
+### 2) Install dependencies
+
+```bash
+yarn
+```
+
+### 3) Development
+
+Run a local server on localhost:4040.
+
+```bash
+yarn start
+```
+Note -- running webgpu functions will only work on [browsers compatible](https://caniuse.com/webgpu) with webgpu.
+
 ## Performance
 
 Please refer to [this spreadsheet](https://docs.google.com/spreadsheets/d/1JR8Rzern0DkXc8oHZWcGlPjxSCfP4n4-ZDrpYihgo8M/edit#gid=0) for benchmarks which we recorded on our own devices: **Apple M1 MacBook (2020), Apple M3 Pro MacBook (2023), Nvidia RTX A1000 GPU**.
@@ -528,3 +559,6 @@ Additionally, we explored the use of **floating-point** arithmetic in our implem
 ## Conclusion
 
 We are grateful to the authors of the [cuZK](https://eprint.iacr.org/2022/1321) paper, last year's ZPrize participants, and other authors whose work we referenced. We hope that the outcome of this year's ZPrize can continue to drive innovation forward in the industry.
+
+## Questions
+For questions regarding this submission, please contact tal@penumbralabs.xyz or contact@kohweijie.com. 
