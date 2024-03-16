@@ -2,9 +2,7 @@
 
 Authors: Tal Derei and Koh Wei Jie
 
-## Documentation
-
-# Documentation for our 2023 ZPrize Submission
+## Documentation for our 2023 ZPrize Submission
 
 By [Tal Derei](https://github.com/TalDerei/) and [Koh Wei Jie](https://github.com/weijiekoh/)
 
