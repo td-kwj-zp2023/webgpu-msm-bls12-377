@@ -225,8 +225,8 @@ export const compute_msm = async (
 
   /// This is a dynamic variable that determines the number of CSR
   /// matrices processed per invocation of the BPR shader. A safe default is 1.
-  const num_subtasks_per_bpr = 16;
-  const b_num_x_workgroups = num_subtasks_per_bpr;
+  const num_subtasks_per_bpr_1 = 16;
+  const b_num_x_workgroups = num_subtasks_per_bpr_1;
   const b_workgroup_size = 256;
 
   // Output of the parallel bucket points reduction (BPR) shader
@@ -238,7 +238,7 @@ export const compute_msm = async (
 
   // Bucket points reduction (BPR) - stage 1
   const bpr_shader = shaderManager.gen_bpr_shader(b_workgroup_size);
-  for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx += num_subtasks_per_bpr) {
+  for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx += num_subtasks_per_bpr_1) {
     await bpr_1(
       bpr_shader,
       subtask_idx,
@@ -257,11 +257,13 @@ export const compute_msm = async (
   }
 
   // Bucket points reduction (BPR) - stage 2
-  for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx++) {
+  const num_subtasks_per_bpr_2 = 16;
+  const b_2_num_x_workgroups = num_subtasks_per_bpr_2;
+  for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx += num_subtasks_per_bpr_2) {
     await bpr_2(
       bpr_shader,
       subtask_idx,
-      1, //b_num_x_workgroups,
+      b_2_num_x_workgroups,
       b_workgroup_size,
       num_columns,
       device,
@@ -1133,7 +1135,6 @@ const bpr_2 = async (
     // Convert the reduced buckets out of Montgomery form
     const g_points: G1[] = [];
     for (let i = 0; i < num_threads; i++) {
-      const idx = subtask_idx * num_threads + i;
       const pt = createAffinePoint(
         (g_points_x_mont_coords[i] * rinv) % p,
         (g_points_y_mont_coords[i] * rinv) % p,

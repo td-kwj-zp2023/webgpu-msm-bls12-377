@@ -124,26 +124,37 @@ fn stage_1(@builtin(global_invocation_id) global_id: vec3<u32>) {
 @workgroup_size({{ workgroup_size }})
 fn stage_2(@builtin(global_invocation_id) global_id: vec3<u32>) {    
     let thread_id = global_id.x; 
-    let num_threads = {{ workgroup_size }}u;
+    let num_threads_per_subtask = {{ workgroup_size }}u;
 
-    let subtask_idx = params[0];
-    let num_columns = params[1];
+    let subtask_idx = params[0]; // 0, 2, 4, 6, ...
+    let num_columns = params[1]; // 65536
+    let num_subtasks_per_bpr = params[2]; // Must be a power of 2
 
     /// Number of buckets per subtask.
-    let num_buckets_per_subtask = num_columns / 2u;
+    let num_buckets_per_subtask = num_columns / 2u; // 2 ** 15 = 32768
+
+    // e.g. if each iteration handles 2 subtasks and there are 32768 buckets
+    // per subtask, the number of buckets handled per BPR iteration is 65536
+    let num_buckets_per_bpr = num_buckets_per_subtask * num_subtasks_per_bpr;
 
     /// Number of buckets to reduce per thread.
-    let buckets_per_thread = num_buckets_per_subtask / num_threads;
-    let bucket_sum_offset = num_buckets_per_subtask * subtask_idx;
+    let buckets_per_thread = num_buckets_per_subtask / 
+                             num_threads_per_subtask;
 
-    var idx = bucket_sum_offset; 
-    if (thread_id != 0u) {
-        idx = (num_threads - thread_id) * buckets_per_thread + bucket_sum_offset;
+    let multiplier = subtask_idx + (thread_id / num_threads_per_subtask);
+    let offset = num_buckets_per_subtask * multiplier;
+
+    var idx = offset;
+    if (thread_id % num_threads_per_subtask != 0u) {
+        idx = (num_threads_per_subtask - (thread_id % num_threads_per_subtask)) * 
+              buckets_per_thread + offset;
     }
 
     var m = load_bucket_sum(idx);
 
-    let t = subtask_idx * num_threads + thread_id;
+    let t = (subtask_idx / num_subtasks_per_bpr) * 
+            (num_threads_per_subtask * num_subtasks_per_bpr) +
+            thread_id;
     var g = Point(
         g_points_x[t],
         g_points_y[t],
@@ -151,7 +162,7 @@ fn stage_2(@builtin(global_invocation_id) global_id: vec3<u32>) {
     );
 
     /// Perform scalar mul on m and add the result to g.
-    let s = buckets_per_thread * (num_threads - thread_id - 1u);
+    let s = buckets_per_thread * (num_threads_per_subtask - (thread_id % num_threads_per_subtask) - 1u);
     g = add_points(g, double_and_add(m, s));
 
     g_points_x[t] = g.x;
