@@ -1,6 +1,7 @@
-# ZPrize 2023 Prize 2 submission
+# ZPrize 2023 Prize 2
 
 Authors: Tal Derei and Koh Wei Jie
+
 
 ## Documentation for our 2023 ZPrize Submission
 
@@ -19,6 +20,8 @@ Please refer to [this spreadsheet](https://docs.google.com/spreadsheets/d/1JR8Rz
 We completed submissions for both the **Twisted Edwards BLS12** and **Short Weistrass** **BLS12-377** elliptic curves.
 
 ### BLS12-377 curve
+
+The BLS12-377 elliptic curve originates in the Zexe paper ([BCGMMW20](https://eprint.iacr.org/2018/962)). It has a 253-bit scalar field and 377-bit base field, whose moduli can be found on [this page](https://developer.aleo.org/advanced/the_aleo_curves/bls12-377/). Its G1 curve equation in Weierstrass form is $y^2 = x^3 + 1$.
 
 The <u>**base**</u> field of the [BLS12-377](https://developer.aleo.org/advanced/the_aleo_curves/bls12-377/) curve is:
 
@@ -154,7 +157,7 @@ It's worth noting that we index and access memory across memory addresses in a *
 Our implementation processes each CSR matrix subtask serially, and we found that using atomic operations in the transposition was *faster* than not using them. Although the webgpu compiler is generally treated as a black box of sorts, one [explanation](https://www.sciencedirect.com/topics/computer-science/atomic-operation) is: "**atomic operations are very efficient because they are implemented by low-level hardware and/or operating system instructions specially designed to support thread synchronizations**". 
 
 #### Parallel Transposition
-We considered implementing a parallel transposition scheme [(algorithm 3)](https://synergy.cs.vt.edu/pubs/papers/wang-transposition-ics16.pdf), but it boasts a steep parallelization-memory tradeoff curve. For the `inter` array alone, it would require: `(256 threads  + 1) * 2^16 columns * 16 subtasks * 4 bytes` = ~**$1$ GB** in-browser memory for $2^{16}$ inputs, and a staggering **~$17$ GB** in-browser memory for $2^{20}$ points. There are inherent memory requirements that scale with the number of threads and the size.
+We considered implementing a parallel transposition scheme [(algorithm 3)](https://synergy.cs.vt.edu/pubs/papers/wang-transposition-ics16.pdf), but it boasts a steep parallelization-memory tradeoff curve. For the `inter` array alone, it would require: `(256 threads  + 1) * 2^16 columns * 16 subtasks * 4 bytes` = **$1$ GB** in-browser memory for $2^{16}$ inputs, and a staggering **$17$ GB** in-browser memory for $2^{20}$ points. There are inherent memory requirements that scale with the number of threads and the size.
 
 ### Sparse matrix vector product and scalar multiplication (SMVP)
 
@@ -335,11 +338,11 @@ We implemented Montgomery multiplication for point coordinates to obtain a signi
 
 In WASM, the max unsigned integer type is $64$-bits, so max limb size is $32$-bits. In the GPU context using WebGPU, the max unsigned integer type is $32$-bits, so max limb-size is $16$-bits wide. We therefore have to recalculate Mistcha’s calculations to determine the optimal limb size in WebGPU.
 
-Modular multiplications are inherently slow operations because of the large bit-width of the elements, and **X*Y mod P** requires a division (~$100x$ more expensive than a multiplication) to know how many times P has to be subtracted from the product to be contained in the bounds of the prime field. [Montgomery Multiplication](https://hackmd.io/lF8qDQZnR0quXhXJ1TkC5Q) makes modular multiplications more efficient by transforming the problem into Montgomery Form. 
+Modular multiplications are inherently slow operations because of the large bit-width of the elements, and **X*Y mod P** requires a division (~ $100$ times more expensive than a multiplication) to know how many times P has to be subtracted from the product to be contained in the bounds of the prime field. [Montgomery Multiplication](https://hackmd.io/lF8qDQZnR0quXhXJ1TkC5Q) makes modular multiplications more efficient by transforming the problem into Montgomery Form. 
 
 The motivation at reducing the montgomery multiplication execution time is:
 
-**1.** MSMs comprise ~$70-80$% of the proof generation time, and (2) Field multiplications are the clear bottleneck in the computation, consuming ~$60-80$% of the total MSM runtime, (3) carry operation comprises ~$50$% of a single multiplication. 
+**1.** MSMs comprises about $70-80$% of the proof generation time, and (2) Field multiplications are the clear bottleneck in the computation, consuming ~ $60-80$% of the total MSM runtime, (3) carry operation comprises ~ $50$% of a single multiplication. 
 
 Since WGSL shaders are limited to `u32` integers, and have no $64$-bit data types to support limb sizes above $16$ and up to $32$, we had to redo Mitscha-Baude's calculations to determine the number of loop iterations that can be done without a carry (also referred to as carry-free terms, or $k$). Our results, labeled with the same notation that Mitscha-Baude used, are as such:
 
@@ -355,7 +358,7 @@ The so-called sweet spot for limb sizes if one is limited to `u32` integer types
 
 For limb sizes $12$ to $15$, the Montgomery multiplication algorithm we use is the same as the one that Mitscha-Baude describes in the abovementioned writeup (and contains checks on the loop counter modulo `nSafe`). For limb sizes $12$ and $13$, unused conditional branches are omitted (the "optmised" algorithm), while the algorithm for limb sizes $14$ and $15$, include the conditionals as they are necessary (the "modified" algorithm). For the sake of completeness, we also implemented a benchmark for Montgomery multiplication for limb sizes of 16 using the Coarsely Integrated Operand Scanning (**CIOS**) method.
 
-Our benchmarks (in `src/submission/mont_mul_benchmarks.ts`) performed a series of Montgomery multiplications ($(ar)^{65536} * (br)$) involving two field elements in Montgomery form and a high cost parameter meant to magnify the shader runtime so that the average difference in performance across runs would be obvious.
+Our benchmarks (in `src/submission/mont_mul_benchmarks.ts`) performed a series of Montgomery multiplications ((ar)^{65536} * (br)) involving two field elements in Montgomery form and a high cost parameter meant to magnify the shader runtime so that the average difference in performance across runs would be obvious.
 
 The results from a Linux laptop with a **Nvidia RTX A1000 GPU**:
 
@@ -381,11 +384,11 @@ The results from an **Apple M1 MacBook (2020)**:
 
 | Limb size | Algorithm | Average time taken (ms) |
 |-|-|-|
-| $12 | optimized | $160$ |
-| $13 | optimized | $129$ |
-| $14 | modified | $146$ |
-| $15 | modified | $154$ |
-| $16 | CIOS | $645$ |
+| $12$ | optimized | $160$ |
+| $13$ | optimized | $129$ |
+| $14$ | modified | $146$ |
+| $15$ | modified | $154$ |
+| $16$ | CIOS | $645$ |
 
 The source code for these benchmarks is in `src/submission/miscellaneous/mont_mul_benchmarks.ts`.
 
@@ -432,7 +435,7 @@ To reconstruct the original scalars, we first subtract $2^{5 -1}$ from each scal
 [[-1, 13], [8, 9]]
 ```
 
-We then treat each $i$th element as the coefficient of a polynomial $f(x)$ and evaluate it at $2^5$:
+We then treat each $i$ th element as the coefficient of a polynomial $f(x)$ and evaluate it at $2^5$:
 
 $-1x^0 + 8x = -1 + 8(32) = 255$
 $13x^0 + 9x = 13 + 9(32) = 301$
