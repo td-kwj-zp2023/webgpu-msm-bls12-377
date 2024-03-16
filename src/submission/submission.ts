@@ -188,7 +188,7 @@ export const compute_msm = async (
   // This is a dynamic variable that determines the number
   // of CSR matrices processed per invocation of the shader.
   // The more powerful the GPU, the higher this number can be.
-  const num_subtask_chunk_size = 1;
+  const num_subtask_chunk_size = 4;
 
   const smvp_shader = shaderManager.gen_smvp_shader(
     s_workgroup_size,
