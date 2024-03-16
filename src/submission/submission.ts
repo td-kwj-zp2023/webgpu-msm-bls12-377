@@ -223,21 +223,23 @@ export const compute_msm = async (
     );
   }
 
-  const b_num_x_workgroups = 1;
+  /// This is a dynamic variable that determines the number of CSR
+  /// matrices processed per invocation of the BPR shader. A safe default is 1.
+  const num_subtasks_per_bpr_1 = 16;
+  const b_num_x_workgroups = num_subtasks_per_bpr_1;
   const b_workgroup_size = 256;
-  const b_num_threads = b_num_x_workgroups * b_workgroup_size;
 
   // Output of the parallel bucket points reduction (BPR) shader
   const g_points_coord_bytelength =
-    num_subtasks * b_num_threads * num_words * 4;
+    num_subtasks * b_workgroup_size * num_words * 4;
   const g_points_x_sb = create_sb(device, g_points_coord_bytelength);
   const g_points_y_sb = create_sb(device, g_points_coord_bytelength);
   const g_points_z_sb = create_sb(device, g_points_coord_bytelength);
 
   // Bucket points reduction (BPR) - stage 1
   const bpr_shader = shaderManager.gen_bpr_shader(b_workgroup_size);
-  for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx++) {
-    await bpr_stage_1(
+  for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx += num_subtasks_per_bpr_1) {
+    await bpr_1(
       bpr_shader,
       subtask_idx,
       b_num_x_workgroups,
@@ -255,11 +257,13 @@ export const compute_msm = async (
   }
 
   // Bucket points reduction (BPR) - stage 2
-  for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx++) {
-    await bpr_stage_2(
+  const num_subtasks_per_bpr_2 = 16;
+  const b_2_num_x_workgroups = num_subtasks_per_bpr_2;
+  for (let subtask_idx = 0; subtask_idx < num_subtasks; subtask_idx += num_subtasks_per_bpr_2) {
+    await bpr_2(
       bpr_shader,
       subtask_idx,
-      b_num_x_workgroups,
+      b_2_num_x_workgroups,
       b_workgroup_size,
       num_columns,
       device,
@@ -292,11 +296,11 @@ export const compute_msm = async (
   // For a small number of points, this is extremely fast in the CPU
   for (let i = 0; i < num_subtasks; i++) {
     let point = ZERO;
-    for (let j = 0; j < b_num_threads; j++) {
+    for (let j = 0; j < b_workgroup_size; j++) {
       const reduced_point = createAffinePoint(
-        (g_points_x_mont_coords[i * b_num_threads + j] * rinv) % p,
-        (g_points_y_mont_coords[i * b_num_threads + j] * rinv) % p,
-        (g_points_z_mont_coords[i * b_num_threads + j] * rinv) % p,
+        (g_points_x_mont_coords[i * b_workgroup_size + j] * rinv) % p,
+        (g_points_y_mont_coords[i * b_workgroup_size + j] * rinv) % p,
+        (g_points_z_mont_coords[i * b_workgroup_size + j] * rinv) % p,
       );
       point = point.add(reduced_point);
     }
@@ -800,7 +804,7 @@ export const smvp_gpu = async (
   };
 };
 
-const bpr_stage_1 = async (
+const bpr_1 = async (
   shaderCode: string,
   subtask_idx: number,
   num_x_workgroups: number,
@@ -850,7 +854,9 @@ const bpr_stage_1 = async (
   }
 
   // Parameters as a uniform buffer
-  const params_bytes = numbers_to_u8s_for_gpu([subtask_idx, num_columns]);
+  const params_bytes = numbers_to_u8s_for_gpu([
+    subtask_idx, num_columns, num_x_workgroups
+  ]);
   const params_ub = create_and_write_ub(device, params_bytes);
 
   const bindGroupLayout = create_bind_group_layout(device, [
@@ -1006,7 +1012,7 @@ const bpr_stage_1 = async (
   }
 };
 
-const bpr_stage_2 = async (
+const bpr_2 = async (
   shaderCode: string,
   subtask_idx: number,
   num_x_workgroups: number,
@@ -1023,7 +1029,9 @@ const bpr_stage_2 = async (
   debug = false,
 ) => {
   // Parameters as a uniform buffer
-  const params_bytes = numbers_to_u8s_for_gpu([subtask_idx, num_columns]);
+  const params_bytes = numbers_to_u8s_for_gpu([
+    subtask_idx, num_columns, num_x_workgroups
+  ]);
   const params_ub = create_and_write_ub(device, params_bytes);
 
   const bindGroupLayout = create_bind_group_layout(device, [
@@ -1127,7 +1135,6 @@ const bpr_stage_2 = async (
     // Convert the reduced buckets out of Montgomery form
     const g_points: G1[] = [];
     for (let i = 0; i < num_threads; i++) {
-      const idx = subtask_idx * num_threads + i;
       const pt = createAffinePoint(
         (g_points_x_mont_coords[i] * rinv) % p,
         (g_points_y_mont_coords[i] * rinv) % p,
