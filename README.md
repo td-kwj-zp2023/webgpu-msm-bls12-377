@@ -21,19 +21,27 @@ Ensure you have:
 
 Then run the following:
 
-### 1) Clone the repository
+### 1) Clone the repositories
 
 ```bash
-git clone https://github.com/demox-labs/webgpu-msm && cd webgpu-msm
+git clone https://github.com/td-kwj-zp2023/webgpu-msm-bls12-377
+git clone https://github.com/demox-labs/webgpu-msm
 ```
 
-### 2) Install dependencies
+### 2) Copy the data
 
 ```bash
+cp -r webgpu-msm/public/test-data webgpu-msm-bls12-377/public
+```
+
+### 3) Install dependencies
+
+```bash
+cd webgpu-msm-bls12-377
 yarn
 ```
 
-### 3) Development
+### 4) Start server
 
 Run a local server on localhost:4040.
 
